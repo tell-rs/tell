@@ -11,27 +11,16 @@
   <img src="https://img.shields.io/badge/status-alpha-orange" alt="Alpha">
 </p>
 
-<p align="center">
-  <a href="#quick-start">Quick Start</a> &bull;
-  <a href="configs/example.toml">Config</a> &bull;
-  <a href="https://github.com/REPO/discussions">Community</a>
-</p>
-
----
-
-**Alpha** — Shipping daily. First release coming soon.
-
-## What is this?
-
 Product analytics, logs, and business data — unified. Track events and funnels. Ingest structured logs. Connect sources like GitHub and Shopify. Query everything. Build dashboards.
 
-**Stupid fast.** 65M events/sec on batched events. High-performance Rust pipeline with sub-millisecond latency.
+- **Stupid fast.** 65M events/sec on batched events. High-performance Rust pipeline with sub-millisecond latency.
+- **Connect everything.** Product events, structured logs, GitHub (stars, PRs, commits), Shopify (orders, customers). More coming.
+- **One binary.** No containers. No Docker Compose. Runs on a Raspberry Pi or your enterprise cluster.
+- **Yours forever.** Self-hosted. Your data never leaves your servers. No cloud dependency.
 
-**Connect everything.** Product events, structured logs, GitHub (stars, PRs, commits), Shopify (orders, customers). More coming.
 
-**One binary.** No containers. No Docker Compose. Runs on a Raspberry Pi or your enterprise cluster.
+**Alpha** — First release coming soon.
 
-**Yours forever.** Self-hosted. Your data never leaves your servers. No cloud dependency.
 
 ## Quick Start
 
@@ -53,18 +42,18 @@ See [configs/example.toml](configs/example.toml) for options.
 
 ## Platform
 
- - **Sources** — TCP (high-throughput), Syslog (TCP/UDP).
- - **Connectors** — GitHub (stars, forks, issues, PRs), Shopify (orders, revenue, customers). Scheduled pulls with automatic retry.
- - **Routing** — Route any source to any sink. Fan-out to multiple destinations. Filter by source, type, workspace.
- - **Transformers** — Pattern matching for log clustering, Filter, Redact, Reduce.
- - **Sinks** — ClickHouse, Parquet (query with Spark, DuckDB, Athena), Disk (binary + plaintext), Stdout, Forwarder.
- - **Tap** — Live streaming with `tell tail`. Filter by workspace, source, type. Sampling and rate limiting built in.
- - **Auth** — API keys with workspace isolation. Hot reload without restart.
- - **Config** — TOML with sensible defaults. Validation catches mistakes before you run.
+- **Sources** — TCP (high-throughput), Syslog (TCP/UDP).
+- **Connectors** — GitHub (stars, forks, issues, PRs), Shopify (orders, revenue, customers). Scheduled pulls with automatic retry.
+- **Routing** — Route any source to any sink. Fan-out to multiple destinations. Filter by source, type, workspace.
+- **Transformers** — Pattern matching for log clustering, Filter, Redact, Reduce.
+- **Sinks** — ClickHouse, Parquet (query with Spark, DuckDB, Athena), Disk (binary + plaintext), Stdout, Forwarder.
+- **Tap** — Live streaming with `tell tail`. Filter by workspace, source, type. Sampling and rate limiting built in.
+- **Auth** — API keys with workspace isolation. Hot reload without restart.
+- **Config** — TOML with sensible defaults. Validation catches mistakes before you run.
 
- - **API & Web** — (currently golang repo, is being rewritten) Go + Fiber server, Vite + React + Shadcn UI. ~95% feature-complete. REST API for DAU/WAU/MAU, funnels, retention, breakdowns, comparisons, raw drill-down. Dashboards with markdown and public sharing. Multi-tenancy active. RBAC, LDAP/SSO/SAML integration in progress. Auth providers: Local, Clerk, WorkOS.
+- **API & Web** — (currently golang repo, is being rewritten) Go + Fiber server, Vite + React + Shadcn UI. ~95% feature-complete. REST API for DAU/WAU/MAU, funnels, retention, breakdowns, comparisons, raw drill-down. Dashboards with markdown and public sharing. Multi-tenancy active. RBAC, LDAP/SSO/SAML integration in progress. Auth providers: Local, Clerk, WorkOS.
 
- - **SDKs** — Go, Swift, Flutter (95%), C++. TypeScript coming.
+- **SDKs** — Go, Swift, Flutter (95%), C++. TypeScript coming.
 
 ## Experimental
 
@@ -95,16 +84,14 @@ System    | Apple M4 Pro (aarch64) | 12 cores | 24.0 GB
 ```
 
 ### Comparison
+TCP to blackhole. See [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for details. Vector not tested on same arch yet.
 
-| | Events/sec | Throughput |
-|---|---|---|
-| **Tell** | **65M** | **13 GB/s** |
-| Vector | — | 86 MiB/s |
-| PostHog | 100K | — |
+```
+Tell                           65M events/s   13 GB/s
+Vector                         —              86 MiB/s
+PostHog                        100K events/s  —
+```
 
-<sub>TCP to blackhole. Same test methodology. See [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for details.</sub>
-
-Running in production since August 2025. ~4M events/sec sustained per node on Hetzner CAX11.
 
 ## License
 
