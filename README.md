@@ -53,28 +53,18 @@ See [configs/example.toml](configs/example.toml) for options.
 
 ## Platform
 
-**Sources** — TCP (high-throughput), Syslog (TCP/UDP).
+ - **Sources** — TCP (high-throughput), Syslog (TCP/UDP).
+ - **Connectors** — GitHub (stars, forks, issues, PRs), Shopify (orders, revenue, customers). Scheduled pulls with automatic retry.
+ - **Routing** — Route any source to any sink. Fan-out to multiple destinations. Filter by source, type, workspace.
+ - **Transformers** — Pattern matching for log clustering, Filter, Redact, Reduce.
+ - **Sinks** — ClickHouse, Parquet (query with Spark, DuckDB, Athena), Disk (binary + plaintext), Stdout, Forwarder.
+ - **Tap** — Live streaming with `tell tail`. Filter by workspace, source, type. Sampling and rate limiting built in.
+ - **Auth** — API keys with workspace isolation. Hot reload without restart.
+ - **Config** — TOML with sensible defaults. Validation catches mistakes before you run.
 
-**Connectors** — GitHub (stars, forks, issues, PRs), Shopify (orders, revenue, customers). Scheduled pulls with automatic retry.
+ - **API & Web** — (currently golang repo, is being rewritten) Go + Fiber server, Vite + React + Shadcn UI. ~95% feature-complete. REST API for DAU/WAU/MAU, funnels, retention, breakdowns, comparisons, raw drill-down. Dashboards with markdown and public sharing. Multi-tenancy active. RBAC, LDAP/SSO/SAML integration in progress. Auth providers: Local, Clerk, WorkOS.
 
-**Routing** — Route any source to any sink. Fan-out to multiple destinations. Filter by source, type, workspace.
-
-**Transformers** — Pattern matching for log clustering, Filter, Redact, Reduce.
-
-**Sinks** — ClickHouse, Parquet (query with Spark, DuckDB, Athena), Disk (binary + plaintext), Stdout, Forwarder.
-
-**Tap** — Live streaming with `tell tail`. Filter by workspace, source, type. Sampling and rate limiting built in.
-
-**Auth** — API keys with workspace isolation. Hot reload without restart.
-
-**Config** — TOML with sensible defaults. Validation catches mistakes before you run.
-
-**API & Web** (coming soon)
-- REST API: DAU/WAU/MAU, funnels, retention
-- Dashboards with public sharing
-- Multi-tenant workspaces
-
-**SDKs** — Go, Swift, Flutter, C++. TypeScript coming.
+ - **SDKs** — Go, Swift, Flutter (95%), C++. TypeScript coming.
 
 ## Experimental
 
