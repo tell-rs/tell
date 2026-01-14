@@ -1,0 +1,141 @@
+// schema/trace.fbs
+// Purpose: Distributed tracing protocol for request flow tracking
+// Each span represents one operation in a request's journey
+// Spans are linked by trace_id (same trace) and parent_span_id (parent-child)
+
+include "common.fbs";
+
+namespace schema.trace;
+
+/// Span kind - the role of this span in the trace
+enum SpanKind:uint8 {
+    UNSPECIFIED = 0,
+    INTERNAL = 1,       // Internal operation (default)
+    SERVER = 2,         // Handling incoming request
+    CLIENT = 3,         // Making outgoing request
+    PRODUCER = 4,       // Sending to message queue
+    CONSUMER = 5        // Receiving from message queue
+}
+
+/// Span status - success or failure
+enum SpanStatus:uint8 {
+    UNSET = 0,
+    OK = 1,
+    ERROR = 2
+}
+
+/// Single span in a distributed trace
+/// Field ordering optimized for trace reconstruction:
+/// 1. trace_id: Primary correlation key - groups spans into traces
+/// 2. span_id: Span identity
+/// 3. parent_span_id: Tree structure - builds parent-child relationships
+/// 4. timestamp/duration: Time data for waterfall visualization
+/// 5. name/kind/status: Span classification
+/// 6. source/service: Source identification
+/// 7. session_id: User correlation - links to events/logs
+/// 8. payload: Attributes and details - processed last
+table Span {
+    trace_id:[ubyte] (id: 0);           // 16-byte trace ID - links all spans in trace
+    span_id:[ubyte] (id: 1);            // 8-byte span ID - unique per span
+    parent_span_id:[ubyte] (id: 2);     // 8-byte parent span (empty = root span)
+    timestamp:uint64 (id: 3);           // Start time (unix nanoseconds)
+    duration:uint64 (id: 4);            // Duration in nanoseconds
+    name:string (id: 5);                // Operation name ("GET /api/users", "db.query")
+    kind:SpanKind (id: 6);              // Role in trace (SERVER, CLIENT, etc.)
+    status:SpanStatus (id: 7);          // OK/ERROR
+    source:string (id: 8);              // Source hostname/instance
+    service:string (id: 9);             // Service name
+    session_id:[ubyte] (id: 10);        // 16-byte session UUID - correlates to events/logs
+    payload:[ubyte] (id: 11);           // Attributes, events, error details as JSON
+}
+
+/// Batch of spans
+/// This is the root type that gets serialized into Batch.data
+table TraceData {
+    spans:[Span] (required);
+}
+
+root_type TraceData;
+
+// Usage Examples:
+//
+// ROOT SPAN (server receiving request):
+// Span {
+//   trace_id: [16 bytes]
+//   span_id: [8 bytes]
+//   parent_span_id: []                 // empty = root span
+//   timestamp: 1749587340000000000
+//   duration: 200000000                // 200ms in nanoseconds
+//   name: "GET /api/checkout"
+//   kind: SERVER
+//   status: OK
+//   source: "api-gateway-1"
+//   service: "api-gateway"
+//   session_id: [16 bytes]             // links to user session
+//   payload: {"attributes": {"http.method": "GET", "http.status_code": 200}}
+// }
+//
+// CHILD SPAN (client calling another service):
+// Span {
+//   trace_id: [same 16 bytes]          // same trace
+//   span_id: [different 8 bytes]
+//   parent_span_id: [parent's span_id]
+//   timestamp: 1749587340010000000     // started 10ms after root
+//   duration: 150000000                // 150ms
+//   name: "cart-service.getCart"
+//   kind: CLIENT
+//   status: OK
+//   source: "api-gateway-1"
+//   service: "api-gateway"
+//   session_id: [same 16 bytes]
+//   payload: {"attributes": {"rpc.service": "cart-service", "rpc.method": "getCart"}}
+// }
+//
+// DATABASE SPAN:
+// Span {
+//   trace_id: [same 16 bytes]
+//   span_id: [8 bytes]
+//   parent_span_id: [cart-service span_id]
+//   timestamp: 1749587340020000000
+//   duration: 140000000                // 140ms - the slow query!
+//   name: "db.query"
+//   kind: CLIENT
+//   status: OK
+//   source: "cart-service-1"
+//   service: "cart-service"
+//   session_id: [same 16 bytes]
+//   payload: {"attributes": {"db.system": "postgresql", "db.statement": "SELECT * FROM cart_items WHERE user_id = $1"}}
+// }
+//
+// ERROR SPAN:
+// Span {
+//   trace_id: [16 bytes]
+//   span_id: [8 bytes]
+//   parent_span_id: [parent's span_id]
+//   timestamp: 1749587340050000000
+//   duration: 30000000
+//   name: "payment-service.charge"
+//   kind: CLIENT
+//   status: ERROR
+//   source: "api-gateway-1"
+//   service: "api-gateway"
+//   session_id: [16 bytes]
+//   payload: {"attributes": {"rpc.service": "payment"}, "status_message": "Connection refused"}
+// }
+//
+// Payload JSON structure:
+// {
+//   "attributes": {
+//     "http.method": "GET",
+//     "http.url": "/api/users/123",
+//     "http.status_code": 200,
+//     "db.system": "postgresql",
+//     "db.statement": "SELECT ...",
+//     "custom.field": "value"
+//   },
+//   "events": [
+//     {"name": "cache.miss", "timestamp": 1749587340001000000},
+//     {"name": "retry", "timestamp": 1749587340002000000, "attributes": {"attempt": 2}}
+//   ],
+//   "status_message": "Error details if status=ERROR"
+// }

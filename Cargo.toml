@@ -1,0 +1,113 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "crates/protocol",
+    "crates/config",
+    "crates/routing",
+    "crates/pipeline",
+    "crates/auth",
+    "crates/sources",
+    "crates/sinks",
+    "crates/transform",
+    "crates/metrics",
+    "crates/connectors",
+    "crates/collector",
+    "crates/client",
+    "crates/bench",
+    "crates/tap",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+repository = "https://github.com/usercanal/cdp-collector"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.43", features = ["rt-multi-thread", "net", "sync", "io-util", "time", "signal", "macros"] }
+tokio-util = "0.7"
+
+# Zero-copy buffers
+bytes = "1.9"
+
+# Serialization
+flatbuffers = "24.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging/tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Concurrency
+parking_lot = "0.12"
+dashmap = "6.1"
+
+# File watching (for hot reload)
+notify = "7.0"
+
+# Compression
+lz4_flex = "0.11"
+
+# Lock-free concurrency
+arc-swap = "1.7"
+crossbeam = "0.8"
+crossfire = "2"
+
+# Date/time
+chrono = "0.4"
+
+# Hashing
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+# Parquet/Arrow for columnar storage
+arrow = { version = "53", default-features = false, features = ["ipc"] }
+parquet = { version = "53", default-features = false, features = ["arrow", "snap", "lz4", "zstd"] }
+
+# ClickHouse client
+clickhouse = { version = "0.13", features = ["lz4"] }
+
+# Duration parsing
+humantime = "2.1"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Testing
+criterion = "0.5"
+proptest = "1.5"
+tempfile = "3.14"
+
+# Internal crates
+cdp-protocol = { path = "crates/protocol" }
+cdp-config = { path = "crates/config" }
+cdp-routing = { path = "crates/routing" }
+pipeline = { path = "crates/pipeline" }
+cdp-auth = { path = "crates/auth" }
+cdp-sources = { path = "crates/sources" }
+sinks = { path = "crates/sinks" }
+cdp-transform = { path = "crates/transform" }
+metrics = { path = "crates/metrics" }
+connectors = { path = "crates/connectors", default-features = false }
+cdp-client = { path = "crates/client" }
+cdp-bench = { path = "crates/bench" }
+tap = { path = "crates/tap" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+lto = true
+codegen-units = 1

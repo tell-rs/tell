@@ -1,0 +1,218 @@
+Tell Software License
+
+Acceptance
+
+This Agreement sets forth the terms and conditions on which Licensor makes
+the Software available to You. By accessing or using the Software or a
+Modified Version in any manner, You agree to be bound by all the terms and
+conditions of this Agreement. If You are an individual accessing or using the
+Software on behalf of a legal entity, (i) You represent and warrant that You
+have the authority to enter into this Agreement on behalf of such entity and
+bind such entity to this Agreement, and (ii) references to "You" in this
+Agreement will refer to such entity.
+
+License
+
+Subject to the terms and conditions of this Agreement, Licensor grants You a
+non-exclusive, worldwide, non-sublicensable, non-transferable license to (i)
+use, copy, distribute, and create Modified Versions of the Software, and (ii)
+make, have made, use, and import the Software, where such license applies
+only to those patent claims licensable by Licensor that are necessarily
+infringed by the Software, in each case for the purpose of operating the
+Software for Your own internal business purposes or personal use. If You make
+any written claim of patent infringement relating to the Software, Your
+patent license for the Software granted under this Agreement terminates
+immediately.
+
+License Key Requirements
+
+If You are an Individual, You may use the Software without a License Key.
+
+If You are a Company, You must obtain a License Key from Licensor before
+using the Software in any environment. To obtain a License Key, You must
+register with Licensor and provide accurate information including Your
+company name, contact information, and Annual Revenue. You represent and
+warrant that all information You provide to Licensor is complete and accurate
+at the time of submission and that You will update such information if it
+changes materially.
+
+You must keep any License Key confidential and will not share it with third
+parties other than Your affiliates, contractors, and agents who are obligated
+to keep it confidential and use it solely on Your behalf. You will ensure
+that such parties comply with the terms of this Agreement, and You will be
+responsible for their acts and omissions.
+
+You acknowledge that the Software may be subject to export control laws and
+regulations. You agree to comply with all applicable export laws.
+
+Payment Obligations
+
+Your payment obligations are determined by Your Annual Revenue as follows:
+
+(a) Annual Revenue less than One Million US Dollars ($1,000,000): No payment
+required. You may use the full Software at no cost.
+
+(b) Annual Revenue of One Million US Dollars ($1,000,000) or more but less
+than Ten Million US Dollars ($10,000,000): You must maintain a current Pro
+Subscription with Licensor. The current fee for a Pro Subscription is Two
+Hundred Ninety-Nine US Dollars ($299) per month. Licensor may adjust this fee
+upon 90 days written notice.
+
+(c) Annual Revenue of Ten Million US Dollars ($10,000,000) or more: You must
+maintain a current Enterprise Subscription with Licensor. Enterprise
+Subscription fees are determined by agreement between You and Licensor,
+starting at Two Thousand US Dollars ($2,000) per month.
+
+Payment obligations apply regardless of how many instances of the Software
+You operate or how many users access it. There are no per-seat, per-event, or
+usage-based fees.
+
+Revenue Reporting
+
+You must accurately report Your Annual Revenue when registering for a License
+Key. If Your Annual Revenue later increases to a level that requires a
+Subscription or a higher-tier Subscription, You must obtain the appropriate
+Subscription within 30 days of crossing the threshold.
+
+Licensor may, upon reasonable notice, request verification of Your Annual
+Revenue if Licensor has a good-faith belief that Your reported revenue is
+inaccurate. You agree to cooperate with such verification requests.
+
+Telemetry
+
+The Software may collect and transmit Telemetry to Licensor. Telemetry helps
+Licensor improve the Software and understand how it is used. For Individuals,
+Telemetry is optional and may be disabled. For Companies, Telemetry is
+required unless Licensor has provided You with a License Key that permits
+Telemetry to be disabled.
+
+You understand and agree that Licensor may use information collected as part
+of Telemetry in accordance with Licensor's Privacy Policy. Telemetry does not
+include Your proprietary data processed by the Software.
+
+Restrictions
+
+You will not, and will not permit others to:
+
+(a) Offer the Software or a Modified Version to third parties as a managed
+service, hosted service, or software-as-a-service, where the service provides
+users with access to any substantial set of the features or functionality of
+the Software;
+
+(b) Alter, remove, or obscure any licensing, copyright, trademark, or other
+notices of Licensor in the Software or a Modified Version;
+
+(c) Use Licensor's trademarks, trade names, or logos without prior written
+consent, except as required for reasonable and customary use in describing
+the origin of the Software;
+
+(d) Circumvent, disable, or interfere with any mechanism in the Software
+related to License Key validation or Telemetry, except where Your License Key
+explicitly permits disabling Telemetry.
+
+If You create a Modified Version, You must include prominent notices stating
+that You have modified the Software and must include a copy of this Agreement
+with any distribution of the Modified Version.
+
+No Other Rights
+
+Except for the licenses expressly granted in this Agreement, Licensor grants
+You no other licenses or rights in the Software, whether by implication,
+estoppel, or otherwise.
+
+Third-Party Software
+
+The Software may contain or be provided with Third-Party Software. Each item
+of Third-Party Software is subject to its own license terms, which can be
+found in the documentation or source code. You agree to comply with all such
+Third-Party Software license terms.
+
+Termination
+
+Your licenses under this Agreement will automatically terminate if You breach
+any term of this Agreement. If Your breach is capable of being cured and You
+cure it within 30 days to Licensor's reasonable satisfaction, Your licenses
+will be reinstated. Notwithstanding the foregoing, intentional or repeated
+breaches, including intentional misrepresentation of Annual Revenue, will
+cause Your licenses to terminate immediately and permanently.
+
+Upon termination, You must cease all use of the Software and destroy all
+copies in Your possession or control.
+
+Disclaimer
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED
+"AS IS" WITHOUT WARRANTY OF ANY KIND. LICENSOR DISCLAIMS ALL WARRANTIES,
+EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+NON-INFRINGEMENT.
+
+Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, LICENSOR WILL NOT BE
+LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE
+DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, OR USE, ARISING OUT OF OR
+RELATED TO THIS AGREEMENT OR THE SOFTWARE, REGARDLESS OF THE THEORY OF
+LIABILITY AND EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGES.
+
+LICENSOR'S TOTAL LIABILITY UNDER THIS AGREEMENT WILL NOT EXCEED THE GREATER
+OF (I) THE AMOUNTS PAID BY YOU TO LICENSOR IN THE TWELVE MONTHS PRECEDING THE
+CLAIM, OR (II) ONE HUNDRED US DOLLARS ($100).
+
+Governing Law
+
+This Agreement is governed by the laws of Denmark, without regard to conflict
+of law principles. Any dispute arising out of or relating to this Agreement
+shall be subject to the exclusive jurisdiction of the courts of Copenhagen,
+Denmark.
+
+Definitions
+
+"Agreement" means this Tell Software License.
+
+"Annual Revenue" means the total gross revenue of You and Your affiliates
+(entities that control, are controlled by, or are under common control with
+You) during Your most recently completed fiscal year, calculated in
+accordance with generally accepted accounting principles. For newly formed
+entities, Annual Revenue means projected revenue for the current fiscal year.
+
+"Company" means any legal entity, including corporations, partnerships,
+limited liability companies, and sole proprietorships operated as a business.
+An Individual who uses the Software for commercial purposes or on behalf of a
+Company is considered a Company for purposes of this Agreement.
+
+"Enterprise Subscription" means a paid subscription for Companies with Annual
+Revenue of Ten Million US Dollars ($10,000,000) or more.
+
+"Individual" means a natural person who uses the Software for personal,
+non-commercial purposes, including learning, hobby projects, and personal
+development.
+
+"License Key" means a unique identifier provided by Licensor that identifies
+You as a licensed user of the Software.
+
+"Licensor" means [COMPANY NAME], a company organized under the laws of
+Denmark.
+
+"Modified Version" means any derivative work of the Software that provides
+all or substantially all of the features and functionality of the unmodified
+Software.
+
+"Pro Subscription" means a paid subscription for Companies with Annual
+Revenue between One Million US Dollars ($1,000,000) and Ten Million US
+Dollars ($10,000,000).
+
+"Software" means the software provided under this Agreement, including any
+updates or new versions made available by Licensor.
+
+"Subscription" means either a Pro Subscription or an Enterprise Subscription.
+
+"Telemetry" means anonymous data about Your use of the Software, such as
+feature usage, performance metrics, and error reports, that is transmitted
+to Licensor.
+
+"Third-Party Software" means software components included with or used by the
+Software that are provided under separate license terms.
+
+"You" means the individual or entity agreeing to this Agreement.

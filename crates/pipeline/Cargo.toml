@@ -1,0 +1,28 @@
+[package]
+name = "pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Async router and channel-based pipeline for CDP Collector"
+
+[dependencies]
+cdp-protocol = { workspace = true }
+cdp-routing = { workspace = true }
+cdp-transform = { workspace = true }
+metrics = { workspace = true }
+tap = { workspace = true }
+
+tokio = { workspace = true }
+parking_lot = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+crossfire = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "pipeline"
+harness = false

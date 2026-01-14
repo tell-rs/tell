@@ -1,0 +1,34 @@
+//! Test clients for CDP sources
+//!
+//! Simple, synchronous-style clients for testing and benchmarking.
+//! No batching, no retries - just connect and send.
+//!
+//! # Clients
+//!
+//! - [`TcpTestClient`] - FlatBuffer protocol over TCP
+//! - [`SyslogTcpTestClient`] - Line-delimited syslog over TCP
+//! - [`SyslogUdpTestClient`] - Syslog over UDP
+//!
+//! # Example
+//!
+//! ```ignore
+//! use cdp_client::test::TcpTestClient;
+//! use cdp_client::{BatchBuilder, SchemaType};
+//!
+//! let batch = BatchBuilder::new()
+//!     .api_key([0x01; 16])
+//!     .schema_type(SchemaType::Event)
+//!     .data(event_data.as_bytes())
+//!     .build()?;
+//!
+//! let mut client = TcpTestClient::connect("127.0.0.1:50000").await?;
+//! client.send(&batch).await?;
+//! ```
+
+mod tcp;
+mod syslog_tcp;
+mod syslog_udp;
+
+pub use tcp::TcpTestClient;
+pub use syslog_tcp::{SyslogTcpTestClient, LineEnding};
+pub use syslog_udp::SyslogUdpTestClient;

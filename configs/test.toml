@@ -1,0 +1,57 @@
+# CDP Collector Test Configuration
+# =================================
+# This config enables syslog sources for testing.
+
+[global]
+api_keys_file = "configs/apikeys.conf"
+batch_size = 100
+queue_size = 1000
+
+[log]
+level = "debug"
+format = "console"
+
+
+# Sources
+# Primary TCP source
+[[sources.tcp]]
+port = 50000
+enabled = true
+
+# Syslog TCP source (non-privileged port)
+[sources.syslog_tcp]
+enabled = true
+port = 1514
+address = "0.0.0.0"
+workspace_id = "1"
+max_message_size = 8192
+connection_timeout = "30s"
+flush_interval = "100ms"
+
+# Syslog UDP source (non-privileged port)
+[sources.syslog_udp]
+enabled = true
+port = 1514
+address = "0.0.0.0"
+workspace_id = "1"
+num_workers = 2
+max_message_size = 8192
+
+
+# Sinks
+[sinks.stdout]
+type = "stdout"
+
+[sinks.null]
+type = "null"
+
+
+# Routing
+[routing]
+# Default: everything to stdout for visibility
+default = ["stdout"]
+
+# Route syslog traffic to both stdout and null (for testing fan-out)
+[[routing.rules]]
+match = { source_type = "syslog" }
+sinks = ["stdout", "null"]

@@ -1,0 +1,322 @@
+# CDP Collector Configuration
+# ===========================
+#
+# This is the configuration file for the CDP Collector (Rust).
+# All settings have sensible defaults - only specify what you need to change.
+#
+# Minimal working config:
+#
+#   [[sources.tcp]]
+#   port = 50000
+#
+#   [sinks.stdout]
+#   type = "stdout"
+
+# =============================================================================
+# Global Settings
+# =============================================================================
+# These apply across all components and can be overridden per-component.
+
+[global]
+# Number of worker threads (default: number of CPU cores)
+# num_processors = 8
+
+# Default buffer size for network I/O (default: 262144 = 256KB)
+# buffer_size = 262144
+
+# Default batch size - messages per batch (default: 500)
+# batch_size = 500
+
+# Default channel queue size (default: 1000)
+# queue_size = 1000
+
+# Path to API keys file (default: "configs/apikeys.conf")
+api_keys_file = "configs/apikeys.conf"
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+[log]
+# Log level: trace, debug, info, warn, error (default: info)
+level = "info"
+
+# Output format: console, json (default: console)
+format = "console"
+
+# Output destination: stdout, stderr (default: stdout)
+output = "stdout"
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+[metrics]
+# Enable metrics reporting (default: true)
+enabled = true
+
+# Reporting interval (default: 10s)
+interval = "10s"
+
+# Output format: human, json (default: human)
+format = "human"
+
+# Include pipeline metrics (default: true)
+include_pipeline = true
+
+# Include source metrics (default: true)
+include_sources = true
+
+# Include sink metrics (default: true)
+include_sinks = true
+
+# =============================================================================
+# Sources
+# =============================================================================
+# Sources produce data that flows into the pipeline.
+# Multiple instances of the same type are supported.
+
+# -----------------------------------------------------------------------------
+# TCP Sources - High-performance FlatBuffer protocol
+# -----------------------------------------------------------------------------
+
+# Primary TCP source for client traffic
+[[sources.tcp]]
+port = 50000
+# enabled = true           # (default: true)
+# address = "0.0.0.0"      # (default: "0.0.0.0")
+# no_delay = true          # TCP_NODELAY (default: true)
+# flush_interval = "100ms" # (default: 100ms)
+# forwarding_mode = false  # Trust source_ip from upstream collectors (default: false)
+
+# Secondary TCP source for edge collector traffic (SOC forwarders)
+# [[sources.tcp]]
+# port = 8081
+# forwarding_mode = true   # Trust source_ip from forwarders
+
+# -----------------------------------------------------------------------------
+# TCP Debug Source - Same as TCP but outputs hex dump for debugging
+# -----------------------------------------------------------------------------
+# Kept separate from main TCP to avoid performance impact.
+
+# [sources.tcp_debug]
+# port = 50001
+# enabled = true
+
+# -----------------------------------------------------------------------------
+# Syslog Sources - RFC 3164 / RFC 5424
+# -----------------------------------------------------------------------------
+# Syslog sources don't use API key authentication - workspace_id is set in config.
+# Messages are stored raw; parsing happens downstream in sinks/transformers.
+
+# Syslog over TCP (reliable delivery, connection-oriented)
+[sources.syslog_tcp]
+enabled = false                    # Enable when needed
+port = 1514                        # Non-privileged port (514 requires root)
+workspace_id = "1"                 # Numeric workspace ID (like Go version)
+# address = "0.0.0.0"              # (default: "0.0.0.0")
+# max_message_size = 8192          # (default: 8192 = 8KB)
+# connection_timeout = "30s"       # (default: 30s)
+# no_delay = true                  # TCP_NODELAY (default: true)
+# flush_interval = "100ms"         # (default: 100ms)
+
+# Syslog over UDP (best-effort delivery, connectionless)
+[sources.syslog_udp]
+enabled = false                    # Enable when needed
+port = 1514                        # Non-privileged port (514 requires root)
+workspace_id = "1"                 # Numeric workspace ID
+num_workers = 4                    # Parallel workers (default: 4)
+# address = "0.0.0.0"              # (default: "0.0.0.0")
+# max_message_size = 8192          # (default: 8192 = 8KB)
+
+# =============================================================================
+# Sinks
+# =============================================================================
+# Sinks consume data from the pipeline and write to destinations.
+# Each sink has a unique name and type. The type field is required.
+
+# -----------------------------------------------------------------------------
+# Stdout Sink - Human-readable debug output
+# -----------------------------------------------------------------------------
+
+[sinks.stdout]
+type = "stdout"
+# enabled = true                   # (default: true)
+# metrics_enabled = true           # Per-sink metrics (default: true)
+# metrics_interval = "10s"         # (default: 10s)
+
+# -----------------------------------------------------------------------------
+# Null Sink - Discards all data (for benchmarking)
+# -----------------------------------------------------------------------------
+
+# [sinks.null]
+# type = "null"
+
+# -----------------------------------------------------------------------------
+# Disk Plaintext Sink - Human-readable log files
+# -----------------------------------------------------------------------------
+
+[sinks.disk_plaintext]
+type = "disk_plaintext"
+path = "logs/"
+# rotation = "daily"               # hourly, daily (default: daily)
+# compression = "none"             # none, lz4 (default: none)
+# buffer_size = 8388608            # (default: 8MB)
+# write_queue_size = 10000         # (default: 10000)
+# flush_interval = "100ms"         # (default: 100ms)
+# metrics_enabled = true
+# metrics_interval = "10s"
+
+# -----------------------------------------------------------------------------
+# Disk Binary Sink - High-performance binary storage
+# -----------------------------------------------------------------------------
+
+# [sinks.disk_binary]
+# type = "disk_binary"
+# path = "archive/"
+# rotation = "hourly"              # hourly, daily (default: daily)
+# compression = "lz4"              # none, lz4 (default: none)
+# buffer_size = 33554432           # (default: 32MB)
+# metrics_enabled = true
+# metrics_interval = "10s"
+
+# -----------------------------------------------------------------------------
+# ClickHouse Sink - Real-time analytics database
+# -----------------------------------------------------------------------------
+
+# [sinks.clickhouse]
+# type = "clickhouse"
+# host = "localhost:9000"          # Required when enabled
+# database = "default"             # (default: "default")
+# username = "default"             # (default: "default")
+# password = ""                    # (default: "")
+# hostname_prefix = "mycompany"    # Table prefix
+# batch_size = 50000               # Rows per insert (default: 50000)
+# flush_interval = "5s"            # (default: 5s)
+# metrics_enabled = true
+# metrics_interval = "10s"
+
+# -----------------------------------------------------------------------------
+# Parquet Sink - Columnar storage for data warehousing
+# -----------------------------------------------------------------------------
+
+# [sinks.parquet]
+# type = "parquet"
+# path = "parquet/"
+# rotation = "daily"               # hourly, daily (default: daily)
+# data_format = "json"             # binary, json (default: json)
+# compression = "snappy"           # snappy, gzip, lz4, uncompressed (default: snappy)
+# metrics_enabled = true
+# metrics_interval = "10s"
+
+# -----------------------------------------------------------------------------
+# Forwarder Sink - Collector-to-collector forwarding
+# -----------------------------------------------------------------------------
+
+# [sinks.forwarder]
+# type = "forwarder"
+# target = "collector.example.com:8081"  # Required when enabled
+# api_key = "0123456789abcdef0123456789abcdef"  # 32 hex chars, required
+# buffer_size = 262144             # (default: 256KB)
+# connection_timeout = "10s"       # (default: 10s)
+# write_timeout = "5s"             # (default: 5s)
+# retry_attempts = 3               # (default: 3)
+# retry_interval = "1s"            # (default: 1s)
+# reconnect_interval = "5s"        # (default: 5s)
+
+# =============================================================================
+# Routing
+# =============================================================================
+# Defines how sources connect to sinks.
+# Rules are evaluated in order; first match wins.
+# Unmatched traffic goes to default sinks.
+#
+# Source names:
+#   - tcp_main, tcp_1, tcp_2...  (TCP sources by index)
+#   - syslog_tcp                  (Syslog TCP source)
+#   - syslog_udp                  (Syslog UDP source)
+#
+# Source types:
+#   - tcp      (matches all TCP sources)
+#   - syslog   (matches syslog_tcp and syslog_udp)
+
+[routing]
+# Default sinks for unmatched traffic (empty = drop unmatched)
+default = ["stdout"]
+
+# Example routing rules (uncomment to use):
+
+# Route all TCP traffic to disk and analytics
+# [[routing.rules]]
+# match = { source = "tcp_main" }
+# sinks = ["disk_plaintext", "clickhouse"]
+
+# Route debug TCP traffic to stdout only
+# [[routing.rules]]
+# match = { source = "tcp_debug" }
+# sinks = ["stdout"]
+
+# Route all syslog traffic (TCP and UDP) to disk
+# [[routing.rules]]
+# match = { source_type = "syslog" }
+# sinks = ["disk_plaintext"]
+
+# Route specific syslog source differently
+# [[routing.rules]]
+# match = { source = "syslog_tcp" }
+# sinks = ["disk_plaintext", "stdout"]
+
+# =============================================================================
+# Transformers (per-route)
+# =============================================================================
+# Transformers process batches before routing to sinks.
+# Each rule can have its own transformer chain with custom configuration.
+#
+# Available transformer types:
+#   - noop            Pass-through (for testing)
+#   - pattern_matcher Log pattern extraction using Drain algorithm
+#
+# Example: Route syslog with pattern extraction
+# [[routing.rules]]
+# match = { source_type = "syslog" }
+# sinks = ["clickhouse"]
+#
+# [[routing.rules.transformers]]
+# type = "pattern_matcher"
+# enabled = true                      # (default: true)
+# similarity_threshold = 0.5          # Pattern matching strictness 0.0-1.0 (default: 0.5)
+# cache_size = 100000                 # L1 cache capacity (default: 100000)
+# max_child_nodes = 100               # Drain tree branching factor (default: 100)
+# persistence_enabled = false         # Enable file persistence (default: false)
+# persistence_file = "/var/lib/cdp/patterns.json"  # Pattern storage file
+#
+# Example: Multiple transformers in chain (processed in order)
+# [[routing.rules]]
+# match = { source = "tcp_main" }
+# sinks = ["disk_plaintext"]
+#
+# [[routing.rules.transformers]]
+# type = "pattern_matcher"
+# similarity_threshold = 0.6
+#
+# [[routing.rules.transformers]]
+# type = "noop"                       # Additional transformer in chain
+#
+# Example: Different configs for different routes (GDPR use case)
+# High-sensitivity logs with aggressive pattern matching
+# [[routing.rules]]
+# match = { source = "sensitive_logs" }
+# sinks = ["secure_storage"]
+#
+# [[routing.rules.transformers]]
+# type = "pattern_matcher"
+# similarity_threshold = 0.3          # More aggressive clustering
+#
+# Low-sensitivity logs with conservative pattern matching
+# [[routing.rules]]
+# match = { source = "general_logs" }
+# sinks = ["analytics"]
+#
+# [[routing.rules.transformers]]
+# type = "pattern_matcher"
+# similarity_threshold = 0.7          # More conservative clustering

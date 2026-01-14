@@ -1,0 +1,25 @@
+[package]
+name = "cdp-config"
+description = "Configuration loading and validation for CDP Collector"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Serialization
+serde = { workspace = true }
+toml = "0.8"
+
+# Error handling
+thiserror = { workspace = true }
+
+# Duration parsing (for "10s", "100ms", etc.)
+humantime = { workspace = true }
+
+# Duration serde support
+humantime-serde = "1.1"
+
+[dev-dependencies]
+tempfile = { workspace = true }

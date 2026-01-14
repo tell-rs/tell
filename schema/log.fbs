@@ -1,0 +1,44 @@
+// schema/log.fbs
+// Purpose: Log format used as an optimized custom syslog protocol
+// Field IDs added for future compatibility while maintaining current field order
+
+include "common.fbs";
+
+namespace schema.log;
+
+/// Log severity levels (RFC 5424 syslog standard + TRACE)
+enum LogLevel:uint8 {
+    EMERGENCY = 0,    // System is unusable
+    ALERT = 1,        // Action must be taken immediately
+    CRITICAL = 2,     // Critical conditions
+    ERROR = 3,        // Error conditions
+    WARNING = 4,      // Warning conditions
+    NOTICE = 5,       // Normal but significant condition
+    INFO = 6,         // Informational messages
+    DEBUG = 7,        // Debug-level messages
+    TRACE = 8         // Detailed tracing information
+}
+
+/// Log-specific event types (optimized to uint8)
+enum LogEventType:uint8 {
+    UNKNOWN = 0,     // Default/unspecified log type
+    LOG = 1,         // Standard log collection
+    ENRICH = 2       // Log enrichment/annotation
+}
+
+/// Single log entry - field order preserved for compatibility
+table LogEntry {
+    event_type:LogEventType (id: 0);    // Primary field for routing
+    session_id:[ubyte] (id: 1);         // 16-byte session UUID for correlation
+    level:LogLevel (id: 2);             // Severity level
+    timestamp:uint64 (id: 3);           // Source timestamp (ms since epoch)
+    source:string (id: 4);              // Source hostname/instance
+    service:string (id: 5);             // Service/application name
+    payload:[ubyte] (id: 6);            // Structured data as bytes
+}
+
+table LogData {
+    logs:[LogEntry] (required);
+}
+
+root_type LogData;

@@ -1,0 +1,17 @@
+[package]
+name = "cdp-auth"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "API key management with hot reload for CDP Collector"
+
+[dependencies]
+thiserror = { workspace = true }
+parking_lot = { workspace = true }
+notify = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros", "time"] }

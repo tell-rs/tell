@@ -1,0 +1,27 @@
+# Benchmark Configuration
+# Optimized for maximum throughput testing.
+# Routes all traffic to null sink.
+
+[global]
+api_keys_file = "configs/apikeys.conf"
+batch_size = 500
+queue_size = 10000
+
+[log]
+level = "warn"
+format = "console"
+
+# Sources
+[[sources.tcp]]
+port = 50000
+enabled = true
+queue_size = 10000
+batch_size = 500
+
+# Sinks
+[sinks.null]
+type = "null"
+
+# Routing
+[routing]
+default = ["null"]

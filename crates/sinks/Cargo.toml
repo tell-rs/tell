@@ -1,0 +1,56 @@
+[package]
+name = "sinks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Output sinks (ClickHouse, disk, parquet, etc) for CDP Collector"
+
+[dependencies]
+cdp-protocol = { workspace = true }
+metrics = { workspace = true }
+
+tokio = { workspace = true }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Lock-free concurrency for atomic rotation
+arc-swap = { workspace = true }
+crossbeam = { workspace = true }
+dashmap = { workspace = true }
+
+# Date/time for rotation paths
+chrono = { workspace = true }
+
+# Compression
+lz4_flex = { workspace = true }
+
+# Client for building FlatBuffer messages (SOC forwarder)
+cdp-client = { workspace = true }
+
+# ClickHouse client
+clickhouse = { workspace = true }
+
+# Parquet support
+parquet = { workspace = true }
+arrow = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }
+tempfile = { workspace = true }
+criterion = { workspace = true, features = ["async_tokio"] }
+walkdir = "2.5"
+cdp-bench = { workspace = true }
+
+[features]
+default = []
+clickhouse = []
+parquet = []
+
+[[bench]]
+name = "disk_binary"
+harness = false

@@ -1,0 +1,34 @@
+[package]
+name = "tap"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Live streaming tap point for CDP collector - enables CLI tail functionality"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+
+# Zero-copy buffers
+bytes = { workspace = true }
+
+# Concurrency
+parking_lot = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Random for sampling
+rand = "0.8"
+
+# Internal crates
+cdp-protocol = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
+tempfile = { workspace = true }

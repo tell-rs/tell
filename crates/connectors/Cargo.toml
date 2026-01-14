@@ -1,0 +1,40 @@
+[package]
+name = "connectors"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Pull-based connectors (GitHub, Stripe, etc.) for CDP Collector"
+
+[features]
+default = ["github", "shopify"]
+# Individual connectors - enable only what you need
+github = []
+shopify = []
+# Future connectors:
+# stripe = []
+# linear = []
+
+[dependencies]
+cdp-protocol = { workspace = true }
+
+tokio = { workspace = true }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = "0.8"
+
+# HTTP client for external APIs
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Cron scheduling
+cron = "0.15"
+chrono = { workspace = true }
+
+# URL encoding for search queries
+urlencoding = "2.1"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }

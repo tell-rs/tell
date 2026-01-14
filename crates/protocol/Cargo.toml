@@ -1,0 +1,20 @@
+[package]
+name = "cdp-protocol"
+description = "Zero-copy protocol types for CDP Collector"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+flatbuffers = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "batch"
+harness = false

@@ -1,0 +1,29 @@
+// schema/snapshot.fbs
+// Purpose: Point-in-time snapshots from external data sources (connectors)
+// Used for pulling metrics from GitHub, Stripe, Linear, etc.
+// Field IDs ensure schema evolution compatibility
+
+include "common.fbs";
+
+namespace schema.snapshot;
+
+/// Single snapshot from an external data source
+/// Field ordering optimized for query patterns:
+/// 1. timestamp: Time-series key - primary sort dimension
+/// 2. source: Connector type - for filtering (github, stripe, etc.)
+/// 3. entity: Specific resource - secondary filter (repo, account, etc.)
+/// 4. payload: Metrics data - JSON with all captured values
+table Snapshot {
+    timestamp:uint64 (id: 0);       // Unix timestamp in milliseconds
+    source:string (id: 1);          // Connector name: "github", "stripe", "linear"
+    entity:string (id: 2);          // Resource identifier: "user/repo", "acct_123"
+    payload:[ubyte] (id: 3);        // Metrics as JSON bytes
+}
+
+/// Snapshot data container (goes in Batch.data)
+/// Contains batched snapshots for efficient transport
+table SnapshotData {
+    snapshots:[Snapshot] (required);
+}
+
+root_type SnapshotData;

@@ -1,0 +1,25 @@
+[package]
+name = "cdp-client"
+description = "Client library for building CDP FlatBuffer batches (testing and SDK purposes)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Zero-copy buffers
+bytes = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Internal crates (for shared types)
+cdp-protocol = { workspace = true }
+
+# Async runtime (for test clients)
+tokio = { workspace = true, features = ["net", "io-util"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros"] }

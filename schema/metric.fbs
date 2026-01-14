@@ -1,0 +1,185 @@
+// schema/metric.fbs
+// Purpose: Performance metrics protocol for system and application telemetry
+// Designed for zero-copy reads and efficient batching
+// Compatible with OpenTelemetry semantics (nanosecond timestamps, temporality)
+
+include "common.fbs";
+
+namespace schema.metric;
+
+/// Metric type - determines how to interpret the value
+enum MetricType:uint8 {
+    UNKNOWN = 0,
+    GAUGE = 1,          // Point-in-time value (cpu %, memory bytes, temperature)
+    COUNTER = 2,        // Cumulative or delta count (requests_total, bytes_sent)
+    HISTOGRAM = 3       // Distribution with buckets (latency, request size)
+}
+
+/// Aggregation temporality - how counter/histogram values relate to time
+enum Temporality:uint8 {
+    UNSPECIFIED = 0,
+    CUMULATIVE = 1,     // Total since process start (Prometheus-style)
+    DELTA = 2           // Change since last report (StatsD-style)
+}
+
+/// String label for metric dimensions (most common)
+/// Used for: method="GET", path="/api", device="eth0"
+table Label {
+    key:string (required, id: 0);
+    value:string (required, id: 1);
+}
+
+/// Integer label for numeric dimensions
+/// Used for: status_code=200, port=8080, pid=1234
+table IntLabel {
+    key:string (required, id: 0);
+    value:int64 (id: 1);
+}
+
+/// Histogram bucket - cumulative count of observations
+table Bucket {
+    upper_bound:double (id: 0);     // Bucket boundary (use +inf for last bucket)
+    count:uint64 (id: 1);           // Cumulative count of observations <= upper_bound
+}
+
+/// Histogram-specific data
+/// Only present when metric_type = HISTOGRAM
+table Histogram {
+    count:uint64 (id: 0);           // Total number of observations
+    sum:double (id: 1);             // Sum of all observed values
+    buckets:[Bucket] (id: 2);       // Bucket counts (must be sorted by upper_bound)
+    min:double (id: 3);             // Minimum observed value
+    max:double (id: 4);             // Maximum observed value
+}
+
+/// Single metric entry
+/// Field order optimized for routing: metric_type first for fast filtering
+///
+/// For GAUGE/COUNTER: use the value field
+/// For HISTOGRAM: value field unused, use histogram sub-table
+/// For client-side telemetry (apps/games): use session_id for correlation
+table MetricEntry {
+    metric_type:MetricType (id: 0);     // FIRST - for routing/filtering
+    timestamp:uint64 (id: 1);           // Unix nanoseconds
+    name:string (required, id: 2);      // Metric name (e.g., "cpu_percent")
+    value:double (id: 3);               // Value for GAUGE/COUNTER types
+    source:string (id: 4);              // Source hostname/instance
+    service:string (id: 5);             // Service/application name
+    labels:[Label] (id: 6);             // String dimensions (most common)
+    int_labels:[IntLabel] (id: 10);     // Integer dimensions (status codes, ports)
+    temporality:Temporality (id: 7);    // For COUNTER/HISTOGRAM: cumulative vs delta
+    histogram:Histogram (id: 8);        // For HISTOGRAM type only (null otherwise)
+    session_id:[ubyte] (id: 9);         // 16-byte session UUID - for client-side telemetry (optional)
+}
+
+/// Batch of metrics
+/// This is the root type that gets serialized into Batch.data
+table MetricData {
+    metrics:[MetricEntry] (required);
+}
+
+root_type MetricData;
+
+// Usage Examples:
+//
+// GAUGE (point-in-time value):
+// MetricEntry {
+//   metric_type: GAUGE
+//   timestamp: 1749587340000000000
+//   name: "cpu_percent"
+//   value: 45.2
+//   source: "server-1"
+//   service: "api"
+// }
+//
+// GAUGE with labels (per-CPU):
+// MetricEntry {
+//   metric_type: GAUGE
+//   timestamp: 1749587340000000000
+//   name: "cpu_percent"
+//   value: 78.5
+//   source: "server-1"
+//   service: "api"
+//   labels: [{key: "cpu", value: "0"}]
+// }
+//
+// COUNTER (cumulative):
+// MetricEntry {
+//   metric_type: COUNTER
+//   timestamp: 1749587340000000000
+//   name: "http_requests_total"
+//   value: 50523
+//   source: "server-1"
+//   service: "api"
+//   labels: [{key: "method", value: "GET"}, {key: "path", value: "/api/users"}]
+//   int_labels: [{key: "status_code", value: 200}]
+//   temporality: CUMULATIVE
+// }
+//
+// COUNTER (delta):
+// MetricEntry {
+//   metric_type: COUNTER
+//   timestamp: 1749587340000000000
+//   name: "http_requests"
+//   value: 523
+//   source: "server-1"
+//   service: "api"
+//   temporality: DELTA
+// }
+//
+// HISTOGRAM (latency distribution):
+// MetricEntry {
+//   metric_type: HISTOGRAM
+//   timestamp: 1749587340000000000
+//   name: "http_request_duration_seconds"
+//   source: "server-1"
+//   service: "api"
+//   labels: [{key: "method", value: "GET"}]
+//   int_labels: [{key: "status_code", value: 200}]
+//   temporality: CUMULATIVE
+//   histogram: {
+//     count: 1000
+//     sum: 45.5
+//     min: 0.0001
+//     max: 2.3
+//     buckets: [
+//       {upper_bound: 0.01, count: 300}
+//       {upper_bound: 0.1, count: 850}
+//       {upper_bound: 1.0, count: 998}
+//       {upper_bound: inf, count: 1000}
+//     ]
+//   }
+// }
+//
+// NETWORK I/O:
+// MetricEntry {
+//   metric_type: COUNTER
+//   timestamp: 1749587340000000000
+//   name: "network_receive_bytes_total"
+//   value: 98765432100
+//   source: "server-1"
+//   service: "api"
+//   labels: [{key: "device", value: "eth0"}]
+//   temporality: CUMULATIVE
+// }
+//
+// CLIENT-SIDE TELEMETRY (apps/games with session correlation):
+// MetricEntry {
+//   metric_type: GAUGE
+//   timestamp: 1749587340000000000
+//   name: "fps_current"
+//   value: 58.5
+//   source: "iphone-12"
+//   service: "my-game"
+//   session_id: [16 bytes]             // correlates to events/logs for this user session
+// }
+//
+// MetricEntry {
+//   metric_type: GAUGE
+//   timestamp: 1749587340000000000
+//   name: "memory_used_bytes"
+//   value: 1073741824
+//   source: "iphone-12"
+//   service: "my-game"
+//   session_id: [16 bytes]
+// }
