@@ -44,3 +44,7 @@ parquet/
 # Todos
 TODO-*
 .director/
+-e 
+# Private
+ROADMAP.md
+.launch/
