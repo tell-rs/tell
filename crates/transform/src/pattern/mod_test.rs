@@ -32,8 +32,10 @@ async fn test_pattern_transformer_creation() {
 
 #[tokio::test]
 async fn test_invalid_config_rejected() {
-    let mut config = PatternConfig::default();
-    config.similarity_threshold = 2.0; // Invalid
+    let config = PatternConfig {
+        similarity_threshold: 2.0, // Invalid
+        ..Default::default()
+    };
 
     let result = PatternTransformer::new(config);
     assert!(result.is_err());

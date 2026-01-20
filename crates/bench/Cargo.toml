@@ -19,9 +19,12 @@ tell-protocol = { workspace = true }
 tell-sources = { workspace = true }
 tell-sinks = { workspace = true }
 tell-pipeline = { workspace = true }
+tell-routing = { workspace = true }
 tell-auth = { workspace = true }
 criterion = { workspace = true, features = ["async_tokio"] }
 tempfile = { workspace = true }
+crossfire = { workspace = true }
+tokio-util = { workspace = true }
 
 [[bin]]
 name = "tell-bench"

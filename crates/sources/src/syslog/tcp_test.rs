@@ -122,10 +122,7 @@ fn test_is_connection_reset() {
         io::ErrorKind::BrokenPipe,
         "broken"
     )));
-    assert!(!is_connection_reset(&io::Error::new(
-        io::ErrorKind::Other,
-        "other"
-    )));
+    assert!(!is_connection_reset(&io::Error::other("other")));
 }
 
 #[tokio::test]
@@ -181,7 +178,7 @@ async fn test_source_accepts_connections() {
         ..Default::default()
     };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
 
     // Start source in background
@@ -238,7 +235,7 @@ async fn test_multiple_messages() {
 
     let config = SyslogTcpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
 
     let source_clone = Arc::clone(&source);
@@ -292,7 +289,7 @@ async fn test_workspace_id_propagation() {
 
     let config = SyslogTcpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
 
     let source_clone = Arc::clone(&source);
@@ -336,7 +333,7 @@ async fn test_crlf_line_endings() {
 
     let config = SyslogTcpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
 
     let source_clone = Arc::clone(&source);
@@ -360,13 +357,13 @@ async fn test_crlf_line_endings() {
     let _ = tokio::time::timeout(Duration::from_millis(200), handle).await;
 
     // Check message was received without trailing CRLF
-    if let Ok(batch) = rx.try_recv() {
-        if let Some(msg) = batch.get_message(0) {
-            let msg_str = std::str::from_utf8(msg).unwrap();
-            assert!(!msg_str.ends_with('\r'));
-            assert!(!msg_str.ends_with('\n'));
-            assert!(msg_str.contains("CRLF message"));
-        }
+    if let Ok(batch) = rx.try_recv()
+        && let Some(msg) = batch.get_message(0)
+    {
+        let msg_str = std::str::from_utf8(msg).unwrap();
+        assert!(!msg_str.ends_with('\r'));
+        assert!(!msg_str.ends_with('\n'));
+        assert!(msg_str.contains("CRLF message"));
     }
 }
 
@@ -387,7 +384,7 @@ async fn test_rfc3164_format() {
 
     let config = SyslogTcpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
 
     let source_clone = Arc::clone(&source);
@@ -437,7 +434,7 @@ async fn test_rfc5424_format() {
 
     let config = SyslogTcpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
 
     let source_clone = Arc::clone(&source);

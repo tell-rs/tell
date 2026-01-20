@@ -164,7 +164,7 @@ fn bench_routing_lookup(c: &mut Criterion) {
 
 /// Benchmark metrics recording
 fn bench_metrics(c: &mut Criterion) {
-    use pipeline::RouterMetrics;
+    use tell_pipeline::RouterMetrics;
 
     let mut group = c.benchmark_group("metrics");
 
@@ -215,7 +215,7 @@ fn bench_channel_baseline(c: &mut Criterion) {
             let batch = Arc::clone(&batch);
             let tx = tx.clone();
             async move {
-                black_box(tx.send(batch).await.unwrap());
+                tx.send(batch).await.unwrap();
             }
         });
     });
@@ -230,7 +230,7 @@ fn bench_channel_baseline(c: &mut Criterion) {
 
         b.iter(|| {
             let batch = Arc::clone(&batch);
-            black_box(tx.try_send(batch).unwrap());
+            tx.try_send(batch).unwrap();
         });
     });
 

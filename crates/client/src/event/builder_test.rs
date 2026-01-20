@@ -12,7 +12,6 @@ fn test_build_minimal_event() {
     let event = EventBuilder::new().build().unwrap();
 
     assert!(!event.is_empty());
-    assert!(event.len() > 0);
 }
 
 #[test]

@@ -191,11 +191,13 @@ fn bench_rotation_submit(c: &mut Criterion) {
     let rotation = rt.block_on(async {
         let config = RotationConfig {
             base_path: temp_dir.path().to_path_buf(),
-            rotation_interval: sinks::util::RotationInterval::Hourly,
+            rotation_interval: tell_sinks::util::RotationInterval::Hourly,
             file_prefix: "data".into(),
             buffer_size: 32 * 1024 * 1024,
             queue_size: 10000,
             flush_interval: Duration::from_millis(100),
+            max_write_retries: 3,
+            retry_delay: Duration::from_millis(10),
         };
         let writer = BinaryWriter::uncompressed(config.buffer_size);
         Arc::new(AtomicRotationSink::new(config, writer))
@@ -247,10 +249,12 @@ fn bench_full_sink(c: &mut Criterion) {
                     let temp_dir = TempDir::new().unwrap();
                     let (tx, rx) = mpsc::channel(10000);
 
-                    let mut config = DiskBinaryConfig::default();
-                    config.path = temp_dir.path().to_path_buf();
-                    config.compression = compression;
-                    config.flush_interval = Duration::from_millis(10);
+                    let config = DiskBinaryConfig {
+                        path: temp_dir.path().to_path_buf(),
+                        compression,
+                        flush_interval: Duration::from_millis(10),
+                        ..Default::default()
+                    };
 
                     let sink = DiskBinarySink::new(config, rx);
 
@@ -310,10 +314,12 @@ fn bench_throughput(c: &mut Criterion) {
                     let temp_dir = TempDir::new().unwrap();
                     let (tx, rx) = mpsc::channel(10000);
 
-                    let mut config = DiskBinaryConfig::default();
-                    config.path = temp_dir.path().to_path_buf();
-                    config.compression = false;
-                    config.flush_interval = Duration::from_millis(10);
+                    let config = DiskBinaryConfig {
+                        path: temp_dir.path().to_path_buf(),
+                        compression: false,
+                        flush_interval: Duration::from_millis(10),
+                        ..Default::default()
+                    };
 
                     let sink = DiskBinarySink::new(config, rx);
 

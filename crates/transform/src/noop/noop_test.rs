@@ -49,7 +49,7 @@ fn test_noop_is_copy() {
 
 #[test]
 fn test_noop_default() {
-    let t = NoopTransformer::default();
+    let t = NoopTransformer;
     assert_eq!(t.name(), "noop");
 }
 

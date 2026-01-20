@@ -12,7 +12,6 @@ fn test_build_minimal_log() {
     let log = LogEntryBuilder::new().build().unwrap();
 
     assert!(!log.is_empty());
-    assert!(log.len() > 0);
 }
 
 #[test]

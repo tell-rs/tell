@@ -248,7 +248,7 @@ mod tests {
 
         // Note: We can't easily test the actual spawn without a runtime,
         // but we can verify the filtering logic works
-        let sinks = vec![enabled_sink, disabled_sink];
+        let sinks = [enabled_sink, disabled_sink];
         let enabled_count = sinks.iter().filter(|s| s.metrics_config().enabled).count();
 
         assert_eq!(enabled_count, 1);

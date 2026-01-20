@@ -28,9 +28,12 @@ use tell_sources::{
     TcpSourceConfig,
 };
 use tempfile::TempDir;
+use crossfire::mpsc::bounded_async;
+use tell_sources::ShardedSender;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 // =============================================================================
 // Batch Generator (for pipeline benchmarks)
@@ -84,7 +87,7 @@ async fn run_pipeline_to_disk(
     event_size: usize,
     temp_dir: &TempDir,
 ) -> Duration {
-    let (source_tx, source_rx) = mpsc::channel::<Batch>(10000);
+    let (source_tx, source_rx) = bounded_async::<Batch>(10000);
     let (sink_tx, sink_rx) = mpsc::channel::<Arc<Batch>>(10000);
 
     let mut routing_table = RoutingTable::new();
@@ -94,10 +97,12 @@ async fn run_pipeline_to_disk(
     let mut router = Router::new(routing_table);
     router.register_sink(SinkHandle::new(sink_id, "disk_binary", sink_tx));
 
-    let mut sink_config = DiskBinaryConfig::default();
-    sink_config.path = temp_dir.path().to_path_buf();
-    sink_config.compression = false;
-    sink_config.flush_interval = Duration::from_millis(10);
+    let sink_config = DiskBinaryConfig {
+        path: temp_dir.path().to_path_buf(),
+        compression: false,
+        flush_interval: Duration::from_millis(10),
+        ..Default::default()
+    };
     let sink = DiskBinarySink::new(sink_config, sink_rx);
 
     let batches: Vec<Batch> = (0..num_batches)
@@ -126,7 +131,7 @@ async fn run_pipeline_to_null(
     events_per_batch: usize,
     event_size: usize,
 ) -> Duration {
-    let (source_tx, source_rx) = mpsc::channel::<Batch>(10000);
+    let (source_tx, source_rx) = bounded_async::<Batch>(10000);
     let (sink_tx, sink_rx) = mpsc::channel::<Arc<Batch>>(10000);
 
     let mut routing_table = RoutingTable::new();
@@ -184,7 +189,7 @@ async fn run_syslog_tcp_e2e(num_messages: usize, message_size: usize) -> Duratio
     let port = get_available_port().await;
 
     // Set up channels - using bounded to control flow
-    let (batch_tx, mut batch_rx) = mpsc::channel::<Batch>(10000);
+    let (batch_tx, batch_rx) = bounded_async::<Batch>(10000);
     let (sink_tx, sink_rx) = mpsc::channel::<Arc<Batch>>(10000);
 
     // Set up routing
@@ -205,8 +210,10 @@ async fn run_syslog_tcp_e2e(num_messages: usize, message_size: usize) -> Duratio
         ..Default::default()
     };
 
-    let source = Arc::new(SyslogTcpSource::new(source_config, batch_tx));
+    let sharded_sender = ShardedSender::new(vec![batch_tx]);
+    let source = Arc::new(SyslogTcpSource::new(source_config, sharded_sender));
     let sink = NullSink::new(sink_rx);
+    let cancel = CancellationToken::new();
 
     // Pre-generate messages
     let payload = "x".repeat(message_size.saturating_sub(50)); // Account for syslog header
@@ -216,8 +223,9 @@ async fn run_syslog_tcp_e2e(num_messages: usize, message_size: usize) -> Duratio
 
     // Spawn source and sink
     let source_clone = Arc::clone(&source);
+    let cancel_clone = cancel.clone();
     let source_handle = tokio::spawn(async move {
-        let _ = source_clone.run().await;
+        let _ = source_clone.run(cancel_clone).await;
     });
 
     let sink_handle = tokio::spawn(async move { sink.run().await });
@@ -247,18 +255,19 @@ async fn run_syslog_tcp_e2e(num_messages: usize, message_size: usize) -> Duratio
 
     while received_batches < expected_batches {
         match tokio::time::timeout(Duration::from_millis(200), batch_rx.recv()).await {
-            Ok(Some(batch)) => {
+            Ok(Ok(batch)) => {
                 received_batches += 1;
                 router.route(batch).await;
             }
-            Ok(None) => break, // Channel closed
-            Err(_) => break,   // Timeout - no more batches coming
+            Ok(Err(_)) => break, // Channel closed
+            Err(_) => break,     // Timeout - no more batches coming
         }
     }
 
     let elapsed = start.elapsed();
 
     // Stop source
+    cancel.cancel();
     source.stop();
 
     // Clean up
@@ -275,7 +284,7 @@ async fn run_syslog_udp_e2e(num_messages: usize, message_size: usize) -> Duratio
     let port = get_available_udp_port().await;
 
     // Set up channels
-    let (batch_tx, mut batch_rx) = mpsc::channel::<Batch>(10000);
+    let (batch_tx, batch_rx) = bounded_async::<Batch>(10000);
     let (sink_tx, sink_rx) = mpsc::channel::<Arc<Batch>>(10000);
 
     // Set up routing
@@ -297,8 +306,10 @@ async fn run_syslog_udp_e2e(num_messages: usize, message_size: usize) -> Duratio
         ..Default::default()
     };
 
-    let source = Arc::new(SyslogUdpSource::new(source_config, batch_tx));
+    let sharded_sender = ShardedSender::new(vec![batch_tx]);
+    let source = Arc::new(SyslogUdpSource::new(source_config, sharded_sender));
     let sink = NullSink::new(sink_rx);
+    let cancel = CancellationToken::new();
 
     // Pre-generate messages
     let payload = "x".repeat(message_size.saturating_sub(50));
@@ -308,8 +319,9 @@ async fn run_syslog_udp_e2e(num_messages: usize, message_size: usize) -> Duratio
 
     // Spawn source and sink
     let source_clone = Arc::clone(&source);
+    let cancel_clone = cancel.clone();
     let source_handle = tokio::spawn(async move {
-        let _ = source_clone.run().await;
+        let _ = source_clone.run(cancel_clone).await;
     });
 
     let sink_handle = tokio::spawn(async move { sink.run().await });
@@ -333,11 +345,11 @@ async fn run_syslog_udp_e2e(num_messages: usize, message_size: usize) -> Duratio
 
     while received_batches < expected_batches {
         match tokio::time::timeout(Duration::from_millis(200), batch_rx.recv()).await {
-            Ok(Some(batch)) => {
+            Ok(Ok(batch)) => {
                 received_batches += 1;
                 router.route(batch).await;
             }
-            Ok(None) => break,
+            Ok(Err(_)) => break,
             Err(_) => break,
         }
     }
@@ -345,6 +357,7 @@ async fn run_syslog_udp_e2e(num_messages: usize, message_size: usize) -> Duratio
     let elapsed = start.elapsed();
 
     // Stop source
+    cancel.cancel();
     source.stop();
 
     // Clean up
@@ -366,7 +379,7 @@ async fn run_tcp_e2e(num_batches: usize, events_per_batch: usize, event_size: us
     auth_store.insert(api_key, 12345.into());
 
     // Set up channels
-    let (batch_tx, mut batch_rx) = mpsc::channel::<Batch>(10000);
+    let (batch_tx, batch_rx) = bounded_async::<Batch>(10000);
     let (sink_tx, sink_rx) = mpsc::channel::<Arc<Batch>>(10000);
 
     // Set up routing
@@ -387,8 +400,10 @@ async fn run_tcp_e2e(num_batches: usize, events_per_batch: usize, event_size: us
         ..Default::default()
     };
 
-    let source = TcpSource::new(source_config, Arc::clone(&auth_store), batch_tx);
+    let sharded_sender = ShardedSender::new(vec![batch_tx]);
+    let source = TcpSource::new(source_config, Arc::clone(&auth_store), sharded_sender);
     let sink = NullSink::new(sink_rx);
+    let cancel = CancellationToken::new();
 
     // Pre-build batches
     let event_data = vec![0x42u8; event_size];
@@ -409,8 +424,9 @@ async fn run_tcp_e2e(num_batches: usize, events_per_batch: usize, event_size: us
         .collect();
 
     // Spawn source and sink
+    let cancel_clone = cancel.clone();
     let source_handle = tokio::spawn(async move {
-        let _ = source.run().await;
+        let _ = source.run(cancel_clone).await;
     });
 
     let sink_handle = tokio::spawn(async move { sink.run().await });
@@ -440,11 +456,11 @@ async fn run_tcp_e2e(num_batches: usize, events_per_batch: usize, event_size: us
 
     while received_batches < expected_batches {
         match tokio::time::timeout(Duration::from_millis(200), batch_rx.recv()).await {
-            Ok(Some(batch)) => {
+            Ok(Ok(batch)) => {
                 received_batches += 1;
                 router.route(batch).await;
             }
-            Ok(None) => break,
+            Ok(Err(_)) => break,
             Err(_) => break,
         }
     }
@@ -452,6 +468,7 @@ async fn run_tcp_e2e(num_batches: usize, events_per_batch: usize, event_size: us
     let elapsed = start.elapsed();
 
     // Clean up
+    cancel.cancel();
     drop(router);
     let _ = tokio::time::timeout(Duration::from_millis(200), source_handle).await;
     let _ = tokio::time::timeout(Duration::from_millis(100), sink_handle).await;

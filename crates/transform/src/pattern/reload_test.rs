@@ -109,7 +109,7 @@ async fn test_reload_worker_manual_trigger() {
 async fn test_reload_worker_loads_patterns() {
     let (temp_dir, persistence) = create_test_persistence();
     let drain = create_test_drain();
-    let cache = create_test_cache();
+    let _cache = create_test_cache();
     let cancel = CancellationToken::new();
 
     // Create a pattern in drain tree

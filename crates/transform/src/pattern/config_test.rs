@@ -55,8 +55,10 @@ fn test_config_validation_valid() {
 
 #[test]
 fn test_config_validation_invalid_threshold() {
-    let mut config = PatternConfig::default();
-    config.similarity_threshold = 1.5; // Bypass builder clamping
+    let config = PatternConfig {
+        similarity_threshold: 1.5, // Bypass builder clamping
+        ..Default::default()
+    };
 
     let result = config.validate();
     assert!(result.is_err());
@@ -65,8 +67,10 @@ fn test_config_validation_invalid_threshold() {
 
 #[test]
 fn test_config_validation_invalid_max_children() {
-    let mut config = PatternConfig::default();
-    config.max_child_nodes = 0;
+    let config = PatternConfig {
+        max_child_nodes: 0,
+        ..Default::default()
+    };
 
     let result = config.validate();
     assert!(result.is_err());
@@ -93,9 +97,11 @@ fn test_persistence_with_file() {
 
 #[test]
 fn test_persistence_validation_enabled_no_path() {
-    let mut config = PersistenceConfig::default();
-    config.enabled = true;
-    // file_path is None
+    let config = PersistenceConfig {
+        enabled: true,
+        // file_path is None
+        ..Default::default()
+    };
 
     let result = config.validate();
     assert!(result.is_err());
@@ -104,8 +110,10 @@ fn test_persistence_validation_enabled_no_path() {
 
 #[test]
 fn test_persistence_validation_zero_flush_interval() {
-    let mut config = PersistenceConfig::default();
-    config.flush_interval = Duration::ZERO;
+    let config = PersistenceConfig {
+        flush_interval: Duration::ZERO,
+        ..Default::default()
+    };
 
     let result = config.validate();
     assert!(result.is_err());
@@ -114,8 +122,10 @@ fn test_persistence_validation_zero_flush_interval() {
 
 #[test]
 fn test_persistence_validation_zero_batch_size() {
-    let mut config = PersistenceConfig::default();
-    config.batch_size = 0;
+    let config = PersistenceConfig {
+        batch_size: 0,
+        ..Default::default()
+    };
 
     let result = config.validate();
     assert!(result.is_err());
@@ -140,9 +150,10 @@ fn test_reload_with_interval() {
 
 #[test]
 fn test_reload_validation_enabled_zero_interval() {
-    let mut config = ReloadConfig::default();
-    config.enabled = true;
-    config.interval = Duration::ZERO;
+    let config = ReloadConfig {
+        enabled: true,
+        interval: Duration::ZERO,
+    };
 
     let result = config.validate();
     assert!(result.is_err());

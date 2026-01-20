@@ -109,7 +109,7 @@ fn test_error_display() {
 
     let worker_err = SyslogUdpSourceError::WorkerCreation {
         worker_id: 2,
-        source: io::Error::new(io::ErrorKind::Other, "test"),
+        source: io::Error::other("test"),
     };
     assert!(worker_err.to_string().contains("worker 2"));
 }
@@ -168,7 +168,7 @@ async fn test_source_receives_packets() {
 
     let config = SyslogUdpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogUdpSource::new(
         config.clone(),
         ShardedSender::new(vec![tx]),
@@ -223,7 +223,7 @@ async fn test_multiple_packets() {
 
     let config = SyslogUdpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogUdpSource::new(
         config.clone(),
         ShardedSender::new(vec![tx]),
@@ -278,7 +278,7 @@ async fn test_workspace_id_propagation() {
 
     let config = SyslogUdpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogUdpSource::new(
         config.clone(),
         ShardedSender::new(vec![tx]),
@@ -326,7 +326,7 @@ async fn test_rfc3164_format() {
 
     let config = SyslogUdpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogUdpSource::new(
         config.clone(),
         ShardedSender::new(vec![tx]),
@@ -379,7 +379,7 @@ async fn test_rfc5424_format() {
 
     let config = SyslogUdpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogUdpSource::new(
         config.clone(),
         ShardedSender::new(vec![tx]),
@@ -433,7 +433,7 @@ async fn test_packet_with_newline() {
 
     let config = SyslogUdpSourceConfig { port, ..config };
 
-    let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
+    let (tx, rx) = crossfire::mpsc::bounded_async(100);
     let source = Arc::new(SyslogUdpSource::new(
         config.clone(),
         ShardedSender::new(vec![tx]),
@@ -459,12 +459,12 @@ async fn test_packet_with_newline() {
     source.stop();
     let _ = tokio::time::timeout(Duration::from_millis(500), handle).await;
 
-    if let Ok(batch) = rx.try_recv() {
-        if let Some(msg) = batch.get_message(0) {
-            let msg_str = std::str::from_utf8(msg).unwrap();
-            // Trailing newline should be stripped
-            assert!(!msg_str.ends_with('\n'));
-            assert!(msg_str.contains("Message with newline"));
-        }
+    if let Ok(batch) = rx.try_recv()
+        && let Some(msg) = batch.get_message(0)
+    {
+        let msg_str = std::str::from_utf8(msg).unwrap();
+        // Trailing newline should be stripped
+        assert!(!msg_str.ends_with('\n'));
+        assert!(msg_str.contains("Message with newline"));
     }
 }

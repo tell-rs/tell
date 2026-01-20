@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn test_first_error_always_logs() {
         let logger = RateLimitedLogger::new(Duration::from_secs(10));
-        let error = io::Error::new(io::ErrorKind::Other, "test error");
+        let error = io::Error::other("test error");
 
         // First error should always log
         let logged = logger.error("test message", &error);
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn test_rapid_errors_suppressed() {
         let logger = RateLimitedLogger::new(Duration::from_secs(10));
-        let error = io::Error::new(io::ErrorKind::Other, "test error");
+        let error = io::Error::other("test error");
 
         // First error logs
         assert!(logger.error("test", &error));
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn test_reset() {
         let logger = RateLimitedLogger::new(Duration::from_secs(10));
-        let error = io::Error::new(io::ErrorKind::Other, "test error");
+        let error = io::Error::other("test error");
 
         logger.error("test", &error);
         assert_eq!(logger.total_error_count(), 1);
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn test_error_with_data_truncation() {
         let logger = RateLimitedLogger::new(Duration::from_secs(10));
-        let error = io::Error::new(io::ErrorKind::Other, "test error");
+        let error = io::Error::other("test error");
 
         // Create data longer than MAX_DATA_LOG_LENGTH
         let long_data = vec![b'x'; MAX_DATA_LOG_LENGTH + 100];

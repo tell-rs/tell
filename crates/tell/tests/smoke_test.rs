@@ -62,7 +62,7 @@ async fn test_tcp_source_receives_batch() {
     let auth_store = create_test_auth_store();
 
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Create TCP source config
@@ -116,7 +116,7 @@ async fn test_tcp_source_rejects_invalid_api_key() {
     let auth_store = Arc::new(ApiKeyStore::new());
 
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Use different port to avoid conflicts
@@ -170,7 +170,7 @@ async fn test_tcp_source_handles_multiple_batches() {
     let auth_store = create_test_auth_store();
 
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Use different port to avoid conflicts
@@ -251,7 +251,7 @@ const TEST_WORKSPACE_ID: u32 = 42;
 #[tokio::test]
 async fn test_syslog_tcp_receives_rfc3164_message() {
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Create Syslog TCP source config
@@ -315,7 +315,7 @@ async fn test_syslog_tcp_receives_rfc3164_message() {
 #[tokio::test]
 async fn test_syslog_tcp_receives_rfc5424_message() {
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Use different port
@@ -396,7 +396,7 @@ async fn test_syslog_tcp_receives_rfc5424_message() {
 #[tokio::test]
 async fn test_syslog_tcp_handles_multiple_messages() {
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Use different port
@@ -466,7 +466,7 @@ const TEST_SYSLOG_UDP_PORT: u16 = 51250;
 #[tokio::test]
 async fn test_syslog_udp_receives_rfc3164_message() {
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Create Syslog UDP source config
@@ -533,7 +533,7 @@ async fn test_syslog_udp_receives_rfc3164_message() {
 #[tokio::test]
 async fn test_syslog_udp_receives_rfc5424_message() {
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Use different port
@@ -617,7 +617,7 @@ async fn test_syslog_udp_receives_rfc5424_message() {
 #[tokio::test]
 async fn test_syslog_udp_handles_multiple_messages() {
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Use different port
@@ -685,7 +685,7 @@ async fn test_syslog_udp_handles_multiple_messages() {
 #[tokio::test]
 async fn test_syslog_udp_captures_source_ip() {
     // Create channel for receiving batches
-    let (tx, mut batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
+    let (tx, batch_rx) = crossfire::mpsc::bounded_async::<Batch>(100);
     let batch_tx = ShardedSender::new(vec![tx]);
 
     // Use different port

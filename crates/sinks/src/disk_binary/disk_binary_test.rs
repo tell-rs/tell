@@ -597,7 +597,7 @@ async fn test_sink_writes_mixed_realistic_batches() {
     let sink = DiskBinarySink::new(config, rx);
 
     // Send mixed event and log batches
-    for i in 0..5 {
+    for _ in 0..5 {
         let event_batch = Arc::new(create_realistic_event_batch(1, 5));
         let log_batch = Arc::new(create_realistic_log_batch(1, 5));
         tx.send(event_batch).await.unwrap();

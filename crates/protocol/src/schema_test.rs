@@ -266,7 +266,7 @@ fn test_batch_type_display() {
 #[test]
 fn test_schema_type_clone() {
     let original = SchemaType::Event;
-    let cloned = original.clone();
+    let cloned = original; // Copy types don't need .clone()
     assert_eq!(original, cloned);
 }
 
@@ -310,7 +310,7 @@ fn test_schema_type_hash() {
 #[test]
 fn test_batch_type_clone() {
     let original = BatchType::Event;
-    let cloned = original.clone();
+    let cloned = original; // Copy types don't need .clone()
     assert_eq!(original, cloned);
 }
 

@@ -376,10 +376,10 @@ fn bench_throughput(c: &mut Criterion) {
         b.iter(|| {
             let mut parsed = Vec::new();
             for line in jsonl.split(|&b| b == b'\n') {
-                if !line.is_empty() {
-                    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(line) {
-                        parsed.push(v);
-                    }
+                if !line.is_empty()
+                    && let Ok(v) = serde_json::from_slice::<serde_json::Value>(line)
+                {
+                    parsed.push(v);
                 }
             }
             black_box(parsed)

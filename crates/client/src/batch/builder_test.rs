@@ -23,7 +23,6 @@ fn test_build_minimal_batch() {
         .expect("should build minimal batch");
 
     assert!(!batch.is_empty());
-    assert!(batch.len() > 0);
 }
 
 #[test]
@@ -576,7 +575,6 @@ fn test_built_batch_len() {
         .build()
         .unwrap();
 
-    assert!(batch.len() > 0);
     assert!(!batch.is_empty());
 }
 
