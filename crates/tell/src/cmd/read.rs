@@ -211,13 +211,13 @@ fn format_timestamp(ts_millis: u64) -> String {
 /// Format payload for display (truncate if too long)
 fn format_payload(bytes: &[u8]) -> String {
     // Try to parse as JSON for pretty printing
-    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(bytes) {
-        if let Ok(compact) = serde_json::to_string(&json) {
-            if compact.len() > 200 {
-                return format!("{}...", &compact[..197]);
-            }
-            return compact;
+    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(bytes)
+        && let Ok(compact) = serde_json::to_string(&json)
+    {
+        if compact.len() > 200 {
+            return format!("{}...", &compact[..197]);
         }
+        return compact;
     }
 
     // Try as UTF-8 string

@@ -182,7 +182,7 @@ impl LogEncoder {
         // Logs vector -> each LogEntry table offset
         for (i, &table_offset) in log_table_offsets.iter().enumerate() {
             let slot_pos = log_offset_slots_start + i * 4;
-            let rel = (table_offset as usize - slot_pos) as u32;
+            let rel = (table_offset - slot_pos) as u32;
             buf[slot_pos..slot_pos + 4].copy_from_slice(&rel.to_le_bytes());
         }
 

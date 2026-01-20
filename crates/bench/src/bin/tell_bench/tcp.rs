@@ -242,7 +242,7 @@ async fn benchmark(
         let mut tasks = JoinSet::new();
         let batches_per_client = batches_per_size / clients;
 
-        for client_id in 0..clients {
+        for _client_id in 0..clients {
             let server = server.to_string();
             let api_key = api_key.to_string();
             let events_sent = Arc::clone(&events_sent);
@@ -252,7 +252,6 @@ async fn benchmark(
                 let _ = sized_client(
                     &server,
                     &api_key,
-                    client_id,
                     batches_per_client as u64,
                     batch_size,
                     msg_size,
@@ -286,7 +285,6 @@ async fn benchmark(
 async fn sized_client(
     server: &str,
     api_key: &str,
-    _client_id: usize,
     batches: u64,
     batch_size: usize,
     msg_size: usize,

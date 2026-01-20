@@ -44,7 +44,7 @@ jobs:
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-        run: cargo clippy --workspace --all-targets --locked -- --deny=warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings -A clippy::collapsible_if
 
   test:
     name: Test

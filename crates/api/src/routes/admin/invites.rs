@@ -438,7 +438,7 @@ async fn accept_invite(
 // =============================================================================
 
 fn parse_role(role_str: &str) -> Result<MemberRole, ApiError> {
-    MemberRole::from_str(role_str)
+    MemberRole::parse(role_str)
         .ok_or_else(|| ApiError::validation("role", "must be one of: viewer, editor, admin"))
 }
 

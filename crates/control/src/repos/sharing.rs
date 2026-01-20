@@ -214,8 +214,7 @@ impl<'a> SharingRepo<'a> {
             .unwrap_or(&String::new())
             .clone();
 
-        let resource_type =
-            ResourceType::from_str(&resource_type_str).unwrap_or(ResourceType::Board);
+        let resource_type = ResourceType::parse(&resource_type_str).unwrap_or(ResourceType::Board);
 
         let expires_at = expires_at_str
             .filter(|s| !s.is_empty())

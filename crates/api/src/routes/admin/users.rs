@@ -134,15 +134,15 @@ async fn list_users(
     let filtered: Vec<_> = all_users
         .into_iter()
         .filter(|u| {
-            if let Some(ref email_filter) = query.email {
-                if !u.email.contains(email_filter) {
-                    return false;
-                }
+            if let Some(ref email_filter) = query.email
+                && !u.email.contains(email_filter)
+            {
+                return false;
             }
-            if let Some(ref role_filter) = query.role {
-                if u.role.as_str() != role_filter {
-                    return false;
-                }
+            if let Some(ref role_filter) = query.role
+                && u.role.as_str() != role_filter
+            {
+                return false;
             }
             true
         })
@@ -295,10 +295,9 @@ async fn update_user(
             .get_by_email(&email)
             .await
             .map_err(|e| ApiError::internal(format!("Failed to check email: {}", e)))?
+            && other.id != id
         {
-            if other.id != id {
-                return Err(ApiError::conflict("user", "email already exists"));
-            }
+            return Err(ApiError::conflict("user", "email already exists"));
         }
         existing.email = email;
     }

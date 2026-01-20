@@ -321,7 +321,7 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
         ),
         ("Max UDP size (64KB)", {
             let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
-            v.extend(std::iter::repeat(b'X').take(65000));
+            v.extend(std::iter::repeat_n(b'X', 65000));
             v
         }),
         (

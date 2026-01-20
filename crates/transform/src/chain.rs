@@ -125,10 +125,10 @@ impl Chain {
 
         for transformer in &self.transformers {
             // Check for cancellation between transformers
-            if let Some(token) = cancel {
-                if token.is_cancelled() {
-                    return Err(crate::TransformError::cancelled());
-                }
+            if let Some(token) = cancel
+                && token.is_cancelled()
+            {
+                return Err(crate::TransformError::cancelled());
             }
 
             current = transformer.transform(current).await?;

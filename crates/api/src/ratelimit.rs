@@ -231,23 +231,20 @@ where
 /// Extract client IP from request
 fn extract_client_ip<B>(req: &Request<B>) -> IpAddr {
     // Try X-Forwarded-For header first (for proxies)
-    if let Some(forwarded) = req.headers().get("x-forwarded-for") {
-        if let Ok(value) = forwarded.to_str() {
-            if let Some(first_ip) = value.split(',').next() {
-                if let Ok(ip) = first_ip.trim().parse() {
-                    return ip;
-                }
-            }
-        }
+    if let Some(forwarded) = req.headers().get("x-forwarded-for")
+        && let Ok(value) = forwarded.to_str()
+        && let Some(first_ip) = value.split(',').next()
+        && let Ok(ip) = first_ip.trim().parse()
+    {
+        return ip;
     }
 
     // Try X-Real-IP header
-    if let Some(real_ip) = req.headers().get("x-real-ip") {
-        if let Ok(value) = real_ip.to_str() {
-            if let Ok(ip) = value.trim().parse() {
-                return ip;
-            }
-        }
+    if let Some(real_ip) = req.headers().get("x-real-ip")
+        && let Ok(value) = real_ip.to_str()
+        && let Ok(ip) = value.trim().parse()
+    {
+        return ip;
     }
 
     // Try ConnectInfo extension

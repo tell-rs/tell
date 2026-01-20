@@ -91,7 +91,7 @@ impl ResourceType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "board" => Some(Self::Board),
             "metric" => Some(Self::Metric),
@@ -153,7 +153,7 @@ mod tests {
     fn test_resource_type_serialization() {
         assert_eq!(ResourceType::Board.as_str(), "board");
         assert_eq!(ResourceType::Metric.as_str(), "metric");
-        assert_eq!(ResourceType::from_str("board"), Some(ResourceType::Board));
-        assert_eq!(ResourceType::from_str("invalid"), None);
+        assert_eq!(ResourceType::parse("board"), Some(ResourceType::Board));
+        assert_eq!(ResourceType::parse("invalid"), None);
     }
 }

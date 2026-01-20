@@ -350,7 +350,7 @@ fn output_csv(result: &QueryResult) -> Result<()> {
 
     // Rows
     for row in &result.rows {
-        let values: Vec<String> = row.iter().map(|v| csv_escape(v)).collect();
+        let values: Vec<String> = row.iter().map(csv_escape).collect();
         println!("{}", values.join(","));
     }
 
@@ -365,7 +365,7 @@ fn format_value(value: &serde_json::Value) -> String {
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::String(s) => s.clone(),
         serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(|v| format_value(v)).collect();
+            let items: Vec<String> = arr.iter().map(format_value).collect();
             format!("[{}]", items.join(", "))
         }
         serde_json::Value::Object(obj) => {

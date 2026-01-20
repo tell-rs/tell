@@ -13,6 +13,9 @@ use crate::common::{
     SyslogFormat, TokioProgressReporter, format_bytes, format_number, generate_syslog_message,
 };
 
+/// Type alias for crash test case generators
+type CrashTestCase = (&'static str, Box<dyn Fn() -> Vec<u8> + Send + Sync>);
+
 /// Syslog TCP benchmark mode
 #[derive(clap::Subcommand)]
 pub enum SyslogTcpMode {
@@ -324,7 +327,7 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Server: {}", server);
     println!();
 
-    let tests: Vec<(&str, Box<dyn Fn() -> Vec<u8> + Send + Sync>)> = vec![
+    let tests: Vec<CrashTestCase> = vec![
         ("Empty line", Box::new(|| b"\n".to_vec())),
         ("Only whitespace", Box::new(|| b"   \t\t  \n".to_vec())),
         (
@@ -351,7 +354,7 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
             "Very long line (16KB)",
             Box::new(|| {
                 let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
-                v.extend(std::iter::repeat(b'X').take(16 * 1024));
+                v.extend(std::iter::repeat_n(b'X', 16 * 1024));
                 v.push(b'\n');
                 v
             }),
@@ -360,7 +363,7 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
             "Very long line (64KB)",
             Box::new(|| {
                 let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
-                v.extend(std::iter::repeat(b'Y').take(64 * 1024));
+                v.extend(std::iter::repeat_n(b'Y', 64 * 1024));
                 v.push(b'\n');
                 v
             }),

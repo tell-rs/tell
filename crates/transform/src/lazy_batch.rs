@@ -261,10 +261,10 @@ impl LazyBatch {
         let mut entries = Vec::with_capacity(self.batch.message_count());
 
         for i in 0..self.batch.message_count() {
-            if let Some(raw) = self.batch.get_message(i) {
-                if let Some(entry) = self.decode_log_message(raw) {
-                    entries.push(entry);
-                }
+            if let Some(raw) = self.batch.get_message(i)
+                && let Some(entry) = self.decode_log_message(raw)
+            {
+                entries.push(entry);
             }
         }
 

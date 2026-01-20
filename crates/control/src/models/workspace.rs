@@ -81,7 +81,7 @@ impl WorkspaceStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "suspended" => Self::Suspended,
             _ => Self::Active,
@@ -145,7 +145,7 @@ impl MemberRole {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "viewer" => Some(Self::Viewer),
             "editor" => Some(Self::Editor),
@@ -184,7 +184,7 @@ impl MemberStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "invited" => Self::Invited,
             "suspended" => Self::Suspended,

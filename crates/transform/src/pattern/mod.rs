@@ -145,7 +145,7 @@ impl PatternTransformer {
         // Spawn background worker if configured
         let worker_handle = if config.persistence.enabled
             && config.persistence.use_background_worker
-            && cancel.is_some()
+            && let Some(token) = cancel
         {
             let worker_config = WorkerConfig::default()
                 .with_channel_capacity(config.persistence.channel_capacity)
@@ -155,7 +155,7 @@ impl PatternTransformer {
             Some(spawn_pattern_worker(
                 Arc::clone(&persistence),
                 worker_config,
-                cancel.unwrap(),
+                token,
             ))
         } else {
             None

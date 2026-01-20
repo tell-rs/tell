@@ -241,10 +241,10 @@ fn get_api_url(config_path: Option<&PathBuf>) -> Result<String> {
         let toml_value: toml::Value = toml::from_str(&content)
             .with_context(|| format!("failed to parse config file: {}", path.display()))?;
 
-        if let Some(api_section) = toml_value.get("api") {
-            if let Some(url) = api_section.get("url").and_then(|v| v.as_str()) {
-                return Ok(url.to_string());
-            }
+        if let Some(api_section) = toml_value.get("api")
+            && let Some(url) = api_section.get("url").and_then(|v| v.as_str())
+        {
+            return Ok(url.to_string());
         }
     }
 

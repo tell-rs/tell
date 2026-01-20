@@ -197,7 +197,7 @@ fn row_to_invite(row: &turso::Row) -> Result<WorkspaceInvite> {
     let email = v1.as_text().unwrap_or(&empty).clone();
     let workspace_id = v2.as_text().unwrap_or(&empty).clone();
     let role_str = v3.as_text().unwrap_or(&empty);
-    let role = MemberRole::from_str(role_str).unwrap_or(MemberRole::Viewer);
+    let role = MemberRole::parse(role_str).unwrap_or(MemberRole::Viewer);
     let token = v4.as_text().unwrap_or(&empty).clone();
     let status_str = v5.as_text().unwrap_or(&empty);
     let status = InviteStatus::parse(status_str).unwrap_or(InviteStatus::Pending);

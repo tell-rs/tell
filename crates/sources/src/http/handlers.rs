@@ -302,15 +302,15 @@ pub async fn ingest_binary(
 
     // Verify API key matches (batch may have embedded key, but header takes precedence)
     // The batch's embedded key must match the authenticated key for security
-    if let Ok(batch_key) = batch.api_key() {
-        if *batch_key != api_key {
-            state.metrics.auth_failure();
-            return error_response(
-                StatusCode::FORBIDDEN,
-                "api_key_mismatch",
-                "batch API key does not match authenticated key",
-            );
-        }
+    if let Ok(batch_key) = batch.api_key()
+        && *batch_key != api_key
+    {
+        state.metrics.auth_failure();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "api_key_mismatch",
+            "batch API key does not match authenticated key",
+        );
     }
 
     // Get schema type to determine batch type

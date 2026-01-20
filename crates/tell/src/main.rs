@@ -142,12 +142,11 @@ fn resolve_log_level(cli_level: Option<&str>, config_path: Option<&std::path::Pa
     }
 
     // Try to load from config file if specified
-    if let Some(path) = config_path {
-        if path.exists() {
-            if let Ok(config) = Config::from_file(path) {
-                return config.log.level.as_str().to_string();
-            }
-        }
+    if let Some(path) = config_path
+        && path.exists()
+        && let Ok(config) = Config::from_file(path)
+    {
+        return config.log.level.as_str().to_string();
     }
 
     // Default

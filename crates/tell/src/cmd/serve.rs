@@ -544,7 +544,7 @@ async fn create_and_register_sinks(
 
                 // Build ClickHouse config from tell_config
                 let clickhouse_config = ClickHouseConfig::default()
-                    .with_url(&format!("http://{}", ch_config.host))
+                    .with_url(format!("http://{}", ch_config.host))
                     .with_database(&ch_config.database)
                     .with_credentials(&ch_config.username, &ch_config.password)
                     .with_batch_size(ch_config.batch_size)
@@ -586,7 +586,7 @@ async fn create_and_register_sinks(
 
                 // Build ClickHouse config from tell_config (native uses http:// prefix still for crate)
                 let clickhouse_config = ClickHouseConfig::default()
-                    .with_url(&format!("http://{}", ch_config.host))
+                    .with_url(format!("http://{}", ch_config.host))
                     .with_database(&ch_config.database)
                     .with_credentials(&ch_config.username, &ch_config.password)
                     .with_batch_size(ch_config.batch_size)

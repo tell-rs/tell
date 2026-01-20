@@ -137,10 +137,10 @@ impl TimedProgressReporter {
                 last_events = current;
                 last_bytes = current_bytes;
 
-                if let Some(t) = total {
-                    if current >= t {
-                        break;
-                    }
+                if let Some(t) = total
+                    && current >= t
+                {
+                    break;
                 }
             }
         });
@@ -212,10 +212,10 @@ impl ThreadTimedProgressReporter {
                 last_events = current;
                 last_bytes = current_bytes;
 
-                if let Some(t) = total {
-                    if current >= t {
-                        break;
-                    }
+                if let Some(t) = total
+                    && current >= t
+                {
+                    break;
                 }
             }
         });

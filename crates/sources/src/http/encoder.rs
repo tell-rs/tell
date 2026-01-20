@@ -97,7 +97,7 @@ fn json_event_to_encoded(event: &JsonEvent) -> Result<EncodedEvent, HttpSourceEr
 /// Convert a JSON log entry to EncodedLogEntry
 fn json_log_to_encoded(log: &JsonLogEntry) -> Result<EncodedLogEntry, HttpSourceError> {
     let event_type = LogEventTypeValue::parse(&log.log_type);
-    let level = LogLevelValue::from_str(&log.level);
+    let level = LogLevelValue::parse(&log.level);
 
     // Parse optional session_id
     let session_id = log.session_id.as_ref().and_then(|s| parse_uuid(s));
@@ -163,20 +163,16 @@ fn build_event_payload(event: &JsonEvent) -> Result<Vec<u8>, HttpSourceError> {
     }
 
     // Merge properties
-    if let Some(ref props) = event.properties {
-        if let serde_json::Value::Object(map) = props {
-            for (k, v) in map {
-                payload.insert(k.clone(), v.clone());
-            }
+    if let Some(serde_json::Value::Object(map)) = &event.properties {
+        for (k, v) in map {
+            payload.insert(k.clone(), v.clone());
         }
     }
 
     // Merge traits
-    if let Some(ref traits) = event.traits {
-        if let serde_json::Value::Object(map) = traits {
-            for (k, v) in map {
-                payload.insert(k.clone(), v.clone());
-            }
+    if let Some(serde_json::Value::Object(map)) = &event.traits {
+        for (k, v) in map {
+            payload.insert(k.clone(), v.clone());
         }
     }
 
@@ -201,11 +197,9 @@ fn build_log_payload(log: &JsonLogEntry) -> Result<Vec<u8>, HttpSourceError> {
     );
 
     // Merge additional data
-    if let Some(ref data) = log.data {
-        if let serde_json::Value::Object(map) = data {
-            for (k, v) in map {
-                payload.insert(k.clone(), v.clone());
-            }
+    if let Some(serde_json::Value::Object(map)) = &log.data {
+        for (k, v) in map {
+            payload.insert(k.clone(), v.clone());
         }
     }
 

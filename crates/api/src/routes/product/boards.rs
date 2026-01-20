@@ -251,13 +251,13 @@ async fn create_board(
     let repo = ControlPlane::boards(&ws_db);
 
     // Validate description length
-    if let Some(ref desc) = req.description {
-        if desc.len() > 2000 {
-            return Err(ApiError::validation(
-                "description",
-                "must be at most 2000 characters",
-            ));
-        }
+    if let Some(ref desc) = req.description
+        && desc.len() > 2000
+    {
+        return Err(ApiError::validation(
+            "description",
+            "must be at most 2000 characters",
+        ));
     }
 
     // Create board with user as owner
@@ -625,10 +625,10 @@ async fn can_modify_board(
             .await
             .map_err(|e| ApiError::internal(format!("Failed to check membership: {}", e)))?;
 
-        if let Some(m) = membership {
-            if m.role.can_manage() {
-                return Ok(true);
-            }
+        if let Some(m) = membership
+            && m.role.can_manage()
+        {
+            return Ok(true);
         }
     }
 

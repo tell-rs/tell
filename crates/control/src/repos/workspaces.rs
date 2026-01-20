@@ -334,7 +334,7 @@ impl<'a> WorkspaceRepo<'a> {
             .clone();
 
         let settings: WorkspaceSettings = serde_json::from_str(&settings_json).unwrap_or_default();
-        let status = WorkspaceStatus::from_str(&status_str);
+        let status = WorkspaceStatus::parse(&status_str);
         let created_at = DateTime::parse_from_rfc3339(&created_at_str)
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());
@@ -381,8 +381,8 @@ impl<'a> WorkspaceRepo<'a> {
             .unwrap_or(&String::new())
             .clone();
 
-        let role = MemberRole::from_str(&role_str).unwrap_or(MemberRole::Viewer);
-        let status = MemberStatus::from_str(&status_str);
+        let role = MemberRole::parse(&role_str).unwrap_or(MemberRole::Viewer);
+        let status = MemberStatus::parse(&status_str);
         let created_at = DateTime::parse_from_rfc3339(&created_at_str)
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());

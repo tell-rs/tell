@@ -175,13 +175,13 @@ async fn create_user_api_key(
     }
 
     // Validate description
-    if let Some(ref desc) = req.description {
-        if desc.len() > 500 {
-            return Err(ApiError::validation(
-                "description",
-                "must be at most 500 characters",
-            ));
-        }
+    if let Some(ref desc) = req.description
+        && desc.len() > 500
+    {
+        return Err(ApiError::validation(
+            "description",
+            "must be at most 500 characters",
+        ));
     }
 
     // If workspace_id provided, check user has access

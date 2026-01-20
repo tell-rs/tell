@@ -87,14 +87,12 @@ pub fn parse_api_key(key: &str) -> Result<[u8; 16], HttpSourceError> {
 /// Get source IP, checking X-Forwarded-For header for proxied requests
 pub fn get_source_ip(headers: &HeaderMap, connection_ip: IpAddr) -> IpAddr {
     // Check X-Forwarded-For header (first IP is the original client)
-    if let Some(xff) = headers.get("x-forwarded-for") {
-        if let Ok(xff_str) = xff.to_str() {
-            if let Some(first_ip) = xff_str.split(',').next() {
-                if let Ok(ip) = first_ip.trim().parse::<IpAddr>() {
-                    return ip;
-                }
-            }
-        }
+    if let Some(xff) = headers.get("x-forwarded-for")
+        && let Ok(xff_str) = xff.to_str()
+        && let Some(first_ip) = xff_str.split(',').next()
+        && let Ok(ip) = first_ip.trim().parse::<IpAddr>()
+    {
+        return ip;
     }
 
     // Fall back to connection IP

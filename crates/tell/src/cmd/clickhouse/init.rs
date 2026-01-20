@@ -190,7 +190,7 @@ fn is_valid_workspace_name(name: &str) -> bool {
         && name.len() <= 64
         && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         && !name.starts_with('_')
-        && !name.chars().next().map_or(true, |c| c.is_ascii_digit())
+        && !name.chars().next().is_none_or(|c| c.is_ascii_digit())
 }
 
 fn print_dry_run(workspace: &str, collector_password: &str, dashboard_password: &str) {
