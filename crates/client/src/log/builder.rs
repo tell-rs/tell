@@ -528,7 +528,7 @@ fn build_log_entry_flatbuffer(
     // === Vectors and strings ===
 
     // Align to 4 bytes
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -543,7 +543,7 @@ fn build_log_entry_flatbuffer(
     };
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -559,7 +559,7 @@ fn build_log_entry_flatbuffer(
     };
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -575,7 +575,7 @@ fn build_log_entry_flatbuffer(
     };
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -665,7 +665,7 @@ fn build_log_data_flatbuffer(logs: &[BuiltLogEntry]) -> Vec<u8> {
     buf.extend_from_slice(&[0u8; 4]);
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -683,7 +683,7 @@ fn build_log_data_flatbuffer(logs: &[BuiltLogEntry]) -> Vec<u8> {
     }
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -693,7 +693,7 @@ fn build_log_data_flatbuffer(logs: &[BuiltLogEntry]) -> Vec<u8> {
     let mut table_positions = Vec::with_capacity(log_count);
     for log in logs {
         // Align before each log
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 

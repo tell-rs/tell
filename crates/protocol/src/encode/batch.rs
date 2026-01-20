@@ -167,7 +167,7 @@ impl BatchEncoder {
         };
 
         // Align to 4 bytes before vectors
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -178,7 +178,7 @@ impl BatchEncoder {
         write_u32(&mut buf, self.api_key.len() as u32);
         buf.extend_from_slice(&self.api_key);
         // Align to 4 bytes
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -187,7 +187,7 @@ impl BatchEncoder {
         write_u32(&mut buf, data.len() as u32);
         buf.extend_from_slice(data);
         // Align to 4 bytes
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -196,7 +196,7 @@ impl BatchEncoder {
             let start = buf.len();
             write_u32(&mut buf, ip.len() as u32);
             buf.extend_from_slice(&ip);
-            while buf.len() % 4 != 0 {
+            while !buf.len().is_multiple_of(4) {
                 buf.push(0);
             }
             start

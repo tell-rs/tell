@@ -372,7 +372,7 @@ fn build_flatbuffer(
     // === Vectors ===
 
     // Align to 4 bytes before vectors
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -382,7 +382,7 @@ fn build_flatbuffer(
     buf.extend_from_slice(api_key);
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -392,7 +392,7 @@ fn build_flatbuffer(
     buf.extend_from_slice(data);
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 

@@ -112,7 +112,7 @@ fn create_test_batch(api_key: &[u8; 16], schema_type: u8, data: &[u8]) -> Vec<u8
     buf.extend_from_slice(&[0u8; 2]);
 
     // Align to 4 bytes for vectors
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -124,7 +124,7 @@ fn create_test_batch(api_key: &[u8; 16], schema_type: u8, data: &[u8]) -> Vec<u8
     buf.extend_from_slice(api_key);
 
     // Align to 4 bytes
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 

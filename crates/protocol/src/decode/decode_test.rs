@@ -33,7 +33,7 @@ fn build_event_data(events: &[TestEvent]) -> Vec<u8> {
     buf.extend_from_slice(&[0u8; 4]);
 
     // Align to 4 bytes
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -42,7 +42,7 @@ fn build_event_data(events: &[TestEvent]) -> Vec<u8> {
 
     for event in events {
         // Align
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -51,7 +51,7 @@ fn build_event_data(events: &[TestEvent]) -> Vec<u8> {
     }
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -103,7 +103,7 @@ impl Default for TestEvent {
 fn build_event_table(buf: &mut Vec<u8>, event: &TestEvent) -> usize {
     // First, build all vectors we need
     let device_id_offset = event.device_id.map(|id| {
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let start = buf.len();
@@ -113,7 +113,7 @@ fn build_event_table(buf: &mut Vec<u8>, event: &TestEvent) -> usize {
     });
 
     let session_id_offset = event.session_id.map(|id| {
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let start = buf.len();
@@ -123,7 +123,7 @@ fn build_event_table(buf: &mut Vec<u8>, event: &TestEvent) -> usize {
     });
 
     let event_name_offset = event.event_name.as_ref().map(|name| {
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let start = buf.len();
@@ -134,7 +134,7 @@ fn build_event_table(buf: &mut Vec<u8>, event: &TestEvent) -> usize {
     });
 
     let payload_offset = if !event.payload.is_empty() {
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let start = buf.len();
@@ -146,7 +146,7 @@ fn build_event_table(buf: &mut Vec<u8>, event: &TestEvent) -> usize {
     };
 
     // Align before vtable
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 

@@ -64,7 +64,7 @@ pub fn encode_logs(logs: &[JsonLogEntry], api_key: &[u8; 16]) -> Result<Vec<u8>,
 
 /// Convert a JSON event to EncodedEvent
 fn json_event_to_encoded(event: &JsonEvent) -> Result<EncodedEvent, HttpSourceError> {
-    let event_type = EventTypeValue::from_str(&event.event_type);
+    let event_type = EventTypeValue::parse(&event.event_type);
 
     // Parse device_id as UUID
     let device_id = parse_uuid(&event.device_id).ok_or_else(|| HttpSourceError::InvalidField {
@@ -96,7 +96,7 @@ fn json_event_to_encoded(event: &JsonEvent) -> Result<EncodedEvent, HttpSourceEr
 
 /// Convert a JSON log entry to EncodedLogEntry
 fn json_log_to_encoded(log: &JsonLogEntry) -> Result<EncodedLogEntry, HttpSourceError> {
-    let event_type = LogEventTypeValue::from_str(&log.log_type);
+    let event_type = LogEventTypeValue::parse(&log.log_type);
     let level = LogLevelValue::from_str(&log.level);
 
     // Parse optional session_id

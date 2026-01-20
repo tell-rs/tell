@@ -44,7 +44,7 @@ pub enum EventTypeValue {
 
 impl EventTypeValue {
     /// Parse from string (case-insensitive)
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "track" => Self::Track,
             "identify" => Self::Identify,
@@ -107,7 +107,7 @@ impl EventEncoder {
         write_u16(&mut buf, 4); // field 0 (events) at offset 4
 
         // Align to 4
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -121,7 +121,7 @@ impl EventEncoder {
         buf.extend_from_slice(&[0u8; 4]);
 
         // Align
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -136,7 +136,7 @@ impl EventEncoder {
         }
 
         // Align
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -158,7 +158,7 @@ impl EventEncoder {
         // Events vector -> each Event table offset
         for (i, &table_offset) in event_table_offsets.iter().enumerate() {
             let slot_pos = event_offset_slots_start + i * 4;
-            let rel = (table_offset as usize - slot_pos) as u32;
+            let rel = (table_offset - slot_pos) as u32;
             buf[slot_pos..slot_pos + 4].copy_from_slice(&rel.to_le_bytes());
         }
 
@@ -205,7 +205,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
     write_u16(buf, if !event.payload.is_empty() { 28 } else { 0 }); // field 5
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -235,7 +235,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
     buf.extend_from_slice(&[0u8; 4]);
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -246,7 +246,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
         let vec_start = buf.len();
         write_u32(buf, 16);
         buf.extend_from_slice(device_id);
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - device_id_offset_pos) as u32;
@@ -258,7 +258,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
         let vec_start = buf.len();
         write_u32(buf, 16);
         buf.extend_from_slice(session_id);
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - session_id_offset_pos) as u32;
@@ -271,7 +271,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
         write_u32(buf, name.len() as u32);
         buf.extend_from_slice(name.as_bytes());
         buf.push(0); // null terminator
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - event_name_offset_pos) as u32;
@@ -283,7 +283,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
         let vec_start = buf.len();
         write_u32(buf, event.payload.len() as u32);
         buf.extend_from_slice(&event.payload);
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - payload_offset_pos) as u32;

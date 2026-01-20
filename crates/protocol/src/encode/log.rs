@@ -41,7 +41,7 @@ pub enum LogEventTypeValue {
 
 impl LogEventTypeValue {
     /// Parse from string (case-insensitive)
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "log" => Self::Log,
             "enrich" => Self::Enrich,
@@ -66,7 +66,7 @@ pub enum LogLevelValue {
 
 impl LogLevelValue {
     /// Parse from string (case-insensitive)
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "trace" => Self::Trace,
             "debug" => Self::Debug,
@@ -131,7 +131,7 @@ impl LogEncoder {
         write_u16(&mut buf, 4); // field 0 (logs) at offset 4
 
         // Align to 4
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -145,7 +145,7 @@ impl LogEncoder {
         buf.extend_from_slice(&[0u8; 4]);
 
         // Align
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -160,7 +160,7 @@ impl LogEncoder {
         }
 
         // Align
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
@@ -232,7 +232,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
     write_u16(buf, if !log.payload.is_empty() { 28 } else { 0 }); // field 6
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -265,7 +265,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
     buf.extend_from_slice(&[0u8; 4]);
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -276,7 +276,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
         let vec_start = buf.len();
         write_u32(buf, 16);
         buf.extend_from_slice(session_id);
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - session_id_offset_pos) as u32;
@@ -289,7 +289,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
         write_u32(buf, source.len() as u32);
         buf.extend_from_slice(source.as_bytes());
         buf.push(0); // null terminator
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - source_offset_pos) as u32;
@@ -302,7 +302,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
         write_u32(buf, service.len() as u32);
         buf.extend_from_slice(service.as_bytes());
         buf.push(0); // null terminator
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - service_offset_pos) as u32;
@@ -314,7 +314,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
         let vec_start = buf.len();
         write_u32(buf, log.payload.len() as u32);
         buf.extend_from_slice(&log.payload);
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
         let rel = (vec_start - payload_offset_pos) as u32;

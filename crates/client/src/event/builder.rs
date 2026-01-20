@@ -478,7 +478,7 @@ fn build_event_flatbuffer(
     // === Vectors and strings ===
 
     // Align to 4 bytes
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -493,7 +493,7 @@ fn build_event_flatbuffer(
     };
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -508,7 +508,7 @@ fn build_event_flatbuffer(
     };
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -524,7 +524,7 @@ fn build_event_flatbuffer(
     };
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -622,7 +622,7 @@ fn build_event_data_flatbuffer(events: &[BuiltEvent]) -> Vec<u8> {
     buf.extend_from_slice(&[0u8; 4]);
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -645,7 +645,7 @@ fn build_event_data_flatbuffer(events: &[BuiltEvent]) -> Vec<u8> {
     }
 
     // Align
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 
@@ -655,7 +655,7 @@ fn build_event_data_flatbuffer(events: &[BuiltEvent]) -> Vec<u8> {
     let mut table_positions = Vec::with_capacity(event_count);
     for event in events {
         // Align before each event
-        while buf.len() % 4 != 0 {
+        while !buf.len().is_multiple_of(4) {
             buf.push(0);
         }
 
