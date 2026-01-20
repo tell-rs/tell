@@ -1,6 +1,6 @@
 # Release Guide
 
-## Quick Release (CI)
+## Quick Release
 
 ```bash
 # 1. Update version in Cargo.toml
