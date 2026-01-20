@@ -1,7 +1,7 @@
 //! Tests for PatternTransformer
 
 use super::*;
-use cdp_protocol::{BatchBuilder, SourceId};
+use tell_protocol::{BatchBuilder, SourceId};
 
 fn create_log_batch(messages: &[&str]) -> Batch {
     let source_id = SourceId::new("test");

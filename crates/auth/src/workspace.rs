@@ -23,7 +23,7 @@ use std::fmt;
 /// # Example
 ///
 /// ```
-/// use cdp_auth::WorkspaceId;
+/// use tell_auth::WorkspaceId;
 ///
 /// let ws = WorkspaceId::new(1);
 /// assert_eq!(ws.as_u32(), 1);

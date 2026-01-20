@@ -20,7 +20,7 @@ Use connectors for data that:
 
 ```bash
 # All connectors (default)
-cargo install --path crates/collector
+cargo install --path crates/collector  # binary is named 'tell'
 
 # No connectors
 cargo install --path crates/collector --no-default-features
@@ -70,4 +70,4 @@ Basic steps:
 1. Add config struct to `config.rs`
 2. Create connector in `src/myconnector.rs`
 3. Add feature flag to `Cargo.toml`
-4. Wire up in `scheduler.rs` and collector's `serve.rs`
+4. Wire up in `scheduler.rs` and `serve.rs`

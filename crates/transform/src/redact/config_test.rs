@@ -94,7 +94,7 @@ type = "redact"
 strategy = "redact"
 patterns = ["email", "phone"]
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = RedactConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.strategy, RedactStrategy::Redact);
@@ -111,7 +111,7 @@ strategy = "hash"
 hash_key = "my-secret-key"
 patterns = ["email"]
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = RedactConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.strategy, RedactStrategy::Hash);
@@ -133,7 +133,7 @@ path = "ip_address"
 pattern = "ipv4"
 strategy = "hash"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = RedactConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.fields.len(), 2);
@@ -152,7 +152,7 @@ name = "employee_id"
 regex = "EMP-\\d{6}"
 prefix = "emp_"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = RedactConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.custom_patterns.len(), 1);
@@ -167,7 +167,7 @@ type = "redact"
 enabled = false
 patterns = ["email"]
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = RedactConfig::try_from(&instance).unwrap();
 
     assert!(!config.enabled);
@@ -180,7 +180,7 @@ type = "redact"
 strategy = "invalid"
 patterns = ["email"]
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let result = RedactConfig::try_from(&instance);
 
     assert!(result.is_err());
@@ -193,7 +193,7 @@ fn test_try_from_invalid_pattern() {
 type = "redact"
 patterns = ["email", "invalid_pattern"]
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let result = RedactConfig::try_from(&instance);
 
     assert!(result.is_err());
@@ -207,7 +207,7 @@ type = "redact"
 patterns = ["email"]
 scan_all = true
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = RedactConfig::try_from(&instance).unwrap();
 
     assert!(config.scan_all);

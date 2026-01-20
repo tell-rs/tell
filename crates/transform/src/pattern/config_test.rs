@@ -156,7 +156,7 @@ fn test_clickhouse_config_default() {
     let config = ClickHouseConfig::default();
 
     assert_eq!(config.url, "http://localhost:8123");
-    assert_eq!(config.database, "cdp");
+    assert_eq!(config.database, "tell");
     assert_eq!(config.table, "log_patterns");
     assert_eq!(config.pool_size, 5);
 }

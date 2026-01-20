@@ -1,7 +1,7 @@
 //! Tests for TapFilter
 
 use super::*;
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 
 /// Helper to create a test batch with specific metadata
 fn make_batch(workspace_id: u32, source_id: &str, batch_type: BatchType) -> Batch {
@@ -192,7 +192,7 @@ fn test_from_subscribe_with_sources() {
 
 #[test]
 fn test_from_subscribe_with_batch_types() {
-    let req = SubscribeRequest::new().with_types(vec![0, 1]); // Event, Log
+    let req = SubscribeRequest::new().with_types(vec![1, 2]); // Event=1, Log=2
     let filter = TapFilter::from_subscribe(&req);
 
     assert!(filter.batch_types().is_some());
@@ -203,7 +203,7 @@ fn test_from_subscribe_with_batch_types() {
 
 #[test]
 fn test_from_subscribe_filters_invalid_batch_types() {
-    let req = SubscribeRequest::new().with_types(vec![0, 255]); // Event, Invalid
+    let req = SubscribeRequest::new().with_types(vec![1, 255]); // Event=1, Invalid
     let filter = TapFilter::from_subscribe(&req);
 
     // Invalid type 255 should be filtered out
@@ -217,7 +217,7 @@ fn test_from_subscribe_full() {
     let req = SubscribeRequest::new()
         .with_workspaces(vec![42])
         .with_sources(vec!["tcp".into()])
-        .with_types(vec![0])
+        .with_types(vec![1]) // Event=1
         .with_last_n(100)
         .with_sample_rate(0.5)
         .with_rate_limit(1000);

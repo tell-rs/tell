@@ -1,143 +1,91 @@
 # Benchmark Results
 
-## System
+## Benchmark Matrix
 
-```
-Apple M4 Pro (aarch64) | 12 cores | 24 GB | Darwin 26.1
-```
+Apple M4 Pro (aarch64) | 12 cores | 25.8 GB | 5 clients | 50M events/test | null sink
 
-## Performance
+| Source | b500 | b100 | b10 | b3 |
+|--------|------|------|------|------|
+| TCP Binary | 64.28M | 55.15M | 6.93M | 1.41M |
+| HTTP FBS | 24.25M | 8.28M | 1.04M | 321.15K |
+| HTTP JSON | 2.14M | 2.25M | 848.38K | 306.63K |
+| Syslog TCP | 8.71M | 8.49M | 8.34M | 1.99M |
+| Syslog UDP | 912.04K | 921.22K | 919.27K | 916.71K |
 
-| Test | Events/sec | Throughput |
-|------|------------|------------|
-| TCP to Blackhole (5 clients, 400M events) | 65M | 13 GB/s |
+Generated with: `tell-bench all`
 
-```
-./target/release/loadtest --events 400000000 -c 5
+## Protocol Comparison
 
-[   1.0s]      64.57M events/s |  12.9 GB/s |   64639000 events ( 16.2%)
-[   2.0s]      69.36M events/s |  13.9 GB/s |  134070000 events ( 33.5%)
-[   3.0s]      68.32M events/s |  13.7 GB/s |  202454500 events ( 50.6%)
-[   4.0s]      67.33M events/s |  13.5 GB/s |  269853000 events ( 67.5%)
-[   5.0s]      66.47M events/s |  13.3 GB/s |  336391000 events ( 84.1%)
-```
-
-### Comparison
-
-| Collector | Test | Throughput |
-|-----------|------|------------|
-| Collector | TCP to Blackhole | ~13 GB/s |
-| Vector | TCP to Blackhole | ~86 MiB/s |
+| Protocol | Pros | Cons |
+|----------|------|------|
+| TCP Binary | Highest throughput, lowest overhead | Requires binary client |
+| HTTP FBS | REST-compatible, good throughput | HTTP overhead |
+| HTTP JSON | Human-readable, easy debugging | Serialization overhead |
+| Syslog TCP | Standard protocol, reliable | Lower throughput than binary |
+| Syslog UDP | Fire-and-forget, low latency | Lossy, kernel buffer limited |
 
 ---
 
-## Detailed Results
+## Message Size Benchmark
 
-### Scenarios
+Throughput at different payload sizes (TCP Binary, 5 clients, 500 events/batch):
 
-| Name | Events/Batch | Event Size | Payload |
-|------|--------------|------------|---------|
-| realtime_small | 10 | 100 B | 1 KB |
-| typical | 100 | 200 B | 20 KB |
-| high_volume | 500 | 200 B | 100 KB |
-| large_events | 100 | 1000 B | 100 KB |
+| Msg Size | Events/sec | MB/s |
+|----------|------------|------|
+| 100 B | 28.7M | 10 |
+| 500 B | 222M | 254 |
+| 1 KB | 280M | 600 |
+| 5 KB | 362M | 3,671 |
+| 10 KB | 363M | 7,311 |
+| 50 KB | 133M | 13,358 |
+| 100 KB | 68M | 13,614 |
+| 500 KB | 12.6M | 12,586 |
+| 1 MB | 6.5M | 12,960 |
+
+Peak events/sec at 10 KB payload. Peak throughput at 100 KB payload.
+
+---
+
+## Micro-benchmarks
 
 ### TCP Source - Wire Message Parsing
 
-| Scenario | Time/msg | Wire msg/sec | Events/batch | Events/sec |
-|----------|----------|--------------|--------------|------------|
-| realtime_small | 64 ns | 15.6 M | 10 | 156 M |
-| typical | 265 ns | 3.8 M | 100 | 380 M |
-| high_volume | 1.4 µs | 715 K | 500 | 357 M |
-| large_events | 1.4 µs | 706 K | 100 | 71 M |
+| Scenario | Events/batch | Events/sec |
+|----------|--------------|------------|
+| realtime_small | 10 | 156M |
+| typical | 100 | 380M |
+| high_volume | 500 | 357M |
+| large_events | 100 | 71M |
 
-### DiskBinary Sink - Binary Encoding
-
-| Scenario | Time/batch | Events/batch | Events/sec |
-|----------|------------|--------------|------------|
-| realtime_small | 52 ns | 10 | 192 M |
-| typical | 600 ns | 100 | 167 M |
-| high_volume | 3.6 µs | 500 | 139 M |
-| large_events | 2.3 µs | 100 | 44 M |
-
-### DiskBinary Sink - Full Write (I/O)
+### Pipeline Overhead (NullSink)
 
 | Scenario | Events/batch | Events/sec |
 |----------|--------------|------------|
-| realtime_small | 10 | 86 K |
-| typical | 100 | 848 K |
-| high_volume | 500 | 4.0 M |
-| large_events | 100 | 825 K |
+| realtime_small | 10 | 21.4M |
+| typical | 100 | 218M |
+| high_volume | 500 | 1.05B |
+| large_events | 100 | 202M |
 
-### Syslog TCP - Line Processing
-
-| Messages | Msg/sec |
-|----------|---------|
-| 100 | 14 M |
-| 500 | 15 M |
-| 1000 | 15 M |
-
-### Syslog UDP - Packet Processing
-
-| Packets | Msg/sec |
-|---------|---------|
-| 100 | 96 M |
-| 500 | 143 M |
-| 1000 | 150 M |
-
-### Syslog BatchBuilder - Message Add
-
-| Msg Size | Msg/sec |
-|----------|---------|
-| 100 B | 256 M |
-| 200 B | 179 M |
-| 500 B | 96 M |
-| 1000 B | 55 M |
-
-### Pipeline → DiskBinarySink (Full Pipeline with I/O)
+### DiskBinary Sink (with I/O)
 
 | Scenario | Events/batch | Events/sec |
 |----------|--------------|------------|
-| realtime_small | 10 | 86 K |
-| typical | 100 | 826 K |
-| high_volume | 500 | 4.0 M |
-| large_events | 100 | 828 K |
+| realtime_small | 10 | 86K |
+| typical | 100 | 848K |
+| high_volume | 500 | 4.0M |
+| large_events | 100 | 825K |
 
-### Pipeline → NullSink (Pipeline Overhead Only)
+### Syslog Processing
 
-| Scenario | Events/batch | Events/sec |
-|----------|--------------|------------|
-| realtime_small | 10 | 21.4 M |
-| typical | 100 | 218 M |
-| high_volume | 500 | 1.05 B |
-| large_events | 100 | 202 M |
-
-### Network E2E: TcpSource → Router → NullSink
-
-| Scenario | Events/batch | Events/sec |
-|----------|--------------|------------|
-| typical | 100 | 6.4 M |
-
-### Network E2E: SyslogTcpSource → Router → NullSink
-
-| Messages | Msg Size | Msg/sec |
-|----------|----------|---------|
-| 10,000 | 200 B | 205 K |
-| 50,000 | 200 B | 211 K |
-| 10,000 | 500 B | 195 K |
-
-### Network E2E: SyslogUdpSource → Router → NullSink
-
-| Messages | Msg Size | Msg/sec |
-|----------|----------|---------|
-| 10,000 | 200 B | 213 K |
-| 50,000 | 200 B | 242 K |
-| 10,000 | 500 B | 210 K |
+| Source | Messages | Msg/sec |
+|--------|----------|---------|
+| TCP | 1000 | 15M |
+| UDP | 1000 | 150M |
 
 ### Tap System Overhead
 
-| Scenario | Time/batch | Overhead |
-|----------|------------|----------|
-| No tap | 4.48 µs | baseline |
-| Tap idle | 4.55 µs | +1.5% |
-| Tap streaming | 4.99 µs | +11.4% |
+| Mode | Time/batch | Overhead |
+|------|------------|----------|
+| No tap | 4.48 us | baseline |
+| Tap idle | 4.55 us | +1.5% |
+| Tap streaming | 4.99 us | +11.4% |

@@ -1,62 +1,72 @@
-//! CDP Collector - Authentication
+//! Tell - Authentication
 //!
-//! API key management with hot reload support.
+//! Authentication, authorization, and API key management.
 //!
 //! # Overview
 //!
-//! This crate provides:
-//! - `WorkspaceId` - Lightweight identifier for workspaces
-//! - `ApiKeyStore` - Thread-safe map of API keys to workspace IDs
-//! - `ApiKeyManager` - File-based key loading with hot reload
+//! Simple RBAC with 4 roles and 3 permissions:
 //!
-//! # Zero-Copy Design
+//! | Role | Capabilities |
+//! |------|--------------|
+//! | `Viewer` | View analytics and shared content |
+//! | `Editor` | Create/edit own content |
+//! | `Admin` | Manage workspace |
+//! | `Platform` | Cross-workspace ops |
 //!
-//! - API keys are stored as `[u8; 16]` arrays (no heap allocation)
-//! - Validation is O(1) HashMap lookup
-//! - No allocations in the hot path
+//! # Two Auth Systems
 //!
-//! # File Format
+//! ## Streaming API Keys (Collector)
 //!
-//! API keys are stored in a simple text file:
+//! High-performance hex keys for data ingestion:
 //! ```text
-//! # comments start with #
 //! 000102030405060708090a0b0c0d0e0f:1
-//! deadbeefdeadbeefdeadbeefdeadbeef:2
 //! ```
+//! - O(1) lookup, zero allocation
+//! - Maps directly to workspace ID
 //!
-//! Each line contains:
-//! - 32 hex characters (16 bytes) for the API key
-//! - Colon separator
-//! - Workspace ID (numeric u32, matching Go's `type WorkspaceID uint32`)
+//! ## HTTP API Tokens (API)
 //!
-//! # Example
-//!
-//! ```ignore
-//! use cdp_auth::{ApiKeyStore, WorkspaceId};
-//!
-//! // Load keys from file
-//! let store = ApiKeyStore::from_file("configs/apikeys.conf")?;
-//!
-//! // Validate key (hot path - zero allocation)
-//! let key: [u8; 16] = [0x00, 0x01, 0x02, ...];
-//! if let Some(workspace) = store.validate(&key) {
-//!     println!("Valid key for workspace: {}", workspace);
-//! }
+//! JWT tokens for dashboard/API:
+//! ```text
+//! tell_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 //! ```
+//! - Contains user ID, workspace ID, role
+//! - API keys inherit creator's role
 
+mod claims;
 mod error;
+pub mod password;
+mod provider;
+mod roles;
 mod store;
+mod user;
+mod user_store;
 mod workspace;
+
+/// Test utilities for generating JWT tokens
+pub mod test_utils;
 
 #[cfg(test)]
 mod store_test;
 
+// Streaming API key types
 pub use error::{AuthError, Result};
 pub use store::{ApiKey, ApiKeyStore, SharedApiKeyStore};
 pub use workspace::WorkspaceId;
 
-/// Length of API key in bytes
+// RBAC types
+pub use claims::{extract_jwt, is_api_token_format, TokenClaims, TOKEN_PREFIX};
+pub use roles::{Permission, Role};
+pub use user::UserInfo;
+
+// Auth providers
+pub use provider::{AuthProvider, LocalJwtProvider};
+
+// Local user store
+pub use user_store::{LocalUserStore, StoredUser};
+
+/// Length of streaming API key in bytes
 pub const API_KEY_LENGTH: usize = 16;
 
-/// Length of API key in hex characters
+/// Length of streaming API key in hex characters
 pub const API_KEY_HEX_LENGTH: usize = API_KEY_LENGTH * 2;

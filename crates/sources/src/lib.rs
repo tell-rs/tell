@@ -1,10 +1,11 @@
-//! CDP Collector - Sources
+//! Tell - Sources
 //!
 //! Network sources that receive data and produce `Batch` instances for the pipeline.
 //!
 //! # Available Sources
 //!
 //! - **TCP** - High-performance TCP source with FlatBuffers protocol (primary)
+//! - **HTTP** - REST API source for JSONL ingestion (for JS/TS SDKs)
 //! - **TCP Debug** - TCP source with hex dump and detailed tracing (debugging only)
 //! - **Syslog TCP** - RFC 3164/5424 syslog over TCP
 //! - **Syslog UDP** - RFC 3164/5424 syslog over UDP with multi-worker support
@@ -21,8 +22,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use cdp_sources::tcp::{TcpSource, TcpSourceConfig};
-//! use cdp_auth::ApiKeyStore;
+//! use tell_sources::tcp::{TcpSource, TcpSourceConfig};
+//! use tell_auth::ApiKeyStore;
 //! use std::sync::Arc;
 //! use tokio::sync::mpsc;
 //!
@@ -39,6 +40,7 @@
 //! source.run().await?;
 //! ```
 
+pub mod http;
 pub mod syslog;
 pub mod tcp;
 pub mod tcp_debug;
@@ -56,6 +58,12 @@ pub use tcp::{
 
 // TCP Debug source (separate type for zero production overhead)
 pub use tcp_debug::{TcpDebugSource, TcpDebugSourceConfig, TcpDebugSourceMetrics};
+
+// HTTP source for REST API
+pub use http::{
+    HttpMetricsSnapshot, HttpSource, HttpSourceConfig, HttpSourceError, HttpSourceMetrics,
+    HttpSourceMetricsHandle,
+};
 
 // Syslog sources
 pub use syslog::{

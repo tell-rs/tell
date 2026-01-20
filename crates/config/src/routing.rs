@@ -454,7 +454,7 @@ similarity_threshold = 0.6
 cache_size = 50000
 max_child_nodes = 75
 persistence_enabled = true
-persistence_file = "/var/lib/cdp/patterns.json"
+persistence_file = "/var/lib/tell/patterns.json"
 "#;
         let config: RoutingConfig = toml::from_str(toml).unwrap();
         let t = &config.rules[0].transformers[0];
@@ -467,7 +467,7 @@ persistence_file = "/var/lib/cdp/patterns.json"
         assert_eq!(t.get_bool("persistence_enabled"), Some(true));
         assert_eq!(
             t.get_str("persistence_file"),
-            Some("/var/lib/cdp/patterns.json")
+            Some("/var/lib/tell/patterns.json")
         );
     }
 

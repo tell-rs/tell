@@ -1,15 +1,18 @@
-//! Tests for the ClickHouse sink (CDP v1.1 schema)
+//! Tests for the ClickHouse sink (Tell v1.1 schema)
 
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use cdp_client::event::{EventBuilder, EventDataBuilder, EventType};
-use cdp_client::log::{LogEntryBuilder, LogDataBuilder};
-use cdp_client::BatchBuilder as FlatBufferBuilder;
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_client::event::{EventBuilder, EventDataBuilder, EventType};
+use tell_client::log::{LogEntryBuilder, LogDataBuilder};
+use tell_client::BatchBuilder as FlatBufferBuilder;
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tokio::sync::mpsc;
 
+use uuid::Uuid;
+
+use super::tables::LogLevelEnum;
 use super::*;
 
 // =============================================================================
@@ -164,8 +167,8 @@ fn test_config_with_url() {
 
 #[test]
 fn test_config_with_database() {
-    let config = ClickHouseConfig::default().with_database("cdp_prod");
-    assert_eq!(config.database, "cdp_prod");
+    let config = ClickHouseConfig::default().with_database("tell_prod");
+    assert_eq!(config.database, "tell_prod");
 }
 
 #[test]
@@ -465,8 +468,8 @@ fn test_table_batches_is_empty() {
     batches.track.push(EventRow {
         timestamp: 0,
         event_name: String::new(),
-        device_id: [0; 16],
-        session_id: [0; 16],
+        device_id: Uuid::nil(),
+        session_id: Uuid::nil(),
         properties: String::new(),
         raw: String::new(),
         source_ip: [0; 16],
@@ -484,8 +487,8 @@ fn test_table_batches_any_needs_flush() {
     batches.track.push(EventRow {
         timestamp: 0,
         event_name: String::new(),
-        device_id: [0; 16],
-        session_id: [0; 16],
+        device_id: Uuid::nil(),
+        session_id: Uuid::nil(),
         properties: String::new(),
         raw: String::new(),
         source_ip: [0; 16],
@@ -493,8 +496,8 @@ fn test_table_batches_any_needs_flush() {
     batches.track.push(EventRow {
         timestamp: 1,
         event_name: String::new(),
-        device_id: [0; 16],
-        session_id: [0; 16],
+        device_id: Uuid::nil(),
+        session_id: Uuid::nil(),
         properties: String::new(),
         raw: String::new(),
         source_ip: [0; 16],
@@ -747,7 +750,7 @@ async fn test_sink_processes_syslog_to_buffer() {
 
     // Verify log was added to buffer
     assert_eq!(sink.batches.logs.len(), 1);
-    assert_eq!(sink.batches.logs[0].level, "info");
+    assert_eq!(sink.batches.logs[0].level, LogLevelEnum::Info);
 
     drop(tx);
 }
@@ -761,8 +764,8 @@ fn test_event_row_creation() {
     let row = EventRow {
         timestamp: 1700000000000,
         event_name: "page_view".to_string(),
-        device_id: [0x01; 16],
-        session_id: [0x02; 16],
+        device_id: Uuid::from_bytes([0x01; 16]),
+        session_id: Uuid::from_bytes([0x02; 16]),
         properties: r#"{"page": "/home"}"#.to_string(),
         raw: r#"{"page": "/home"}"#.to_string(),
         source_ip: [0; 16],
@@ -789,12 +792,12 @@ fn test_user_row_creation() {
 fn test_user_device_row_creation() {
     let row = UserDeviceRow {
         user_id: "abc-123".to_string(),
-        device_id: [0x03; 16],
+        device_id: Uuid::from_bytes([0x03; 16]),
         linked_at: 1700000000000,
     };
 
     assert_eq!(row.user_id, "abc-123");
-    assert_eq!(row.device_id, [0x03; 16]);
+    assert_eq!(row.device_id, Uuid::from_bytes([0x03; 16]));
 }
 
 #[test]
@@ -814,8 +817,8 @@ fn test_user_trait_row_creation() {
 fn test_context_row_creation() {
     let row = ContextRow {
         timestamp: 1700000000000,
-        device_id: [0x01; 16],
-        session_id: [0x02; 16],
+        device_id: Uuid::from_bytes([0x01; 16]),
+        session_id: Uuid::from_bytes([0x02; 16]),
         device_type: "mobile".to_string(),
         device_model: "iPhone 14 Pro".to_string(),
         operating_system: "iOS".to_string(),
@@ -839,17 +842,17 @@ fn test_context_row_creation() {
 fn test_log_row_creation() {
     let row = LogRow {
         timestamp: 1700000000000,
-        level: "info".to_string(),
+        level: LogLevelEnum::Info,
         source: "web-server-1".to_string(),
         service: "nginx".to_string(),
-        session_id: [0x03; 16],
+        session_id: Uuid::from_bytes([0x03; 16]),
         source_ip: [0; 16],
         pattern_id: Some(12345),
         message: "GET /api/health 200".to_string(),
         raw: "GET /api/health 200".to_string(),
     };
 
-    assert_eq!(row.level, "info");
+    assert_eq!(row.level, LogLevelEnum::Info);
     assert_eq!(row.service, "nginx");
     assert_eq!(row.pattern_id, Some(12345));
 }
@@ -858,10 +861,10 @@ fn test_log_row_creation() {
 fn test_log_row_without_pattern_id() {
     let row = LogRow {
         timestamp: 1700000000000,
-        level: "error".to_string(),
+        level: LogLevelEnum::Error,
         source: "api-server".to_string(),
         service: "api".to_string(),
-        session_id: [0; 16],
+        session_id: Uuid::nil(),
         source_ip: [0; 16],
         pattern_id: None,
         message: "Connection refused".to_string(),
@@ -970,7 +973,7 @@ fn test_process_batch_decodes_log_entries() {
     assert_eq!(sink.batches.logs.len(), 5, "should have decoded 5 log entries");
 
     // Verify log content
-    assert_eq!(sink.batches.logs[0].level, "info");
+    assert_eq!(sink.batches.logs[0].level, LogLevelEnum::Info);
     assert_eq!(sink.batches.logs[0].service, "api-gateway");
     assert!(sink.batches.logs[0].source.starts_with("server-"));
 }
@@ -1086,7 +1089,7 @@ async fn test_sink_processes_realistic_log_batch() {
 
     // Verify log fields
     for log in &sink.batches.logs {
-        assert_eq!(log.level, "info");
+        assert_eq!(log.level, LogLevelEnum::Info);
         assert_eq!(log.service, "api-gateway");
     }
 

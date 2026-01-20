@@ -1,7 +1,7 @@
 //! Connector trait definition
 
 use crate::error::ConnectorError;
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 
 /// Trait for pull-based connectors that fetch data from external sources
 ///

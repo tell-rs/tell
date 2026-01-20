@@ -24,20 +24,31 @@ mod cache;
 mod config;
 mod drain;
 mod persistence;
+mod reload;
+mod storage;
+mod worker;
 
 pub use cache::{CacheStats, PatternCache};
 pub use config::{ClickHouseConfig, PatternConfig, PersistenceConfig, ReloadConfig};
-pub use drain::{DrainTree, Pattern, PatternId};
+pub use drain::{generate_canonical_name, DrainTree, Pattern, PatternId};
 pub use persistence::{PatternPersistence, StoredPattern};
+pub use reload::{spawn_reload_worker, ReloadWorker, ReloadWorkerConfig, ReloadWorkerHandle};
+pub use storage::{
+    BoxedPatternStorage, FilePatternStorage, NullPatternStorage, PatternStorage, StorageError,
+    StorageResult,
+};
+pub use worker::{spawn_pattern_worker, PatternWorker, PatternWorkerHandle, WorkerConfig};
 
 use crate::{
     registry::{TransformerConfig, TransformerFactory},
     TransformError, TransformResult, Transformer,
 };
-use cdp_protocol::{Batch, BatchType};
+use tell_protocol::{Batch, BatchType, FlatBatch, SchemaType, decode_log_data};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 #[cfg(test)]
 #[path = "mod_test.rs"]
@@ -90,29 +101,64 @@ pub struct PatternTransformer {
     /// Multi-level pattern cache
     cache: PatternCache,
 
-    /// Pattern persistence
-    persistence: PatternPersistence,
+    /// Pattern persistence (sync fallback)
+    persistence: Arc<PatternPersistence>,
+
+    /// Background worker handle (optional, for async persistence)
+    worker_handle: Option<PatternWorkerHandle>,
 
     /// Metrics
     metrics: PatternMetrics,
 }
 
 impl PatternTransformer {
-    /// Create a new pattern transformer
+    /// Create a new pattern transformer (sync persistence only)
+    ///
+    /// For async persistence with background worker, use `with_cancellation`.
     pub fn new(config: PatternConfig) -> TransformResult<Self> {
+        Self::with_cancellation(config, None)
+    }
+
+    /// Create a new pattern transformer with optional background worker
+    ///
+    /// If `cancel` is provided and `config.persistence.use_background_worker` is true,
+    /// patterns will be persisted asynchronously via a background task.
+    pub fn with_cancellation(
+        config: PatternConfig,
+        cancel: Option<CancellationToken>,
+    ) -> TransformResult<Self> {
         config.validate().map_err(TransformError::config)?;
 
         let drain = DrainTree::new(config.similarity_threshold, config.max_child_nodes);
 
         let cache = PatternCache::new(config.cache_size, config.cache_size / 10);
 
-        let persistence = if config.persistence.enabled {
+        let persistence = Arc::new(if config.persistence.enabled {
             PatternPersistence::new(
                 config.persistence.file_path.clone(),
                 config.persistence.batch_size,
             )
         } else {
             PatternPersistence::disabled()
+        });
+
+        // Spawn background worker if configured
+        let worker_handle = if config.persistence.enabled
+            && config.persistence.use_background_worker
+            && cancel.is_some()
+        {
+            let worker_config = WorkerConfig::default()
+                .with_channel_capacity(config.persistence.channel_capacity)
+                .with_flush_interval(config.persistence.flush_interval)
+                .with_batch_size(config.persistence.batch_size);
+
+            Some(spawn_pattern_worker(
+                Arc::clone(&persistence),
+                worker_config,
+                cancel.unwrap(),
+            ))
+        } else {
+            None
         };
 
         Ok(Self {
@@ -120,6 +166,7 @@ impl PatternTransformer {
             drain,
             cache,
             persistence,
+            worker_handle,
             metrics: PatternMetrics::default(),
         })
     }
@@ -178,10 +225,11 @@ impl PatternTransformer {
         let message_count = batch.message_count();
         let mut pattern_ids = Vec::with_capacity(message_count);
 
+        // Process each message in the batch
         for i in 0..message_count {
             let pattern_id = if let Some(raw) = batch.get_message(i) {
-                let message = String::from_utf8_lossy(raw);
-                self.extract_pattern(&message)
+                // Try to decode the FlatBuffer to get service and message
+                self.extract_pattern_from_flatbuffer(raw)
             } else {
                 0 // Invalid message
             };
@@ -196,17 +244,59 @@ impl PatternTransformer {
         batch
     }
 
-    /// Extract pattern ID for a single message
-    fn extract_pattern(&self, message: &str) -> PatternId {
-        // Try cache first
-        if let Some(id) = self.cache.get(message) {
+    /// Extract pattern ID from a FlatBuffer message
+    ///
+    /// Decodes the FlatBuffer to get service and message content,
+    /// then uses service-aware hashing for pattern isolation.
+    fn extract_pattern_from_flatbuffer(&self, raw: &[u8]) -> PatternId {
+        // Try to parse as FlatBuffer batch
+        let flat_batch = match FlatBatch::parse(raw) {
+            Ok(fb) => fb,
+            Err(_) => {
+                // Not a valid FlatBuffer, use raw as message with empty service
+                let message = String::from_utf8_lossy(raw);
+                return self.extract_pattern("", &message);
+            }
+        };
+
+        // Only process log schema
+        if flat_batch.schema_type() != SchemaType::Log {
+            return 0;
+        }
+
+        // Get the data payload
+        let data = match flat_batch.data() {
+            Ok(d) => d,
+            Err(_) => return 0,
+        };
+
+        // Decode log entries
+        let logs = match decode_log_data(data) {
+            Ok(l) => l,
+            Err(_) => return 0,
+        };
+
+        // Process first log entry (batch typically has one message per FlatBuffer)
+        if let Some(log) = logs.first() {
+            let service = log.service.unwrap_or("");
+            let message = extract_message_from_payload(log.payload);
+            self.extract_pattern(service, &message)
+        } else {
+            0
+        }
+    }
+
+    /// Extract pattern ID for a single message with service isolation
+    fn extract_pattern(&self, service: &str, message: &str) -> PatternId {
+        // Try cache first (service-aware)
+        if let Some(id) = self.cache.get(service, message) {
             self.metrics.cache_hits.fetch_add(1, Ordering::Relaxed);
             return id;
         }
 
         self.metrics.cache_misses.fetch_add(1, Ordering::Relaxed);
 
-        // Drain tree lookup
+        // Drain tree lookup (message only - service handled by cache)
         let pattern_count_before = self.drain.pattern_count();
         let id = self.drain.parse(message);
         let pattern_count_after = self.drain.pattern_count();
@@ -215,21 +305,65 @@ impl PatternTransformer {
         if pattern_count_after > pattern_count_before {
             self.metrics.patterns_created.fetch_add(1, Ordering::Relaxed);
 
-            // Add to persistence queue
-            if let Some(pattern) = self.drain.get_pattern(id)
-                && self.persistence.add_pattern(&pattern)
-            {
-                // Batch threshold reached, flush in background
-                // For now, just log - actual async flush would need tokio spawn
-                tracing::debug!("Pattern persistence batch threshold reached");
+            // Persist new pattern
+            if let Some(pattern) = self.drain.get_pattern(id) {
+                self.persist_pattern(pattern);
             }
         }
 
-        // Update cache
-        self.cache.put(message, id);
+        // Update cache (service-aware)
+        self.cache.put(service, message, id);
 
         id
     }
+
+    /// Persist a pattern (async via worker or sync fallback)
+    fn persist_pattern(&self, pattern: Pattern) {
+        // Try background worker first (non-blocking)
+        if let Some(ref handle) = self.worker_handle {
+            if handle.send(pattern.clone()) {
+                return; // Successfully queued
+            }
+            // Channel full - fall through to sync persistence
+            tracing::debug!("Pattern worker channel full, using sync persistence");
+        }
+
+        // Sync fallback: add to pending queue
+        if self.persistence.add_pattern(&pattern) {
+            // Batch threshold reached, flush synchronously
+            if let Err(e) = self.persistence.flush() {
+                tracing::warn!(error = %e, "Failed to flush patterns");
+            }
+        }
+    }
+}
+
+/// Extract message text from log payload
+///
+/// Looks for common message fields in JSON payload.
+/// Falls back to raw payload string if not JSON.
+fn extract_message_from_payload(payload: &[u8]) -> String {
+    if payload.is_empty() {
+        return String::new();
+    }
+
+    // Try to parse as JSON
+    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(payload) {
+        // Look for common message fields
+        const MESSAGE_FIELDS: &[&str] = &["message", "msg", "text", "log", "event"];
+
+        for field in MESSAGE_FIELDS {
+            if let Some(serde_json::Value::String(s)) = json.get(field) {
+                return s.clone();
+            }
+        }
+
+        // No message field found, return entire JSON as string
+        return String::from_utf8_lossy(payload).into_owned();
+    }
+
+    // Not JSON, return raw string
+    String::from_utf8_lossy(payload).into_owned()
 }
 
 impl Transformer for PatternTransformer {
@@ -252,6 +386,14 @@ impl Transformer for PatternTransformer {
 
     fn enabled(&self) -> bool {
         self.config.enabled
+    }
+
+    fn close(&self) -> TransformResult<()> {
+        // Save patterns to persistence if enabled
+        if self.config.persistence.enabled {
+            self.save_patterns()?;
+        }
+        Ok(())
     }
 }
 

@@ -2,7 +2,7 @@
 //!
 //! Configuration types for the pattern transformer.
 
-use cdp_config::TransformerInstanceConfig;
+use tell_config::TransformerInstanceConfig;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -121,6 +121,17 @@ pub struct PersistenceConfig {
 
     /// Maximum patterns to batch before flush
     pub batch_size: usize,
+
+    /// Use background worker for non-blocking persistence
+    ///
+    /// When enabled, new patterns are sent to a background task
+    /// via a channel, avoiding blocking the hot path.
+    pub use_background_worker: bool,
+
+    /// Channel capacity for background worker
+    ///
+    /// Only used when `use_background_worker` is true.
+    pub channel_capacity: usize,
 }
 
 impl Default for PersistenceConfig {
@@ -130,6 +141,8 @@ impl Default for PersistenceConfig {
             file_path: None,
             flush_interval: Duration::from_secs(5),
             batch_size: 100,
+            use_background_worker: true,
+            channel_capacity: 10_000,
         }
     }
 }
@@ -139,6 +152,30 @@ impl PersistenceConfig {
     pub fn with_file(mut self, path: PathBuf) -> Self {
         self.enabled = true;
         self.file_path = Some(path);
+        self
+    }
+
+    /// Set flush interval
+    pub fn with_flush_interval(mut self, interval: Duration) -> Self {
+        self.flush_interval = interval;
+        self
+    }
+
+    /// Set batch size
+    pub fn with_batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size.max(1);
+        self
+    }
+
+    /// Enable/disable background worker
+    pub fn with_background_worker(mut self, enabled: bool) -> Self {
+        self.use_background_worker = enabled;
+        self
+    }
+
+    /// Set channel capacity for background worker
+    pub fn with_channel_capacity(mut self, capacity: usize) -> Self {
+        self.channel_capacity = capacity.max(1);
         self
     }
 
@@ -218,7 +255,7 @@ impl Default for ClickHouseConfig {
     fn default() -> Self {
         Self {
             url: "http://localhost:8123".to_string(),
-            database: "cdp".to_string(),
+            database: "tell".to_string(),
             table: "log_patterns".to_string(),
             pool_size: 5,
         }

@@ -143,7 +143,7 @@ pub use patterns::{find_all_matches, get_pattern, matches_pattern, PATTERNS};
 
 use crate::registry::{TransformerConfig, TransformerFactory};
 use crate::{TransformError, TransformResult, Transformer};
-use cdp_protocol::{Batch, BatchBuilder};
+use tell_protocol::{Batch, BatchBuilder};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -455,7 +455,7 @@ impl TransformerFactory for RedactFactory {
 
 /// Parse RedactConfig from TransformerConfig map
 fn parse_redact_config(config: &TransformerConfig) -> TransformResult<RedactConfig> {
-    let mut instance = cdp_config::TransformerInstanceConfig::noop();
+    let mut instance = tell_config::TransformerInstanceConfig::noop();
     instance.transformer_type = "redact".to_string();
 
     for (k, v) in config {

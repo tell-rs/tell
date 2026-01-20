@@ -3,7 +3,7 @@
 use crate::error::ConnectorError;
 use crate::github::{parse_entity, GitHub, GitHubConfig};
 use crate::traits::Connector;
-use cdp_protocol::BatchType;
+use tell_protocol::BatchType;
 
 // =============================================================================
 // parse_entity tests

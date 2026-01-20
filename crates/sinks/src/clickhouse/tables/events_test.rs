@@ -1,5 +1,7 @@
 //! Tests for event table row types
 
+use uuid::Uuid;
+
 use super::events::{ContextRow, EventRow};
 
 #[test]
@@ -7,8 +9,8 @@ fn test_event_row_creation() {
     let row = EventRow {
         timestamp: 1700000000000,
         event_name: "page_view".to_string(),
-        device_id: [0x01; 16],
-        session_id: [0x02; 16],
+        device_id: Uuid::from_bytes([0x01; 16]),
+        session_id: Uuid::from_bytes([0x02; 16]),
         properties: r#"{"page": "/home"}"#.to_string(),
         raw: r#"{"page": "/home"}"#.to_string(),
         source_ip: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 192, 168, 1, 1],
@@ -16,15 +18,15 @@ fn test_event_row_creation() {
 
     assert_eq!(row.timestamp, 1700000000000);
     assert_eq!(row.event_name, "page_view");
-    assert_eq!(row.device_id, [0x01; 16]);
+    assert_eq!(row.device_id, Uuid::from_bytes([0x01; 16]));
 }
 
 #[test]
 fn test_context_row_creation() {
     let row = ContextRow {
         timestamp: 1700000000000,
-        device_id: [0x01; 16],
-        session_id: [0x02; 16],
+        device_id: Uuid::from_bytes([0x01; 16]),
+        session_id: Uuid::from_bytes([0x02; 16]),
         device_type: "mobile".to_string(),
         device_model: "iPhone 14 Pro".to_string(),
         operating_system: "iOS".to_string(),
@@ -53,8 +55,8 @@ fn test_ipv4_mapped_ipv6() {
     let row = EventRow {
         timestamp: 0,
         event_name: String::new(),
-        device_id: [0; 16],
-        session_id: [0; 16],
+        device_id: Uuid::nil(),
+        session_id: Uuid::nil(),
         properties: String::new(),
         raw: String::new(),
         source_ip: ip,

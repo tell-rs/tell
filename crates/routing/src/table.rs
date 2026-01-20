@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use cdp_protocol::SourceId;
+use tell_protocol::SourceId;
 
 use crate::SinkId;
 
@@ -23,7 +23,7 @@ use crate::SinkId;
 /// # Example
 ///
 /// ```
-/// use cdp_routing::{RoutingTable, SinkId, SourceId};
+/// use tell_routing::{RoutingTable, SinkId, SourceId};
 ///
 /// let mut table = RoutingTable::new();
 ///

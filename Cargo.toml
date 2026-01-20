@@ -12,18 +12,22 @@ members = [
     "crates/transform",
     "crates/metrics",
     "crates/connectors",
-    "crates/collector",
+    "crates/tell",
     "crates/client",
     "crates/bench",
     "crates/tap",
+    "crates/query",
+    "crates/analytics",
+    "crates/api",
+    "crates/control",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "2.0.0"
 edition = "2024"
 rust-version = "1.92"
 license = "MIT"
-repository = "https://github.com/usercanal/cdp-collector"
+repository = "https://github.com/tell-rs/tell"
 
 [workspace.dependencies]
 # Async runtime
@@ -34,11 +38,10 @@ tokio-util = "0.7"
 bytes = "1.9"
 
 # Serialization
-flatbuffers = "24.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
-toml = "0.8"
+toml = "0.9"
 
 # Error handling
 thiserror = "2.0"
@@ -48,33 +51,49 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
+# Terminal colors
+owo-colors = "4.1"
+
 # Concurrency
 parking_lot = "0.12"
 dashmap = "6.1"
 
 # File watching (for hot reload)
-notify = "7.0"
+notify = "8.2"
 
 # Compression
-lz4_flex = "0.11"
+lz4_flex = "0.12"
 
 # Lock-free concurrency
 arc-swap = "1.7"
 crossbeam = "0.8"
 crossfire = "2"
 
+# Socket configuration
+socket2 = { version = "0.6", features = ["all"] }
+
 # Date/time
-chrono = "0.4"
+chrono = "0.4.42"
 
 # Hashing
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 # Parquet/Arrow for columnar storage
-arrow = { version = "53", default-features = false, features = ["ipc"] }
-parquet = { version = "53", default-features = false, features = ["arrow", "snap", "lz4", "zstd"] }
+arrow = { version = "57", default-features = false, features = ["ipc", "ffi"] }
+parquet = { version = "57", default-features = false, features = ["arrow", "snap", "lz4", "zstd"] }
 
 # ClickHouse client
-clickhouse = { version = "0.13", features = ["lz4"] }
+clickhouse = { version = "0.14", features = ["lz4", "uuid"] }
+
+# Control plane database (SQLite-compatible with async)
+turso = "0.4"
+futures-util = "0.3"
+
+# UUID
+uuid = { version = "1.11", features = ["v4", "v5"] }
+
+# Enum repr serialization (for ClickHouse Enum8/Enum16)
+serde_repr = "0.1"
 
 # Duration parsing
 humantime = "2.1"
@@ -82,25 +101,43 @@ humantime = "2.1"
 # CLI
 clap = { version = "4.5", features = ["derive"] }
 
+# HTTP server
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "limit"] }
+
+# HTTP client (for CLI)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Home directory (for auth token storage)
+dirs = "6.0"
+
+# Terminal password reading
+rpassword = "7.3"
+
 # Testing
 criterion = "0.5"
 proptest = "1.5"
 tempfile = "3.14"
 
 # Internal crates
-cdp-protocol = { path = "crates/protocol" }
-cdp-config = { path = "crates/config" }
-cdp-routing = { path = "crates/routing" }
-pipeline = { path = "crates/pipeline" }
-cdp-auth = { path = "crates/auth" }
-cdp-sources = { path = "crates/sources" }
-sinks = { path = "crates/sinks" }
-cdp-transform = { path = "crates/transform" }
-metrics = { path = "crates/metrics" }
-connectors = { path = "crates/connectors", default-features = false }
-cdp-client = { path = "crates/client" }
-cdp-bench = { path = "crates/bench" }
-tap = { path = "crates/tap" }
+tell-protocol = { path = "crates/protocol" }
+tell-config = { path = "crates/config" }
+tell-routing = { path = "crates/routing" }
+tell-pipeline = { path = "crates/pipeline" }
+tell-auth = { path = "crates/auth" }
+tell-sources = { path = "crates/sources" }
+tell-sinks = { path = "crates/sinks" }
+tell-transform = { path = "crates/transform" }
+tell-metrics = { path = "crates/metrics" }
+tell-connectors = { path = "crates/connectors", default-features = false }
+tell-client = { path = "crates/client" }
+tell-bench = { path = "crates/bench" }
+tell-tap = { path = "crates/tap" }
+tell-query = { path = "crates/query" }
+tell-analytics = { path = "crates/analytics" }
+tell-api = { path = "crates/api" }
+tell-control = { path = "crates/control" }
 
 [profile.release]
 lto = true

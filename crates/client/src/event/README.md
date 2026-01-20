@@ -1,11 +1,11 @@
 # Event Module
 
-Builds CDP/product analytics events (`event.fbs`).
+Builds product analytics events (`event.fbs`).
 
 ## TL;DR
 
 ```rust
-use cdp_client::event::{EventBuilder, EventDataBuilder, EventType};
+use tell_client::event::{EventBuilder, EventDataBuilder, EventType};
 
 // Single event
 let event = EventBuilder::new()

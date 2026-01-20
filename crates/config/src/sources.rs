@@ -20,6 +20,10 @@ pub struct SourcesConfig {
     #[serde(default)]
     pub tcp_debug: Option<TcpDebugSourceConfig>,
 
+    /// HTTP REST API source (for JSONL ingestion)
+    #[serde(default)]
+    pub http: Option<HttpSourceConfig>,
+
     /// Syslog TCP source
     #[serde(default)]
     pub syslog_tcp: Option<SyslogTcpSourceConfig>,
@@ -74,7 +78,7 @@ pub struct TcpSourceConfig {
     #[serde(with = "humantime_serde")]
     pub flush_interval: Duration,
 
-    /// Enable forwarding mode (trust source_ip field from upstream collectors)
+    /// Enable forwarding mode (trust source_ip field from upstream Tell instances)
     /// Default: false (secure default - never trust client-provided IPs)
     pub forwarding_mode: bool,
 }
@@ -272,6 +276,58 @@ impl Default for SyslogUdpSourceConfig {
             num_workers: 4,
             workspace_id: None,
             max_message_size: 8192,
+        }
+    }
+}
+
+/// HTTP REST API source configuration
+///
+/// Receives events and logs via HTTP POST in JSONL format.
+///
+/// # Example
+///
+/// ```toml
+/// [sources.http]
+/// port = 8080
+/// max_payload_size = 10485760
+/// ```
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct HttpSourceConfig {
+    /// Whether this source is enabled
+    /// Default: true
+    pub enabled: bool,
+
+    /// Bind address
+    /// Default: "0.0.0.0"
+    pub address: String,
+
+    /// Listen port
+    /// Default: 8080
+    pub port: u16,
+
+    /// Maximum request payload size in bytes
+    /// Default: 10MB
+    pub max_payload_size: usize,
+
+    /// Maximum items per batch before flush
+    /// Default: 500
+    pub batch_size: usize,
+
+    /// Enable CORS (for browser clients)
+    /// Default: false
+    pub cors_enabled: bool,
+}
+
+impl Default for HttpSourceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            address: "0.0.0.0".into(),
+            port: 8080,
+            max_payload_size: 10 * 1024 * 1024, // 10MB
+            batch_size: 500,
+            cors_enabled: false,
         }
     }
 }

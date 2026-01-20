@@ -1,6 +1,6 @@
 //! Logging configuration
 //!
-//! Controls the internal logging behavior of the collector.
+//! Controls the internal logging behavior of Tell.
 
 use serde::Deserialize;
 

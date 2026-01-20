@@ -1,6 +1,6 @@
 //! Event and EventData FlatBuffer builders
 //!
-//! Constructs valid FlatBuffer wire format for CDP analytics events.
+//! Constructs valid FlatBuffer wire format for product analytics events.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -21,7 +21,7 @@ const MAX_EVENT_NAME_LENGTH: usize = 256;
 /// # Example
 ///
 /// ```
-/// use cdp_client::event::{EventBuilder, EventType};
+/// use tell_client::event::{EventBuilder, EventType};
 ///
 /// let event = EventBuilder::new()
 ///     .event_type(EventType::Track)
@@ -259,7 +259,7 @@ impl BuiltEvent {
 /// # Example
 ///
 /// ```
-/// use cdp_client::event::{EventBuilder, EventDataBuilder, EventType};
+/// use tell_client::event::{EventBuilder, EventDataBuilder, EventType};
 ///
 /// let event1 = EventBuilder::new()
 ///     .track("page_view")
@@ -441,8 +441,8 @@ fn build_event_flatbuffer(
     // === Table ===
     let table_start = buf.len();
 
-    // soffset to vtable
-    let soffset: i32 = -((table_start - vtable_start) as i32);
+    // soffset: distance from table to vtable (standard FlatBuffers: vtable = table - soffset)
+    let soffset: i32 = (table_start - vtable_start) as i32;
     buf.extend_from_slice(&soffset.to_le_bytes());
 
     // Placeholders for vector/string offsets
@@ -605,8 +605,8 @@ fn build_event_data_flatbuffer(events: &[BuiltEvent]) -> Vec<u8> {
     // === Table ===
     let table_start = buf.len();
 
-    // soffset to vtable
-    let soffset: i32 = -((table_start - vtable_start) as i32);
+    // soffset: distance from table to vtable (standard FlatBuffers: vtable = table - soffset)
+    let soffset: i32 = (table_start - vtable_start) as i32;
     buf.extend_from_slice(&soffset.to_le_bytes());
 
     // events vector offset placeholder

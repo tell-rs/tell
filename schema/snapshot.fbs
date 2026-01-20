@@ -3,8 +3,6 @@
 // Used for pulling metrics from GitHub, Stripe, Linear, etc.
 // Field IDs ensure schema evolution compatibility
 
-include "common.fbs";
-
 namespace schema.snapshot;
 
 /// Single snapshot from an external data source

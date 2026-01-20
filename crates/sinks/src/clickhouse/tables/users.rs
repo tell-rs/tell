@@ -2,8 +2,7 @@
 
 use clickhouse::Row;
 use serde::Serialize;
-
-use super::fixed_bytes_16;
+use uuid::Uuid;
 
 /// User row for IDENTIFY events (users_v1 table)
 ///
@@ -14,6 +13,7 @@ use super::fixed_bytes_16;
 ///     name String,
 ///     updated_at DateTime64(3)
 /// ) ENGINE = ReplacingMergeTree(updated_at)
+/// PARTITION BY toYYYYMM(updated_at)
 /// ORDER BY user_id;
 /// ```
 #[derive(Debug, Clone, Row, Serialize)]
@@ -38,17 +38,18 @@ pub struct UserRow {
 ///     user_id String,
 ///     device_id UUID,
 ///     linked_at DateTime64(3)
-/// ) ENGINE = ReplacingMergeTree(linked_at)
-/// ORDER BY (user_id, device_id);
+/// ) ENGINE = MergeTree()
+/// PARTITION BY toYYYYMM(linked_at)
+/// ORDER BY (user_id, device_id, linked_at);
 /// ```
 #[derive(Debug, Clone, Row, Serialize)]
 pub struct UserDeviceRow {
     /// User ID (from IDENTIFY)
     pub user_id: String,
 
-    /// Device UUID (16 bytes)
-    #[serde(with = "fixed_bytes_16")]
-    pub device_id: [u8; 16],
+    /// Device UUID
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub device_id: Uuid,
 
     /// When the device was linked to the user
     pub linked_at: i64,

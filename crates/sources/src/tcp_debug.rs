@@ -13,7 +13,7 @@
 //! # Features
 //!
 //! - Full hex dump of incoming messages
-//! - FlatBuffer field-by-field analysis
+//! - FlatBuffer field-by-field analysis with inner data parsing
 //! - Detailed tracing at every step
 //! - ASCII representation alongside hex
 //!
@@ -35,13 +35,18 @@
 //! logging add significant overhead. Use only for debugging protocol issues.
 
 use std::net::SocketAddr;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::{Buf, BytesMut};
-use cdp_auth::ApiKeyStore;
-use cdp_protocol::{BatchBuilder, BatchType, FlatBatch, SourceId};
+use tell_auth::ApiKeyStore;
+use tell_protocol::{
+    BatchBuilder, BatchType, FlatBatch, SchemaType, SourceId, MAX_REASONABLE_SIZE,
+    decode_event_data, decode_log_data,
+};
+use socket2::{Socket, TcpKeepalive};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::interval;
@@ -55,9 +60,6 @@ use crate::ShardedSender;
 // Constants
 // =============================================================================
 
-/// Maximum message size (16MB)
-const MAX_MESSAGE_SIZE: u32 = 16 * 1024 * 1024;
-
 /// Length prefix size (4 bytes, big-endian u32)
 const LENGTH_PREFIX_SIZE: usize = 4;
 
@@ -69,6 +71,12 @@ const DEFAULT_FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Default buffer size (256KB)
 const DEFAULT_BUFFER_SIZE: usize = 256 * 1024;
+
+/// Default socket buffer size (256KB)
+const DEFAULT_SOCKET_BUFFER_SIZE: usize = 256 * 1024;
+
+/// Default keepalive interval
+const DEFAULT_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
 
 // =============================================================================
 // Configuration
@@ -97,6 +105,9 @@ pub struct TcpDebugSourceConfig {
 
     /// TCP nodelay
     pub nodelay: bool,
+
+    /// Socket buffer size for SO_RCVBUF/SO_SNDBUF
+    pub socket_buffer_size: usize,
 }
 
 impl Default for TcpDebugSourceConfig {
@@ -109,6 +120,7 @@ impl Default for TcpDebugSourceConfig {
             batch_size: DEFAULT_BATCH_SIZE,
             flush_interval: DEFAULT_FLUSH_INTERVAL,
             nodelay: true,
+            socket_buffer_size: DEFAULT_SOCKET_BUFFER_SIZE,
         }
     }
 }
@@ -328,9 +340,8 @@ impl TcpDebugSource {
         mut stream: TcpStream,
         peer_addr: SocketAddr,
     ) -> Result<(), TcpSourceError> {
-        if self.config.nodelay {
-            stream.set_nodelay(true)?;
-        }
+        // Configure socket options
+        self.configure_socket(&stream)?;
 
         // Allocate a connection ID for sharding
         let connection_id = self.batch_sender.allocate_connection_id();
@@ -449,26 +460,20 @@ impl TcpDebugSource {
         self.analyze_flatbuffer(data);
     }
 
-    /// Analyze FlatBuffer structure
+    /// Analyze FlatBuffer structure with inner data parsing
     fn analyze_flatbuffer(&self, data: &[u8]) {
         tracing::info!("🔬 [DEBUG] FlatBuffer Analysis:");
 
         match FlatBatch::parse(data) {
             Ok(flat_batch) => {
-                tracing::info!("  ✅ Valid FlatBuffer");
+                tracing::info!("  ✅ Valid FlatBuffer (outer Batch)");
                 tracing::info!(
                     "  - api_key: {} bytes",
                     flat_batch.api_key().map(|k| k.len()).unwrap_or(0)
                 );
                 tracing::info!("  - batch_id: {}", flat_batch.batch_id());
-                tracing::info!("  - schema_type: {:?}", flat_batch.schema_type());
+                tracing::info!("  - schema_type: {}", schema_type_name(flat_batch.schema_type()));
                 tracing::info!("  - version: {}", flat_batch.version());
-
-                if let Ok(data_bytes) = flat_batch.data() {
-                    tracing::info!("  - data: {} bytes", data_bytes.len());
-                } else {
-                    tracing::info!("  - data: <error reading>");
-                }
 
                 match flat_batch.source_ip() {
                     Ok(Some(source_ip)) => {
@@ -481,9 +486,111 @@ impl TcpDebugSource {
                         tracing::info!("  - source_ip: <error: {}>", e);
                     }
                 }
+
+                // Parse inner data based on schema type
+                if let Ok(data_bytes) = flat_batch.data() {
+                    tracing::info!("  - data: {} bytes", data_bytes.len());
+                    self.analyze_inner_data(flat_batch.schema_type(), data_bytes);
+                } else {
+                    tracing::info!("  - data: <error reading>");
+                }
             }
             Err(e) => {
                 tracing::warn!("  ❌ Invalid FlatBuffer: {}", e);
+            }
+        }
+    }
+
+    /// Analyze inner data payload (EventData or LogData)
+    fn analyze_inner_data(&self, schema_type: SchemaType, data: &[u8]) {
+        match schema_type {
+            SchemaType::Event => {
+                tracing::info!("🔬 [DEBUG] Parsing inner EventData...");
+                match decode_event_data(data) {
+                    Ok(events) => {
+                        tracing::info!("  ✅ EventData parsed: {} events", events.len());
+                        for (i, event) in events.iter().enumerate() {
+                            tracing::info!("  📝 [EVENT {}]:", i);
+                            tracing::info!("    - event_type: {}", event.event_type);
+                            tracing::info!("    - timestamp: {}", event.timestamp);
+                            if let Some(device_id) = event.device_id {
+                                tracing::info!("    - device_id: {}", hex::encode(device_id));
+                            } else {
+                                tracing::info!("    - device_id: not present");
+                            }
+                            if let Some(session_id) = event.session_id {
+                                tracing::info!("    - session_id: {}", hex::encode(session_id));
+                            } else {
+                                tracing::info!("    - session_id: not present");
+                            }
+                            if let Some(name) = event.event_name {
+                                tracing::info!("    - event_name: '{}'", name);
+                            } else {
+                                tracing::info!("    - event_name: not present");
+                            }
+                            tracing::info!("    - payload: {} bytes", event.payload.len());
+                            if !event.payload.is_empty()
+                                && let Ok(payload_str) = std::str::from_utf8(event.payload)
+                            {
+                                let truncated = if payload_str.len() > 200 {
+                                    format!("{}...", &payload_str[..200])
+                                } else {
+                                    payload_str.to_string()
+                                };
+                                tracing::info!("    - payload_content: {}", truncated);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("  ❌ Failed to parse EventData: {}", e);
+                    }
+                }
+            }
+            SchemaType::Log => {
+                tracing::info!("🔬 [DEBUG] Parsing inner LogData...");
+                match decode_log_data(data) {
+                    Ok(logs) => {
+                        tracing::info!("  ✅ LogData parsed: {} logs", logs.len());
+                        for (i, log) in logs.iter().enumerate() {
+                            tracing::info!("  📝 [LOG {}]:", i);
+                            tracing::info!("    - event_type: {}", log.event_type);
+                            tracing::info!("    - level: {}", log.level);
+                            tracing::info!("    - timestamp: {}", log.timestamp);
+                            if let Some(session_id) = log.session_id {
+                                tracing::info!("    - session_id: {}", hex::encode(session_id));
+                            } else {
+                                tracing::info!("    - session_id: not present");
+                            }
+                            if let Some(source) = log.source {
+                                tracing::info!("    - source: '{}'", source);
+                            } else {
+                                tracing::info!("    - source: not present");
+                            }
+                            if let Some(service) = log.service {
+                                tracing::info!("    - service: '{}'", service);
+                            } else {
+                                tracing::info!("    - service: not present");
+                            }
+                            tracing::info!("    - payload: {} bytes", log.payload.len());
+                            if !log.payload.is_empty()
+                                && let Ok(payload_str) = std::str::from_utf8(log.payload)
+                            {
+                                let truncated = if payload_str.len() > 200 {
+                                    format!("{}...", &payload_str[..200])
+                                } else {
+                                    payload_str.to_string()
+                                };
+                                tracing::info!("    - payload_content: {}", truncated);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("  ❌ Failed to parse LogData: {}", e);
+                    }
+                }
+            }
+            other => {
+                tracing::info!("  ⚠️ Unsupported schema type for inner parsing: {:?}", other);
             }
         }
     }
@@ -502,17 +609,17 @@ impl TcpDebugSource {
             "🔍 [DEBUG] Checking message length"
         );
 
-        if msg_len > MAX_MESSAGE_SIZE {
+        if msg_len > MAX_REASONABLE_SIZE as u32 {
             self.metrics.oversized_message();
             buf.advance(LENGTH_PREFIX_SIZE);
             tracing::warn!(
                 msg_len = msg_len,
-                max = MAX_MESSAGE_SIZE,
+                max = MAX_REASONABLE_SIZE as u32,
                 "❌ [DEBUG] Message too large"
             );
             return Err(TcpSourceError::MessageTooLarge {
                 size: msg_len,
-                limit: MAX_MESSAGE_SIZE,
+                limit: MAX_REASONABLE_SIZE as u32,
             });
         }
 
@@ -691,90 +798,59 @@ impl TcpDebugSource {
 
         Ok(())
     }
+
+    /// Configure socket options using socket2
+    ///
+    /// Sets nodelay, buffer sizes, and keepalive matching Go's SetupTCPConn.
+    fn configure_socket(&self, stream: &TcpStream) -> Result<(), TcpSourceError> {
+        let fd = stream.as_raw_fd();
+
+        // SAFETY: We're borrowing the fd temporarily. We use forget() to prevent
+        // socket2 from closing the fd when it drops - tokio still owns it.
+        let socket = unsafe { Socket::from_raw_fd(fd) };
+
+        // TCP_NODELAY - disable Nagle's algorithm
+        if self.config.nodelay && let Err(e) = socket.set_tcp_nodelay(true) {
+            tracing::warn!(error = %e, "Failed to set TCP_NODELAY");
+        }
+
+        // Socket buffer sizes
+        if let Err(e) = socket.set_recv_buffer_size(self.config.socket_buffer_size) {
+            tracing::warn!(error = %e, "Failed to set SO_RCVBUF");
+        }
+        if let Err(e) = socket.set_send_buffer_size(self.config.socket_buffer_size) {
+            tracing::warn!(error = %e, "Failed to set SO_SNDBUF");
+        }
+
+        // Keepalive
+        let keepalive = TcpKeepalive::new().with_time(DEFAULT_KEEPALIVE_INTERVAL);
+        if let Err(e) = socket.set_tcp_keepalive(&keepalive) {
+            tracing::warn!(error = %e, "Failed to set TCP keepalive");
+        }
+
+        // Don't close the fd - tokio owns it
+        std::mem::forget(socket);
+
+        Ok(())
+    }
 }
 
 // =============================================================================
-// Tests
+// Helper Functions
 // =============================================================================
+
+/// Convert SchemaType to readable string (matches Go's schemaTypeToString)
+fn schema_type_name(schema_type: SchemaType) -> &'static str {
+    match schema_type {
+        SchemaType::Unknown => "UNKNOWN",
+        SchemaType::Event => "EVENT",
+        SchemaType::Log => "LOG",
+        SchemaType::Metric => "METRIC",
+        SchemaType::Trace => "TRACE",
+        SchemaType::Snapshot => "SNAPSHOT",
+    }
+}
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_config_defaults() {
-        let config = TcpDebugSourceConfig::default();
-
-        assert_eq!(config.port, 50001);
-        assert_eq!(config.address, "0.0.0.0");
-        assert_eq!(config.id, "tcp_debug");
-        assert!(config.nodelay);
-    }
-
-    #[test]
-    fn test_config_bind_address() {
-        let config = TcpDebugSourceConfig {
-            address: "127.0.0.1".into(),
-            port: 50002,
-            ..Default::default()
-        };
-        assert_eq!(config.bind_address(), "127.0.0.1:50002");
-    }
-
-    #[test]
-    fn test_config_source_id() {
-        let config = TcpDebugSourceConfig {
-            id: "my_debug".into(),
-            ..Default::default()
-        };
-        assert_eq!(config.source_id().as_str(), "my_debug");
-    }
-
-    #[test]
-    fn test_metrics_new() {
-        let metrics = TcpDebugSourceMetrics::new();
-
-        assert_eq!(metrics.auth_failures.load(Ordering::Relaxed), 0);
-        assert_eq!(metrics.parse_errors.load(Ordering::Relaxed), 0);
-        assert_eq!(metrics.oversized_messages.load(Ordering::Relaxed), 0);
-    }
-
-    #[test]
-    fn test_metrics_tracking() {
-        let metrics = TcpDebugSourceMetrics::new();
-
-        metrics.auth_failure();
-        metrics.parse_error();
-        metrics.oversized_message();
-
-        assert_eq!(metrics.auth_failures.load(Ordering::Relaxed), 1);
-        assert_eq!(metrics.parse_errors.load(Ordering::Relaxed), 1);
-        assert_eq!(metrics.oversized_messages.load(Ordering::Relaxed), 1);
-        assert_eq!(metrics.base.errors.load(Ordering::Relaxed), 3);
-    }
-
-    #[tokio::test]
-    async fn test_source_creation() {
-        let config = TcpDebugSourceConfig::default();
-        let auth_store = Arc::new(ApiKeyStore::new());
-        let (tx, _rx) = crossfire::mpsc::bounded_async(100);
-        let sharded_sender = ShardedSender::new(vec![tx]);
-
-        let source = TcpDebugSource::new(config, auth_store, sharded_sender);
-
-        assert!(!source.is_running());
-    }
-
-    #[tokio::test]
-    async fn test_source_stop() {
-        let config = TcpDebugSourceConfig::default();
-        let auth_store = Arc::new(ApiKeyStore::new());
-        let (tx, _rx) = crossfire::mpsc::bounded_async(100);
-        let sharded_sender = ShardedSender::new(vec![tx]);
-
-        let source = TcpDebugSource::new(config, auth_store, sharded_sender);
-
-        source.stop();
-        assert!(!source.is_running());
-    }
-}
+#[path = "tcp_debug_test.rs"]
+mod tcp_debug_test;

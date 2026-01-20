@@ -106,7 +106,7 @@ pub use config::{Condition, FilterAction, FilterConfig, MatchMode, Operator};
 
 use crate::registry::{TransformerConfig, TransformerFactory};
 use crate::{TransformError, TransformResult, Transformer};
-use cdp_protocol::{Batch, BatchBuilder};
+use tell_protocol::{Batch, BatchBuilder};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -345,7 +345,7 @@ impl TransformerFactory for FilterFactory {
 /// Parse FilterConfig from TransformerConfig map
 fn parse_filter_config(config: &TransformerConfig) -> TransformResult<FilterConfig> {
     // Create a minimal TransformerInstanceConfig to reuse TryFrom
-    let mut instance = cdp_config::TransformerInstanceConfig::noop();
+    let mut instance = tell_config::TransformerInstanceConfig::noop();
     instance.transformer_type = "filter".to_string();
 
     // Copy over options

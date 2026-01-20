@@ -1,4 +1,4 @@
-//! Shared benchmark configuration for CDP Collector
+//! Shared benchmark configuration for Tell
 //!
 //! Defines realistic test scenarios based on Go benchmark patterns.
 //! Use across all crate benchmarks for consistent comparison.

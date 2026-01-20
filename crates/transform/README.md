@@ -1,4 +1,4 @@
-# cdp-transform
+# tell-transform
 
 Transformer chain for in-flight batch modification with zero-cost when disabled.
 
@@ -22,7 +22,7 @@ Transformer chain for in-flight batch modification with zero-cost when disabled.
 ## Usage
 
 ```rust
-use cdp_transform::{Chain, PatternTransformer, PatternConfig, create_default_registry};
+use tell_transform::{Chain, PatternTransformer, PatternConfig, create_default_registry};
 
 // Option 1: Direct creation
 let pattern = PatternTransformer::new(PatternConfig::default())?;
@@ -45,7 +45,7 @@ if let Some(pattern_ids) = transformed.pattern_ids() {
 ## Extending with Custom Transformers
 
 ```rust
-use cdp_transform::{Transformer, TransformResult, TransformerFactory, TransformerConfig};
+use tell_transform::{Transformer, TransformResult, TransformerFactory, TransformerConfig};
 
 struct MyTransformer;
 
@@ -85,7 +85,7 @@ registry.register("my_transformer", MyFactory);
 ## Tests
 
 ```bash
-cargo test -p cdp-transform
+cargo test -p tell-transform
 ```
 
 135 tests covering chain, registry, lazy_batch, noop, and pattern modules.

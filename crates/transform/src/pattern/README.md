@@ -38,7 +38,7 @@ Level 3: Drain tree lookup (fallback)
 ## Usage
 
 ```rust
-use cdp_transform::{PatternTransformer, PatternConfig};
+use tell_transform::{PatternTransformer, PatternConfig};
 
 let config = PatternConfig::default()
     .with_similarity_threshold(0.5)  // 0.0-1.0, higher = stricter
@@ -62,7 +62,7 @@ Patterns can be saved to JSON files:
 ```rust
 let config = PatternConfig::default();
 config.persistence = PersistenceConfig::default()
-    .with_file("/var/lib/cdp/patterns.json".into());
+    .with_file("/var/lib/tell/patterns.json".into());
 
 // Patterns auto-flush when batch threshold reached
 // Or manually save all
@@ -95,7 +95,7 @@ File format:
 ## Tests
 
 ```bash
-cargo test -p cdp-transform pattern
+cargo test -p tell-transform pattern
 ```
 
 96 tests covering config, drain, cache, persistence, and transformer.

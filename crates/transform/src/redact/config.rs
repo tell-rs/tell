@@ -1,6 +1,6 @@
 //! Redact transformer configuration
 
-use cdp_config::TransformerInstanceConfig;
+use tell_config::TransformerInstanceConfig;
 
 #[cfg(test)]
 #[path = "config_test.rs"]

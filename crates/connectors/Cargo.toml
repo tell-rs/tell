@@ -1,10 +1,10 @@
 [package]
-name = "connectors"
+name = "tell-connectors"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Pull-based connectors (GitHub, Stripe, etc.) for CDP Collector"
+description = "Pull-based connectors (GitHub, Stripe, etc.) for Tell"
 
 [features]
 default = ["github", "shopify"]
@@ -16,7 +16,7 @@ shopify = []
 # linear = []
 
 [dependencies]
-cdp-protocol = { workspace = true }
+tell-protocol = { workspace = true }
 
 tokio = { workspace = true }
 bytes = { workspace = true }
@@ -24,10 +24,10 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-toml = "0.8"
+toml = { workspace = true }
 
 # HTTP client for external APIs
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
 # Cron scheduling
 cron = "0.15"

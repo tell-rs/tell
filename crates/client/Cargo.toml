@@ -1,6 +1,6 @@
 [package]
-name = "cdp-client"
-description = "Client library for building CDP FlatBuffer batches (testing and SDK purposes)"
+name = "tell-client"
+description = "Client library for building Tell FlatBuffer batches (testing and SDK purposes)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,7 +15,7 @@ bytes = { workspace = true }
 thiserror = { workspace = true }
 
 # Internal crates (for shared types)
-cdp-protocol = { workspace = true }
+tell-protocol = { workspace = true }
 
 # Async runtime (for test clients)
 tokio = { workspace = true, features = ["net", "io-util"] }

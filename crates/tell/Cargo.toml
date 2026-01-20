@@ -1,0 +1,89 @@
+[package]
+name = "tell"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "High-performance multi-protocol data streaming engine"
+
+[features]
+default = ["connector-github", "connector-shopify"]
+# Connectors - enable the ones you need
+connector-github = ["tell-connectors/github"]
+connector-shopify = ["tell-connectors/shopify"]
+# Future connectors:
+# connector-stripe = ["tell-connectors/stripe"]
+# connector-linear = ["tell-connectors/linear"]
+
+[dependencies]
+# Internal crates
+tell-protocol = { workspace = true }
+tell-config = { workspace = true }
+tell-routing = { workspace = true }
+tell-pipeline = { workspace = true }
+tell-auth = { workspace = true }
+tell-sources = { workspace = true }
+tell-sinks = { workspace = true }
+tell-transform = { workspace = true }
+tell-metrics = { workspace = true }
+tell-connectors = { workspace = true }
+tell-tap = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+# High-performance channels
+crossfire = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Error handling (anyhow for binary)
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Serialization (for tail output)
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+
+# Terminal (for tail)
+atty = "0.2"
+owo-colors = "4"
+
+# Client library (for test command)
+tell-client = { workspace = true }
+
+# Query engine (for query command)
+tell-query = { workspace = true }
+
+# Analytics engine (for metrics command)
+tell-analytics = { workspace = true }
+
+# API server (for api command)
+tell-api = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true }
+
+# Config parsing (for query command)
+toml = { workspace = true }
+
+# HTTP client (for auth command)
+reqwest = { workspace = true }
+
+# Home directory (for auth token storage)
+dirs = { workspace = true }
+
+# Terminal password reading (for auth command)
+rpassword = { workspace = true }
+
+# ClickHouse client (for clickhouse command)
+clickhouse = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

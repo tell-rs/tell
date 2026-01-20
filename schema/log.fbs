@@ -2,8 +2,6 @@
 // Purpose: Log format used as an optimized custom syslog protocol
 // Field IDs added for future compatibility while maintaining current field order
 
-include "common.fbs";
-
 namespace schema.log;
 
 /// Log severity levels (RFC 5424 syslog standard + TRACE)

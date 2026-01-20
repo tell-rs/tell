@@ -551,12 +551,12 @@ fn test_log_data_100_entries() {
 }
 
 // =============================================================================
-// Roundtrip tests with cdp-protocol decoder
+// Roundtrip tests with tell-protocol decoder
 // =============================================================================
 
 #[test]
 fn test_log_data_roundtrip_single_log() {
-    use cdp_protocol::decode_log_data;
+    use tell_protocol::decode_log_data;
 
     let log = LogEntryBuilder::new()
         .error()
@@ -571,12 +571,12 @@ fn test_log_data_roundtrip_single_log() {
 
     let log_data = LogDataBuilder::new().add(log).build().unwrap();
 
-    // Decode using cdp-protocol
+    // Decode using tell-protocol
     let decoded = decode_log_data(log_data.as_bytes()).expect("should decode log data");
 
     assert_eq!(decoded.len(), 1, "should have decoded 1 log entry");
     let entry = &decoded[0];
-    assert_eq!(entry.level, cdp_protocol::LogLevel::Error);
+    assert_eq!(entry.level, tell_protocol::LogLevel::Error);
     assert_eq!(entry.source, Some("web-01.prod"));
     assert_eq!(entry.service, Some("api-gateway"));
     assert_eq!(entry.timestamp, 1700000000000);
@@ -587,7 +587,7 @@ fn test_log_data_roundtrip_single_log() {
 
 #[test]
 fn test_log_data_roundtrip_multiple_logs() {
-    use cdp_protocol::decode_log_data;
+    use tell_protocol::decode_log_data;
 
     let log1 = LogEntryBuilder::new()
         .info()
@@ -621,22 +621,22 @@ fn test_log_data_roundtrip_multiple_logs() {
 
     assert_eq!(decoded.len(), 3, "should have decoded 3 log entries");
 
-    assert_eq!(decoded[0].level, cdp_protocol::LogLevel::Info);
+    assert_eq!(decoded[0].level, tell_protocol::LogLevel::Info);
     assert_eq!(decoded[0].source, Some("server-1"));
     assert_eq!(decoded[0].timestamp, 1000);
 
-    assert_eq!(decoded[1].level, cdp_protocol::LogLevel::Warning);
+    assert_eq!(decoded[1].level, tell_protocol::LogLevel::Warning);
     assert_eq!(decoded[1].source, Some("server-2"));
     assert_eq!(decoded[1].timestamp, 2000);
 
-    assert_eq!(decoded[2].level, cdp_protocol::LogLevel::Critical);
+    assert_eq!(decoded[2].level, tell_protocol::LogLevel::Fatal);
     assert_eq!(decoded[2].source, Some("server-3"));
     assert_eq!(decoded[2].timestamp, 3000);
 }
 
 #[test]
 fn test_full_log_batch_roundtrip() {
-    use cdp_protocol::{FlatBatch, SchemaType, decode_log_data};
+    use tell_protocol::{FlatBatch, SchemaType, decode_log_data};
     use crate::BatchBuilder;
 
     let log = LogEntryBuilder::new()
@@ -666,7 +666,7 @@ fn test_full_log_batch_roundtrip() {
     let decoded = decode_log_data(data).expect("should decode log data");
 
     assert_eq!(decoded.len(), 1);
-    assert_eq!(decoded[0].level, cdp_protocol::LogLevel::Error);
+    assert_eq!(decoded[0].level, tell_protocol::LogLevel::Error);
     assert_eq!(decoded[0].source, Some("app-server"));
     assert_eq!(decoded[0].service, Some("payments"));
 }

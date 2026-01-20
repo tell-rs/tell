@@ -18,6 +18,21 @@ enabled = true
 queue_size = 10000
 batch_size = 500
 
+[sources.http]
+enabled = true
+port = 8080
+max_payload_size = 10485760  # 10 MB
+batch_size = 500
+cors_enabled = false
+
+[sources.syslog_tcp]
+port = 50514
+enabled = true
+
+[sources.syslog_udp]
+port = 50514
+enabled = true
+
 # Sinks
 [sinks.null]
 type = "null"

@@ -1,4 +1,4 @@
-//! CDP Collector - Connectors
+//! Tell - Connectors
 //!
 //! Pull-based connectors that fetch data from external sources and produce
 //! `Batch` instances for the pipeline.
@@ -20,7 +20,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! cdp-connectors = { version = "0.1", default-features = false, features = ["github"] }
+//! tell-connectors = { version = "0.1", default-features = false, features = ["github"] }
 //! ```
 //!
 //! Available features:
@@ -29,7 +29,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use cdp_connectors::{GitHub, GitHubConfig, Connector};
+//! use tell_connectors::{GitHub, GitHubConfig, Connector};
 //!
 //! let github = GitHub::new(GitHubConfig {
 //!     token: Some("ghp_xxx".into()),
@@ -76,4 +76,3 @@ pub fn available_connectors() -> &'static [&'static str] {
         "shopify",
     ]
 }
-

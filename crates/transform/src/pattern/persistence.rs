@@ -18,7 +18,7 @@
 //! # Future: ClickHouse Integration
 //!
 //! For distributed deployments, patterns can be stored in ClickHouse.
-//! This enables pattern sharing across collector instances and hot reload.
+//! This enables pattern sharing across Tell instances and hot reload.
 
 use super::drain::{Pattern, PatternId};
 use crate::TransformResult;
@@ -43,8 +43,20 @@ pub struct StoredPattern {
     /// Pattern template string
     pub template: String,
 
+    /// Human-readable canonical name
+    #[serde(default)]
+    pub canonical_name: String,
+
     /// Match count
     pub count: u64,
+
+    /// Unix timestamp when first seen (seconds since epoch)
+    #[serde(default)]
+    pub first_seen: u64,
+
+    /// Unix timestamp when last seen (seconds since epoch)
+    #[serde(default)]
+    pub last_seen: u64,
 
     /// Token sequence (for reconstruction)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -56,7 +68,10 @@ impl From<&Pattern> for StoredPattern {
         Self {
             id: p.id,
             template: p.template.clone(),
+            canonical_name: p.canonical_name.clone(),
             count: p.count,
+            first_seen: p.first_seen,
+            last_seen: p.last_seen,
             tokens: p.tokens.clone(),
         }
     }
@@ -67,7 +82,10 @@ impl From<Pattern> for StoredPattern {
         Self {
             id: p.id,
             template: p.template,
+            canonical_name: p.canonical_name,
             count: p.count,
+            first_seen: p.first_seen,
+            last_seen: p.last_seen,
             tokens: p.tokens,
         }
     }

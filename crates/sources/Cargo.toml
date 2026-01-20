@@ -1,15 +1,15 @@
 [package]
-name = "cdp-sources"
+name = "tell-sources"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Network sources (TCP, Syslog) for CDP Collector"
+description = "Network sources (TCP, Syslog, HTTP) for Tell"
 
 [dependencies]
-cdp-protocol = { workspace = true }
-cdp-auth = { workspace = true }
-metrics = { workspace = true }
+tell-protocol = { workspace = true }
+tell-auth = { workspace = true }
+tell-metrics = { workspace = true }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -17,13 +17,21 @@ bytes = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 crossfire = { workspace = true }
+socket2 = { workspace = true }
+hex = "0.4"
+
+# HTTP source
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }
 tempfile = { workspace = true }
-cdp-client = { workspace = true }
+tell-client = { workspace = true }
 criterion = { workspace = true }
-cdp-bench = { workspace = true }
+tell-bench = { workspace = true }
+tower = { workspace = true }
 
 [[bench]]
 name = "tcp"
@@ -31,4 +39,8 @@ harness = false
 
 [[bench]]
 name = "syslog"
+harness = false
+
+[[bench]]
+name = "http"
 harness = false

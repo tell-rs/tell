@@ -9,10 +9,12 @@
 //! - **Sequential execution**: Transformers run in order, each receiving
 //!   the output of the previous
 //! - **Fail-fast**: First error stops the chain and drops the batch
+//! - **Cancellation-aware**: Checks for cancellation between transformers
 //! - **Async-ready**: Supports async transformers for future use cases
 
 use crate::{TransformResult, Transformer};
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
+use tokio_util::sync::CancellationToken;
 
 #[cfg(test)]
 #[path = "chain_test.rs"]
@@ -96,6 +98,24 @@ impl Chain {
     /// Each transformer should complete in microseconds. If a transformer
     /// takes longer than 10ms, consider logging a warning.
     pub async fn transform(&self, batch: Batch) -> TransformResult<Batch> {
+        self.transform_with_cancel(batch, None).await
+    }
+
+    /// Transform a batch with cancellation support
+    ///
+    /// Like `transform`, but checks for cancellation between each transformer.
+    /// If cancelled, returns a `Cancelled` error immediately.
+    ///
+    /// # Cancellation
+    ///
+    /// Cancellation is checked between transformers, allowing graceful shutdown.
+    /// Individual transformers are not interrupted, but no new transformers
+    /// will be started once cancelled.
+    pub async fn transform_with_cancel(
+        &self,
+        batch: Batch,
+        cancel: Option<&CancellationToken>,
+    ) -> TransformResult<Batch> {
         // Fast path: no transformers enabled
         if !self.enabled {
             return Ok(batch);
@@ -104,6 +124,13 @@ impl Chain {
         let mut current = batch;
 
         for transformer in &self.transformers {
+            // Check for cancellation between transformers
+            if let Some(token) = cancel {
+                if token.is_cancelled() {
+                    return Err(crate::TransformError::cancelled());
+                }
+            }
+
             current = transformer.transform(current).await?;
         }
 
@@ -119,6 +146,38 @@ impl Chain {
             .iter()
             .find(|t| t.name() == name)
             .map(|t| t.as_ref())
+    }
+
+    /// Close all transformers in the chain
+    ///
+    /// Called during graceful shutdown. Closes all transformers
+    /// in sequence, collecting errors but continuing to close remaining
+    /// transformers even if one fails.
+    ///
+    /// # Returns
+    ///
+    /// Returns the first error encountered, or `Ok(())` if all
+    /// transformers closed successfully.
+    pub fn close(&self) -> TransformResult<()> {
+        let mut first_error: Option<crate::TransformError> = None;
+
+        for transformer in &self.transformers {
+            if let Err(e) = transformer.close() {
+                tracing::warn!(
+                    transformer = transformer.name(),
+                    error = %e,
+                    "Failed to close transformer"
+                );
+                if first_error.is_none() {
+                    first_error = Some(e);
+                }
+            }
+        }
+
+        match first_error {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
     }
 }
 

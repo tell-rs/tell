@@ -12,7 +12,7 @@ use std::fmt;
 /// # Example
 ///
 /// ```
-/// use cdp_protocol::SourceId;
+/// use tell_protocol::SourceId;
 ///
 /// let source = SourceId::new("tcp_main");
 /// assert_eq!(source.as_str(), "tcp_main");

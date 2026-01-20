@@ -81,6 +81,12 @@ impl ProtocolError {
         }
     }
 
+    /// Create a message too large error
+    #[inline]
+    pub fn message_too_large(size: usize, max: usize) -> Self {
+        Self::BufferOverflow { size, max }
+    }
+
     /// Check if this is a recoverable error (can continue processing)
     pub fn is_recoverable(&self) -> bool {
         matches!(

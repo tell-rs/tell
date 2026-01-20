@@ -28,7 +28,7 @@ pub use state::{ReduceGroup, ReduceState, compute_group_key};
 
 use crate::{TransformError, TransformResult, Transformer};
 use crate::registry::{TransformerConfig, TransformerFactory};
-use cdp_protocol::{Batch, BatchBuilder};
+use tell_protocol::{Batch, BatchBuilder};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;

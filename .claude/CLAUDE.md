@@ -4,9 +4,9 @@ This file provides guidance to Claude when working with code in this repository.
 
 ## Project Overview
 
-CDP Collector (Rust) is a high-performance, multi-protocol data streaming engine. It processes CDP/product analytics events and structured logs at 40M+ events/sec with minimal resource footprint.
+Tell is a high-performance, multi-protocol data streaming engine. It processes product analytics events and structured logs at 40M+ events/sec with minimal resource footprint.
 
-This is a rewrite of the Go-based cdp-collector, focusing on:
+This is a rewrite of the original Go implementation, focusing on:
 - **Memory safety** without garbage collection pauses
 - **Zero-copy processing** with predictable latency
 - **Flexible routing** - source-based routing with O(1) lookup
@@ -31,7 +31,7 @@ This is a rewrite of the Go-based cdp-collector, focusing on:
 ## Workspace Structure
 
 ```
-cdp-collector-rust/
+tell-rs/
 ├── Cargo.toml                    # Workspace root
 ├── crates/
 │   ├── protocol/                 # Zero-copy core - FlatBuffers, Batch types
@@ -48,11 +48,14 @@ cdp-collector-rust/
 │   │   ├── clickhouse/
 │   │   ├── parquet/
 │   │   └── forwarder/
-│   ├── auth/                     # API key management with hot reload
+│   ├── auth/                     # Auth core: RBAC, tokens, API keys
+│   ├── analytics/                # Analytics queries (DAU, MAU, retention, etc)
+│   ├── query/                    # Query engine, ClickHouse integration
+│   ├── api/                      # HTTP API (Axum), auth middleware
 │   ├── transform/                # Transformer chain (pattern matching, etc)
-│   ├── config/                   # YAML config loading + validation
+│   ├── config/                   # TOML config loading + validation
 │   ├── metrics/                  # Internal metrics reporting
-│   └── collector/                # Binary entry point
+│   └── collector/                # Binary entry point (produces 'tell' binary)
 ```
 
 **Crate responsibilities:**
@@ -61,11 +64,75 @@ cdp-collector-rust/
 - **pipeline** - `Router` that receives batches and fans out via channels
 - **sources** - Async network listeners, produce `Batch` instances
 - **sinks** - Consume `Arc<Batch>`, write to destinations
-- **auth** - API key validation, workspace ID lookup, hot reload
+- **auth** - RBAC (roles/permissions), JWT claims, streaming API keys
+- **analytics** - Product analytics: DAU, MAU, retention, funnel, etc.
+- **query** - Query builder, ClickHouse client, time series data
+- **api** - HTTP routes, auth middleware, permission enforcement
 - **transform** - Optional batch transformation (pattern extraction, enrichment)
 - **config** - Deserialize YAML, validate, build typed config structs
 - **metrics** - Atomic counters, periodic reporting
-- **collector** - Main binary, wires everything together
+- **collector** - Main binary (`tell`), wires everything together
+
+## Authentication & API
+
+### Two Auth Systems
+
+| System | Format | Use Case |
+|--------|--------|----------|
+| Streaming | `000102...0f` (32 hex) | Collector ingestion, O(1) lookup |
+| HTTP API | `tell_<jwt>` | Dashboard/API, role-based |
+
+### Roles (4) & Permissions (3)
+
+| Role | Permission | What they can do |
+|------|------------|------------------|
+| `Viewer` | (view) | View analytics and shared content |
+| `Editor` | `Create` | Create/edit own dashboards, metrics |
+| `Admin` | `Admin` | Manage workspace (members, settings) |
+| `Platform` | `Platform` | Cross-workspace ops (enterprise) |
+
+Roles are hierarchical: Platform > Admin > Editor > Viewer
+
+### Content Ownership
+
+```rust
+// Most checks are ownership-based
+fn can_edit(content: &Content, user: &User) -> bool {
+    content.owner_id == user.id || user.is_admin()
+}
+```
+
+### Route Protection
+
+```rust
+use tell_api::auth::{Permission, RouterExt, AuthUser};
+
+// Editor+ routes (create content)
+Router::new()
+    .route("/dashboard", post(create_dashboard))
+    .with_permission(Permission::Create)
+
+// Admin routes (manage workspace)
+Router::new()
+    .route("/members", post(add_member))
+    .with_permission(Permission::Admin)
+
+// Handler checks
+async fn handler(user: AuthUser) -> impl IntoResponse {
+    if user.can_create() { /* Editor+ */ }
+    if user.is_admin() { /* Admin+ */ }
+}
+```
+
+### API Keys
+
+- Any user can create API keys
+- Keys inherit creator's role
+- Used for MCP, CLI, integrations
+
+### Public Paths
+
+`/health`, `/api/v1/auth/*`, `/s/*` (shared links)
 
 ## Coding Standards (Non-Negotiable)
 
@@ -159,27 +226,27 @@ cargo fmt --all -- --check
 
 ### Running
 ```bash
-cargo run --release --bin collector -- --config config.yaml
+cargo run --release --bin tell -- --config configs/config.toml
 ```
 
 ### Testing a specific crate
 ```bash
-cargo test -p cdp-protocol
-cargo test -p cdp-routing
+cargo test -p tell-protocol
+cargo test -p tell-routing
 ```
 
 ## FlatBuffers Integration
 
-Schemas are in `../cdp-collector/pkg/schema/`:
+Schemas are in `crates/protocol/schema/`:
 - `common.fbs` - Batch wrapper, SchemaType enum
-- `event.fbs` - CDP events
+- `event.fbs` - Product analytics events
 - `log.fbs` - Structured logs
 - `metric.fbs` - Metrics (experimental)
 - `trace.fbs` - Traces (experimental)
 
 Generate Rust code:
 ```bash
-flatc --rust -o crates/protocol/src/generated/ ../cdp-collector/pkg/schema/*.fbs
+flatc --rust -o crates/protocol/src/generated/ crates/protocol/schema/*.fbs
 ```
 
 ## Performance Targets

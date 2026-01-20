@@ -1,7 +1,7 @@
 //! Tests for the null sink
 
 use super::{MetricsSnapshot, NullSink, NullSinkMetrics};
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 

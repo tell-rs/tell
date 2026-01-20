@@ -1,7 +1,7 @@
-# CDP Collector Configuration
-# ===========================
+# Tell Configuration
+# ===================
 #
-# This is the configuration file for the CDP Collector (Rust).
+# This is the configuration file for Tell.
 # All settings have sensible defaults - only specify what you need to change.
 #
 # Minimal working config:
@@ -55,8 +55,9 @@ output = "stdout"
 # Enable metrics reporting (default: true)
 enabled = true
 
-# Reporting interval (default: 10s)
-interval = "10s"
+# Reporting interval (default: 1h)
+# For production monitoring, consider "10s" or "1m"
+interval = "1h"
 
 # Output format: human, json (default: human)
 format = "human"
@@ -87,9 +88,9 @@ port = 50000
 # address = "0.0.0.0"      # (default: "0.0.0.0")
 # no_delay = true          # TCP_NODELAY (default: true)
 # flush_interval = "100ms" # (default: 100ms)
-# forwarding_mode = false  # Trust source_ip from upstream collectors (default: false)
+# forwarding_mode = false  # Trust source_ip from upstream Tell instances (default: false)
 
-# Secondary TCP source for edge collector traffic (SOC forwarders)
+# Secondary TCP source for edge Tell traffic (SOC forwarders)
 # [[sources.tcp]]
 # port = 8081
 # forwarding_mode = true   # Trust source_ip from forwarders
@@ -183,10 +184,29 @@ path = "logs/"
 # -----------------------------------------------------------------------------
 # ClickHouse Sink - Real-time analytics database
 # -----------------------------------------------------------------------------
+# Two implementations available:
+#   - clickhouse        Arrow HTTP format (recommended, high throughput)
+#   - clickhouse_native Native protocol via clickhouse crate
 
+# Arrow HTTP sink (recommended) - Uses HTTP port 8123
+# Best for high throughput (65M+ events/sec), sends columnar Arrow batches
 # [sinks.clickhouse]
 # type = "clickhouse"
-# host = "localhost:9000"          # Required when enabled
+# host = "localhost:8123"          # HTTP port (required)
+# database = "default"             # (default: "default")
+# username = "default"             # (default: "default")
+# password = ""                    # (default: "")
+# hostname_prefix = "mycompany"    # Table prefix
+# batch_size = 50000               # Rows per insert (default: 50000)
+# flush_interval = "5s"            # (default: 5s)
+# metrics_enabled = true
+# metrics_interval = "10s"
+
+# Native protocol sink - Uses native port 9000
+# Use if you need native protocol features or have existing port 9000 setup
+# [sinks.clickhouse_legacy]
+# type = "clickhouse_native"
+# host = "localhost:9000"          # Native port (required)
 # database = "default"             # (default: "default")
 # username = "default"             # (default: "default")
 # password = ""                    # (default: "")
@@ -197,8 +217,10 @@ path = "logs/"
 # metrics_interval = "10s"
 
 # -----------------------------------------------------------------------------
-# Parquet Sink - Columnar storage for data warehousing
+# Parquet Sink - Columnar storage for data warehousing (cold data)
 # -----------------------------------------------------------------------------
+# Best for: archival, analytics queries, data warehousing, long-term storage
+# Features: excellent compression, predicate pushdown, wide tool support
 
 # [sinks.parquet]
 # type = "parquet"
@@ -210,12 +232,32 @@ path = "logs/"
 # metrics_interval = "10s"
 
 # -----------------------------------------------------------------------------
-# Forwarder Sink - Collector-to-collector forwarding
+# Arrow IPC Sink - Fast columnar storage (hot data)
+# -----------------------------------------------------------------------------
+# Best for: hot data, real-time dashboards, inter-service communication
+# Features: ~10x faster I/O than Parquet, zero-copy reads, no compression
+#
+# Files can be read with:
+#   - DuckDB: SELECT * FROM 'path.arrow'
+#   - PyArrow: pa.ipc.open_file("path.arrow")
+#   - Polars: pl.read_ipc("path.arrow")
+
+# [sinks.arrow_ipc]
+# type = "arrow_ipc"
+# path = "arrow/"
+# rotation = "hourly"              # hourly, daily (default: hourly)
+# buffer_size = 10000              # rows to buffer (default: 10000)
+# flush_interval = "60s"           # (default: 60s)
+# metrics_enabled = true
+# metrics_interval = "10s"
+
+# -----------------------------------------------------------------------------
+# Forwarder Sink - Tell-to-Tell forwarding
 # -----------------------------------------------------------------------------
 
 # [sinks.forwarder]
 # type = "forwarder"
-# target = "collector.example.com:8081"  # Required when enabled
+# target = "tell.example.com:8081"  # Required when enabled
 # api_key = "0123456789abcdef0123456789abcdef"  # 32 hex chars, required
 # buffer_size = 262144             # (default: 256KB)
 # connection_timeout = "10s"       # (default: 10s)
@@ -288,7 +330,7 @@ default = ["stdout"]
 # cache_size = 100000                 # L1 cache capacity (default: 100000)
 # max_child_nodes = 100               # Drain tree branching factor (default: 100)
 # persistence_enabled = false         # Enable file persistence (default: false)
-# persistence_file = "/var/lib/cdp/patterns.json"  # Pattern storage file
+# persistence_file = "/var/lib/tell/patterns.json"  # Pattern storage file
 #
 # Example: Multiple transformers in chain (processed in order)
 # [[routing.rules]]
@@ -320,3 +362,46 @@ default = ["stdout"]
 # [[routing.rules.transformers]]
 # type = "pattern_matcher"
 # similarity_threshold = 0.7          # More conservative clustering
+
+# =============================================================================
+# API Client
+# =============================================================================
+# Configure CLI commands that connect to the Tell API server.
+# Used by: tell auth login, tell auth status, etc.
+
+[api]
+url = "http://localhost:3000"
+
+# =============================================================================
+# Query
+# =============================================================================
+# Configure `tell query` command for SQL queries against your data.
+# Supports ClickHouse (production) and local Arrow IPC files (Polars).
+#
+# Usage:
+#   tell query "SELECT event_name, COUNT(*) FROM events GROUP BY event_name"
+#   tell query "SELECT * FROM logs WHERE level = 'error' LIMIT 100" --format json
+
+# Option 1: Reference a sink (recommended)
+# Pulls host/database from the sink config. Override credentials for read-only access.
+# [query]
+# sink = "clickhouse"                  # References [sinks.clickhouse]
+# username = "readonly_user"           # Override with read-only credentials (optional)
+# password = "readonly_password"       # Falls back to sink credentials if not set
+# workspace_id = 1                     # For local Arrow IPC file discovery
+
+# Option 2: Inline configuration (no sink reference)
+# [query]
+# backend = "clickhouse"               # clickhouse, local
+# url = "http://localhost:8123"
+# database = "default"
+# username = "default"
+# password = ""
+# workspace_id = 1
+
+# Option 3: Local Arrow IPC files (via Polars)
+# For development or edge deployments without ClickHouse
+# [query]
+# backend = "local"
+# path = "arrow/"                      # Path to Arrow IPC files
+# workspace_id = 1                     # Files at: {path}/{workspace_id}/**/*.arrow

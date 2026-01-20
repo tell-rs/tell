@@ -1,4 +1,4 @@
-//! CDP Protocol - Zero-copy core types for the CDP Collector
+//! Tell Protocol - Zero-copy core types for Tell
 //!
 //! This crate provides the foundational types that flow through the pipeline:
 //! - `Batch` - Zero-copy batch container using `bytes::Bytes`
@@ -16,10 +16,11 @@
 //! # FlatBuffers Integration
 //!
 //! This crate parses FlatBuffers wire format directly without code generation.
-//! The wire format is documented in `../cdp-collector/pkg/schema/*.fbs`.
+//! The wire format is documented in `crates/protocol/schema/*.fbs`.
 
 mod batch;
 mod decode;
+mod encode;
 mod error;
 mod flatbuf;
 mod schema;
@@ -28,11 +29,17 @@ mod source;
 
 pub use batch::{Batch, BatchBuilder};
 pub use decode::{
-    DecodedData, DecodedEvent, DecodedLogEntry, EventType, LogEventType, LogLevel,
-    decode_event_data, decode_log_data,
+    DecodedBucket, DecodedData, DecodedEvent, DecodedHistogram, DecodedIntLabel, DecodedLabel,
+    DecodedLogEntry, DecodedMetric, DecodedSnapshot, DecodedSpan, EventType, LogEventType,
+    LogLevel, MetricType, SpanKind, SpanStatus, Temporality, decode_event_data, decode_log_data,
+    decode_metric_data, decode_snapshot_data, decode_trace_data,
+};
+pub use encode::{
+    BatchEncoder, EncodedEvent, EncodedLogEntry, EventEncoder, EventTypeValue, LogEncoder,
+    LogEventTypeValue, LogLevelValue,
 };
 pub use error::ProtocolError;
-pub use flatbuf::FlatBatch;
+pub use flatbuf::{FlatBatch, is_likely_flatbuffer};
 pub use schema::{BatchType, SchemaType};
 pub use source::SourceId;
 
@@ -54,11 +61,17 @@ pub const API_KEY_LENGTH: usize = 16;
 /// IPv6 address length in bytes
 pub const IPV6_LENGTH: usize = 16;
 
+/// Maximum reasonable message size (100MB)
+/// Prevents memory exhaustion attacks while allowing large batches
+pub const MAX_REASONABLE_SIZE: usize = 100 * 1024 * 1024;
+
+/// Minimum valid FlatBuffer Batch size
+/// Root offset (4) + vtable offset (4) + vtable header (4) + min fields (4) = 16 bytes
+pub const MIN_BATCH_SIZE: usize = 16;
+
 // Test modules - only compiled during testing
 #[cfg(test)]
 mod batch_test;
-#[cfg(test)]
-mod decode_test;
 #[cfg(test)]
 mod error_test;
 #[cfg(test)]

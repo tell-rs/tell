@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tokio::sync::mpsc;
 
 use super::{MetricsSnapshot, StdoutConfig, StdoutSink, StdoutSinkMetrics};
@@ -28,36 +28,27 @@ fn create_test_batch(source_id: &str, message_count: usize) -> Batch {
 fn test_config_default() {
     let config = StdoutConfig::default();
 
-    assert!(!config.verbose);
-    assert_eq!(config.max_messages, 10);
-    assert!(config.show_batch_type);
-    assert!(config.show_workspace);
-    assert!(config.show_source);
-    assert!(config.show_bytes);
-}
-
-#[test]
-fn test_config_minimal() {
-    let config = StdoutConfig::minimal();
-
-    assert!(!config.verbose);
+    assert!(config.color);
+    assert!(!config.show_batch_headers);
     assert_eq!(config.max_messages, 0);
-    assert!(config.show_batch_type);
-    assert!(!config.show_workspace);
-    assert!(!config.show_source);
-    assert!(!config.show_bytes);
 }
 
 #[test]
-fn test_config_verbose() {
-    let config = StdoutConfig::verbose();
+fn test_config_no_color() {
+    let config = StdoutConfig::no_color();
 
-    assert!(config.verbose);
-    assert_eq!(config.max_messages, 10);
-    assert!(config.show_batch_type);
-    assert!(config.show_workspace);
-    assert!(config.show_source);
-    assert!(config.show_bytes);
+    assert!(!config.color);
+    assert!(!config.show_batch_headers);
+    assert_eq!(config.max_messages, 0);
+}
+
+#[test]
+fn test_config_with_headers() {
+    let config = StdoutConfig::with_headers();
+
+    assert!(config.color);
+    assert!(config.show_batch_headers);
+    assert_eq!(config.max_messages, 0);
 }
 
 // ============================================================================
@@ -85,16 +76,6 @@ fn test_metrics_record_batch() {
     assert_eq!(snapshot.batches_received, 2);
     assert_eq!(snapshot.messages_received, 300);
     assert_eq!(snapshot.bytes_received, 15000);
-}
-
-#[test]
-fn test_metrics_accessors() {
-    let metrics = StdoutSinkMetrics::new();
-    metrics.record_batch(50, 2500);
-
-    assert_eq!(metrics.batches_received(), 1);
-    assert_eq!(metrics.messages_received(), 50);
-    assert_eq!(metrics.bytes_received(), 2500);
 }
 
 #[test]
@@ -145,7 +126,7 @@ async fn test_sink_creation() {
 #[tokio::test]
 async fn test_sink_with_config() {
     let (_tx, rx) = mpsc::channel::<Arc<Batch>>(10);
-    let config = StdoutConfig::verbose();
+    let config = StdoutConfig::with_headers();
     let sink = StdoutSink::with_config(rx, config);
 
     assert_eq!(sink.name(), "stdout");
@@ -215,7 +196,7 @@ async fn test_sink_metrics_during_run() {
     let sink = StdoutSink::new(rx);
 
     // Initially metrics should be zero
-    assert_eq!(sink.metrics().batches_received(), 0);
+    assert_eq!(sink.metrics().snapshot().batches_received, 0);
 
     let batch = Arc::new(create_test_batch("test", 10));
     tx.send(batch).await.unwrap();
@@ -225,12 +206,12 @@ async fn test_sink_metrics_during_run() {
 }
 
 #[tokio::test]
-async fn test_sink_with_verbose_config() {
+async fn test_sink_with_headers_config() {
     let (tx, rx) = mpsc::channel::<Arc<Batch>>(10);
-    let config = StdoutConfig::verbose();
+    let config = StdoutConfig::with_headers();
     let sink = StdoutSink::with_config(rx, config);
 
-    let batch = Arc::new(create_test_batch("verbose_test", 15));
+    let batch = Arc::new(create_test_batch("headers_test", 15));
     tx.send(batch).await.unwrap();
     drop(tx);
 
@@ -240,12 +221,12 @@ async fn test_sink_with_verbose_config() {
 }
 
 #[tokio::test]
-async fn test_sink_with_minimal_config() {
+async fn test_sink_with_no_color_config() {
     let (tx, rx) = mpsc::channel::<Arc<Batch>>(10);
-    let config = StdoutConfig::minimal();
+    let config = StdoutConfig::no_color();
     let sink = StdoutSink::with_config(rx, config);
 
-    let batch = Arc::new(create_test_batch("minimal_test", 3));
+    let batch = Arc::new(create_test_batch("no_color_test", 3));
     tx.send(batch).await.unwrap();
     drop(tx);
 

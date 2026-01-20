@@ -8,16 +8,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use metrics::{PipelineMetricsProvider, PipelineSnapshot};
-use cdp_protocol::{Batch, SourceId};
-use cdp_routing::{RoutingTable, SinkId};
-use tap::TapPoint;
-use cdp_transform::Chain;
+use tell_metrics::{PipelineMetricsProvider, PipelineSnapshot};
+use tell_protocol::{Batch, SourceId};
+use tell_routing::{RoutingTable, SinkId};
+use tell_tap::TapPoint;
+use tell_transform::Chain;
 use crossfire::AsyncRx;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::metrics::RouterMetrics;
+use crate::metrics::{BackpressureTracker, RouterMetrics};
 use crate::sink_handle::SinkHandle;
 
 /// Async router that connects sources to sinks
@@ -54,6 +54,9 @@ pub struct Router {
 
     /// Router metrics (Arc for sharing with metrics handle)
     metrics: Arc<RouterMetrics>,
+
+    /// Rate-limited backpressure logging
+    backpressure_tracker: BackpressureTracker,
 
     /// Global transformer chain applied to all batches (fallback)
     transformers: Option<Chain>,
@@ -104,6 +107,7 @@ impl Router {
             routing_table,
             sinks,
             metrics: Arc::new(RouterMetrics::new()),
+            backpressure_tracker: BackpressureTracker::new(),
             transformers: None,
             source_transformers: HashMap::new(),
             tap_point: None,
@@ -336,6 +340,10 @@ impl Router {
                     // Channel full - backpressure
                     self.metrics.record_backpressure();
                     self.metrics.record_sink_send_failed();
+
+                    // Rate-limited logging (aggregates to 1 log/sec)
+                    self.backpressure_tracker
+                        .record_drop(batch.count() as u64);
 
                     tracing::debug!(
                         sink_id = %sink_id,

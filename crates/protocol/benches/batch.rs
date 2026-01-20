@@ -7,7 +7,7 @@
 
 use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 
 /// Create a test batch with N messages of given size
 fn create_batch(message_count: usize, message_size: usize) -> Batch {

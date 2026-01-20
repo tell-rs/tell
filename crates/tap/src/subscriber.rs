@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 
 use crate::SubscribeRequest;
 use crate::error::{Result, TapError};

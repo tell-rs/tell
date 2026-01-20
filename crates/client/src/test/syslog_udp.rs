@@ -14,7 +14,7 @@ use tokio::net::UdpSocket;
 /// # Example
 ///
 /// ```ignore
-/// use cdp_client::test::SyslogUdpTestClient;
+/// use tell_client::test::SyslogUdpTestClient;
 ///
 /// let client = SyslogUdpTestClient::new().await?;
 ///

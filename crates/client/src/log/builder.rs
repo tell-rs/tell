@@ -21,7 +21,7 @@ const MAX_STRING_LENGTH: usize = 256;
 /// # Example
 ///
 /// ```
-/// use cdp_client::log::{LogEntryBuilder, LogLevel};
+/// use tell_client::log::{LogEntryBuilder, LogLevel};
 ///
 /// let log = LogEntryBuilder::new()
 ///     .level(LogLevel::Error)
@@ -304,7 +304,7 @@ impl BuiltLogEntry {
 /// # Example
 ///
 /// ```
-/// use cdp_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
+/// use tell_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
 ///
 /// let log1 = LogEntryBuilder::new()
 ///     .error()
@@ -492,8 +492,8 @@ fn build_log_entry_flatbuffer(
     // === Table ===
     let table_start = buf.len();
 
-    // soffset to vtable
-    let soffset: i32 = -((table_start - vtable_start) as i32);
+    // soffset: distance from table to vtable (standard FlatBuffers: vtable = table - soffset)
+    let soffset: i32 = (table_start - vtable_start) as i32;
     buf.extend_from_slice(&soffset.to_le_bytes());
 
     // Placeholders for vector/string offsets
@@ -652,8 +652,8 @@ fn build_log_data_flatbuffer(logs: &[BuiltLogEntry]) -> Vec<u8> {
     // === Table ===
     let table_start = buf.len();
 
-    // soffset to vtable
-    let soffset: i32 = -((table_start - vtable_start) as i32);
+    // soffset: distance from table to vtable (standard FlatBuffers: vtable = table - soffset)
+    let soffset: i32 = (table_start - vtable_start) as i32;
     buf.extend_from_slice(&soffset.to_le_bytes());
 
     // logs vector offset placeholder

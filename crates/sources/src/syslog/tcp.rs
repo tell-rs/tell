@@ -38,18 +38,20 @@
 
 use std::io;
 use std::net::SocketAddr;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
+use crossfire::TrySendError;
+use socket2::{Socket, TcpKeepalive};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use crossfire::TrySendError;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 
-use metrics::{SourceMetricsProvider, SourceMetricsSnapshot};
+use tell_metrics::{SourceMetricsProvider, SourceMetricsSnapshot};
 
 use crate::common::SourceMetrics;
 use crate::ShardedSender;
@@ -78,6 +80,12 @@ const DEFAULT_CONNECTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Default queue size
 const DEFAULT_QUEUE_SIZE: usize = 1000;
+
+/// Default socket buffer size (256KB)
+const DEFAULT_SOCKET_BUFFER_SIZE: usize = 256 * 1024;
+
+/// Default keepalive interval (30s)
+const DEFAULT_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
 
 // =============================================================================
 // Configuration
@@ -118,6 +126,9 @@ pub struct SyslogTcpSourceConfig {
 
     /// Maximum syslog message size
     pub max_message_size: usize,
+
+    /// Socket buffer size for SO_RCVBUF/SO_SNDBUF
+    pub socket_buffer_size: usize,
 }
 
 impl Default for SyslogTcpSourceConfig {
@@ -134,6 +145,7 @@ impl Default for SyslogTcpSourceConfig {
             connection_timeout: DEFAULT_CONNECTION_TIMEOUT,
             workspace_id: 1,
             max_message_size: DEFAULT_MAX_MESSAGE_SIZE,
+            socket_buffer_size: DEFAULT_SOCKET_BUFFER_SIZE,
         }
     }
 }
@@ -171,8 +183,8 @@ pub struct SyslogTcpSourceMetrics {
     /// Lines read from connections
     pub lines_read: AtomicU64,
 
-    /// Lines that exceeded max size
-    pub lines_too_long: AtomicU64,
+    /// Malformed messages (oversized, etc.)
+    pub messages_malformed: AtomicU64,
 
     /// Messages dropped (queue full, etc.)
     pub messages_dropped: AtomicU64,
@@ -184,7 +196,7 @@ impl SyslogTcpSourceMetrics {
         Self {
             base: SourceMetrics::new(),
             lines_read: AtomicU64::new(0),
-            lines_too_long: AtomicU64::new(0),
+            messages_malformed: AtomicU64::new(0),
             messages_dropped: AtomicU64::new(0),
         }
     }
@@ -195,10 +207,10 @@ impl SyslogTcpSourceMetrics {
         self.lines_read.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Record a line too long
+    /// Record a malformed message (oversized, etc.)
     #[inline]
-    pub fn line_too_long(&self) {
-        self.lines_too_long.fetch_add(1, Ordering::Relaxed);
+    pub fn message_malformed(&self) {
+        self.messages_malformed.fetch_add(1, Ordering::Relaxed);
         self.base.errors.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -218,7 +230,7 @@ impl SyslogTcpSourceMetrics {
             batches_sent: self.base.batches_sent.load(Ordering::Relaxed),
             errors: self.base.errors.load(Ordering::Relaxed),
             lines_read: self.lines_read.load(Ordering::Relaxed),
-            lines_too_long: self.lines_too_long.load(Ordering::Relaxed),
+            messages_malformed: self.messages_malformed.load(Ordering::Relaxed),
             messages_dropped: self.messages_dropped.load(Ordering::Relaxed),
         }
     }
@@ -234,7 +246,7 @@ pub struct SyslogTcpMetricsSnapshot {
     pub batches_sent: u64,
     pub errors: u64,
     pub lines_read: u64,
-    pub lines_too_long: u64,
+    pub messages_malformed: u64,
     pub messages_dropped: u64,
 }
 
@@ -364,6 +376,39 @@ impl SyslogTcpSource {
         self.running.store(false, Ordering::Relaxed);
     }
 
+    /// Configure socket options using socket2
+    ///
+    /// Sets nodelay, buffer sizes, and keepalive matching Go's SetupTCPConn.
+    fn configure_socket(&self, stream: &TcpStream) {
+        let fd = stream.as_raw_fd();
+
+        // SAFETY: We're borrowing the fd temporarily. We use forget() to prevent
+        // socket2 from closing the fd when it drops - tokio still owns it.
+        let socket = unsafe { Socket::from_raw_fd(fd) };
+
+        // TCP_NODELAY - disable Nagle's algorithm
+        if self.config.nodelay && let Err(e) = socket.set_tcp_nodelay(true) {
+            tracing::warn!(error = %e, "Failed to set TCP_NODELAY");
+        }
+
+        // Socket buffer sizes (matching Go's SetReadBuffer/SetWriteBuffer)
+        if let Err(e) = socket.set_recv_buffer_size(self.config.socket_buffer_size) {
+            tracing::warn!(error = %e, "Failed to set SO_RCVBUF");
+        }
+        if let Err(e) = socket.set_send_buffer_size(self.config.socket_buffer_size) {
+            tracing::warn!(error = %e, "Failed to set SO_SNDBUF");
+        }
+
+        // Keepalive
+        let keepalive = TcpKeepalive::new().with_time(DEFAULT_KEEPALIVE_INTERVAL);
+        if let Err(e) = socket.set_tcp_keepalive(&keepalive) {
+            tracing::warn!(error = %e, "Failed to set TCP keepalive");
+        }
+
+        // Don't close the fd - tokio owns it
+        std::mem::forget(socket);
+    }
+
     /// Run the source (main entry point)
     pub async fn run(&self, cancel: CancellationToken) -> Result<(), SyslogTcpSourceError> {
         let bind_addr = self.config.bind_address();
@@ -407,10 +452,8 @@ impl SyslogTcpSource {
                         Ok((stream, peer_addr)) => {
                             self.metrics.base.connection_opened();
 
-                            // Configure TCP socket
-                            if self.config.nodelay {
-                                let _ = stream.set_nodelay(true);
-                            }
+                            // Configure TCP socket using socket2
+                            self.configure_socket(&stream);
 
                             // Allocate connection ID for sharding
                             let connection_id = self.batch_sender.allocate_connection_id();
@@ -486,8 +529,8 @@ impl ConnectionHandler {
         batch_builder.set_source_ip(source_ip);
         batch_builder.set_max_items(self.config.batch_size);
 
-        // Line buffer (reused across reads)
-        let mut line_buf = String::with_capacity(self.config.max_message_size);
+        // Line buffer (reused across reads) - bounded to max_message_size
+        let mut line_buf = Vec::with_capacity(self.config.max_message_size);
 
         // Flush timer
         let mut flush_interval = interval(self.config.flush_interval);
@@ -516,55 +559,61 @@ impl ConnectionHandler {
                     batch_builder.set_source_ip(source_ip);
                 }
 
-                // Read line with optional timeout
+                // Read line with optional timeout (bounded to prevent memory exhaustion)
                 read_result = async {
                     if let Some(timeout_duration) = timeout {
                         tokio::time::timeout(
                             timeout_duration,
-                            reader.read_line(&mut line_buf)
+                            read_bounded_line(&mut reader, &mut line_buf, self.config.max_message_size)
                         ).await
                     } else {
-                        Ok(reader.read_line(&mut line_buf).await)
+                        Ok(read_bounded_line(&mut reader, &mut line_buf, self.config.max_message_size).await)
                     }
                 } => {
                     match read_result {
-                        Ok(Ok(0)) => {
-                            // EOF - connection closed
-                            break;
-                        }
-                        Ok(Ok(bytes_read)) => {
+                        Ok(Ok(ReadLineResult::Line(bytes_read))) => {
                             self.metrics.line_read();
 
                             // Trim trailing newline (LF or CRLF)
-                            let line = line_buf.trim_end_matches(['\n', '\r']);
+                            let mut line_len = line_buf.len();
+                            if line_len > 0 && line_buf[line_len - 1] == b'\n' {
+                                line_len -= 1;
+                            }
+                            if line_len > 0 && line_buf[line_len - 1] == b'\r' {
+                                line_len -= 1;
+                            }
+                            let line = &line_buf[..line_len];
 
                             if !line.is_empty() {
-                                // Check message size
-                                if line.len() > self.config.max_message_size {
-                                    self.metrics.line_too_long();
-                                    tracing::debug!(
-                                        peer = %self.peer_addr,
-                                        size = line.len(),
-                                        max = self.config.max_message_size,
-                                        "syslog message too large, dropping"
-                                    );
-                                } else {
-                                    // Add to batch
-                                    let batch_full = batch_builder.add(line.as_bytes(), 1);
+                                // Add to batch
+                                let batch_full = batch_builder.add(line, 1);
 
-                                    self.metrics.base.message_received(bytes_read as u64);
+                                self.metrics.base.message_received(bytes_read as u64);
 
-                                    if batch_full {
-                                        self.flush_batch(&mut batch_builder).await?;
-                                        // Re-set metadata after flush
-                                        batch_builder.set_workspace_id(self.config.workspace_id);
-                                        batch_builder.set_source_ip(source_ip);
-                                    }
+                                if batch_full {
+                                    self.flush_batch(&mut batch_builder).await?;
+                                    // Re-set metadata after flush
+                                    batch_builder.set_workspace_id(self.config.workspace_id);
+                                    batch_builder.set_source_ip(source_ip);
                                 }
                             }
 
                             // Clear buffer for next line
                             line_buf.clear();
+                        }
+                        Ok(Ok(ReadLineResult::TooLong)) => {
+                            // Line exceeded max size - already consumed, just record metric
+                            self.metrics.message_malformed();
+                            tracing::debug!(
+                                peer = %self.peer_addr,
+                                max = self.config.max_message_size,
+                                "syslog message too large, dropped"
+                            );
+                            line_buf.clear();
+                        }
+                        Ok(Ok(ReadLineResult::Eof)) => {
+                            // EOF - connection closed
+                            break;
                         }
                         Ok(Err(e)) => {
                             // I/O error
@@ -655,6 +704,104 @@ impl ConnectionHandler {
     }
 }
 
+// =============================================================================
+// Bounded Line Reading
+// =============================================================================
+
+/// Result of reading a bounded line
+enum ReadLineResult {
+    /// Successfully read a line (with byte count including newline)
+    Line(usize),
+    /// Line exceeded max size and was consumed/discarded
+    TooLong,
+    /// End of stream
+    Eof,
+}
+
+/// Read a line with bounded memory allocation
+///
+/// This matches Go's `ReadSlice` behavior:
+/// - Reads until newline or max_size bytes
+/// - If max_size reached without newline, consumes the rest of the line
+/// - Prevents memory exhaustion from malicious long lines
+async fn read_bounded_line<R: AsyncBufReadExt + Unpin>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+    max_size: usize,
+) -> io::Result<ReadLineResult> {
+    buf.clear();
+
+    let mut total_bytes = 0;
+    let mut found_newline = false;
+    let mut exceeded_limit = false;
+
+    loop {
+        let available = reader.fill_buf().await?;
+
+        if available.is_empty() {
+            // EOF
+            if total_bytes == 0 {
+                return Ok(ReadLineResult::Eof);
+            }
+            // Return what we have
+            break;
+        }
+
+        // Find newline in available data
+        let newline_pos = available.iter().position(|&b| b == b'\n');
+
+        let (bytes_to_consume, done) = match newline_pos {
+            Some(pos) => (pos + 1, true), // Include newline
+            None => (available.len(), false),
+        };
+
+        // Check if we would exceed the limit
+        let space_remaining = max_size.saturating_sub(buf.len());
+
+        if !exceeded_limit && bytes_to_consume <= space_remaining {
+            // Can fit in buffer
+            buf.extend_from_slice(&available[..bytes_to_consume]);
+        } else if !exceeded_limit {
+            // First time exceeding - take what we can
+            if space_remaining > 0 {
+                buf.extend_from_slice(&available[..space_remaining]);
+            }
+            exceeded_limit = true;
+        }
+        // If exceeded_limit, we just consume without storing
+
+        total_bytes += bytes_to_consume;
+        reader.consume(bytes_to_consume);
+
+        if done {
+            found_newline = true;
+            break;
+        }
+    }
+
+    if exceeded_limit {
+        // We exceeded the limit - consume rest of line if we haven't hit newline
+        if !found_newline {
+            // Consume bytes until we find newline
+            loop {
+                let available = reader.fill_buf().await?;
+                if available.is_empty() {
+                    break;
+                }
+                if let Some(pos) = available.iter().position(|&b| b == b'\n') {
+                    reader.consume(pos + 1);
+                    break;
+                }
+                let len = available.len();
+                reader.consume(len);
+            }
+        }
+        return Ok(ReadLineResult::TooLong);
+    }
+
+    Ok(ReadLineResult::Line(total_bytes))
+}
+
 /// Check if error is a connection reset (expected during shutdown)
 fn is_connection_reset(e: &io::Error) -> bool {
     matches!(
@@ -665,468 +812,7 @@ fn is_connection_reset(e: &io::Error) -> bool {
     )
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tokio::io::AsyncWriteExt;
-    use tokio::net::TcpStream;
-    use tokio_util::sync::CancellationToken;
-
-    #[test]
-    fn test_config_defaults() {
-        let config = SyslogTcpSourceConfig::default();
-
-        assert_eq!(config.port, 514);
-        assert_eq!(config.address, "0.0.0.0");
-        assert_eq!(config.max_message_size, 8192);
-        assert_eq!(config.workspace_id, 1);
-        assert!(config.nodelay);
-    }
-
-    #[test]
-    fn test_config_with_port() {
-        let config = SyslogTcpSourceConfig::with_port(1514);
-        assert_eq!(config.port, 1514);
-    }
-
-    #[test]
-    fn test_config_bind_address() {
-        let config = SyslogTcpSourceConfig {
-            address: "127.0.0.1".into(),
-            port: 1514,
-            ..Default::default()
-        };
-        assert_eq!(config.bind_address(), "127.0.0.1:1514");
-    }
-
-    #[test]
-    fn test_config_source_id() {
-        let config = SyslogTcpSourceConfig {
-            id: "my_syslog".into(),
-            ..Default::default()
-        };
-        assert_eq!(config.source_id().as_str(), "my_syslog");
-    }
-
-    #[test]
-    fn test_metrics_new() {
-        let metrics = SyslogTcpSourceMetrics::new();
-        let snapshot = metrics.snapshot();
-
-        assert_eq!(snapshot.connections_active, 0);
-        assert_eq!(snapshot.connections_total, 0);
-        assert_eq!(snapshot.messages_received, 0);
-        assert_eq!(snapshot.lines_read, 0);
-        assert_eq!(snapshot.lines_too_long, 0);
-    }
-
-    #[test]
-    fn test_metrics_tracking() {
-        let metrics = SyslogTcpSourceMetrics::new();
-
-        metrics.base.connection_opened();
-        metrics.line_read();
-        metrics.line_read();
-        metrics.base.message_received(100);
-        metrics.line_too_long();
-        metrics.message_dropped();
-        metrics.base.batch_sent();
-
-        let snapshot = metrics.snapshot();
-
-        assert_eq!(snapshot.connections_active, 1);
-        assert_eq!(snapshot.connections_total, 1);
-        assert_eq!(snapshot.messages_received, 1);
-        assert_eq!(snapshot.bytes_received, 100);
-        assert_eq!(snapshot.lines_read, 2);
-        assert_eq!(snapshot.lines_too_long, 1);
-        assert_eq!(snapshot.messages_dropped, 1);
-        assert_eq!(snapshot.batches_sent, 1);
-        assert_eq!(snapshot.errors, 1); // line_too_long increments errors
-    }
-
-    #[test]
-    fn test_error_display() {
-        let bind_err = SyslogTcpSourceError::Bind {
-            address: "0.0.0.0:514".into(),
-            source: io::Error::new(io::ErrorKind::AddrInUse, "address in use"),
-        };
-        assert!(bind_err.to_string().contains("0.0.0.0:514"));
-
-        let size_err = SyslogTcpSourceError::MessageTooLarge {
-            size: 10000,
-            limit: 8192,
-        };
-        assert!(size_err.to_string().contains("10000"));
-        assert!(size_err.to_string().contains("8192"));
-
-        let channel_err = SyslogTcpSourceError::ChannelClosed;
-        assert!(channel_err.to_string().contains("channel"));
-    }
-
-    #[test]
-    fn test_is_connection_reset() {
-        assert!(is_connection_reset(&io::Error::new(
-            io::ErrorKind::ConnectionReset,
-            "reset"
-        )));
-        assert!(is_connection_reset(&io::Error::new(
-            io::ErrorKind::ConnectionAborted,
-            "aborted"
-        )));
-        assert!(is_connection_reset(&io::Error::new(
-            io::ErrorKind::BrokenPipe,
-            "broken"
-        )));
-        assert!(!is_connection_reset(&io::Error::new(
-            io::ErrorKind::Other,
-            "other"
-        )));
-    }
-
-    #[tokio::test]
-    async fn test_source_creation() {
-        let config = SyslogTcpSourceConfig {
-            port: 0, // Use any available port
-            ..Default::default()
-        };
-
-        let (tx, _rx) = crossfire::mpsc::bounded_async(100);
-        let sharded_sender = ShardedSender::new(vec![tx]);
-        let source = SyslogTcpSource::new(config, sharded_sender);
-
-        assert!(!source.is_running());
-        assert_eq!(source.metrics().snapshot().connections_total, 0);
-    }
-
-    #[tokio::test]
-    async fn test_source_stop() {
-        let config = SyslogTcpSourceConfig::default();
-        let (tx, _rx) = crossfire::mpsc::bounded_async(100);
-        let sharded_sender = ShardedSender::new(vec![tx]);
-        let source = SyslogTcpSource::new(config, sharded_sender);
-
-        source.stop();
-        assert!(!source.is_running());
-    }
-
-    #[tokio::test]
-    async fn test_source_accepts_connections() {
-        let config = SyslogTcpSourceConfig {
-            id: "test_syslog".into(),
-            address: "127.0.0.1".into(),
-            port: 0, // Let OS assign port
-            ..Default::default()
-        };
-
-        let (tx, _rx) = crossfire::mpsc::bounded_async(100);
-        let sharded_sender = ShardedSender::new(vec![tx]);
-        let _source = Arc::new(SyslogTcpSource::new(config, sharded_sender));
-
-        // Bind to get the actual port
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-
-        // Update config with actual port
-        let config = SyslogTcpSourceConfig {
-            id: "test_syslog".into(),
-            address: "127.0.0.1".into(),
-            port,
-            flush_interval: Duration::from_millis(10),
-            ..Default::default()
-        };
-
-        let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-        let source = Arc::new(SyslogTcpSource::new(config.clone(), ShardedSender::new(vec![tx])));
-
-        // Start source in background
-        let source_clone = Arc::clone(&source);
-        let handle = tokio::spawn(async move {
-            let _ = source_clone.run(CancellationToken::new()).await;
-        });
-
-        // Give it time to start
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Connect and send a message
-        if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{}", port)).await {
-            let msg = "<134>Dec 20 12:34:56 host test: Hello syslog\n";
-            let _ = stream.write_all(msg.as_bytes()).await;
-            let _ = stream.flush().await;
-
-            // Give time to process
-            tokio::time::sleep(Duration::from_millis(50)).await;
-
-            // Close connection to trigger flush
-            drop(stream);
-
-            // Wait for batch
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-
-        // Stop source
-        source.stop();
-        let _ = tokio::time::timeout(Duration::from_millis(200), handle).await;
-
-        // Check if we received a batch
-        if let Ok(batch) = rx.try_recv() {
-            assert_eq!(batch.batch_type(), BatchType::Syslog);
-            assert!(batch.count() > 0);
-        }
-    }
-
-    #[tokio::test]
-    async fn test_multiple_messages() {
-        let config = SyslogTcpSourceConfig {
-            id: "test_syslog".into(),
-            address: "127.0.0.1".into(),
-            port: 0,
-            flush_interval: Duration::from_millis(10),
-            batch_size: 10,
-            ..Default::default()
-        };
-
-        // Get an available port
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-
-        let config = SyslogTcpSourceConfig { port, ..config };
-
-        let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-        let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
-
-        let source_clone = Arc::clone(&source);
-        let handle = tokio::spawn(async move {
-            let _ = source_clone.run(CancellationToken::new()).await;
-        });
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{}", port)).await {
-            // Send multiple messages
-            for i in 0..5 {
-                let msg = format!("<134>Dec 20 12:34:{:02} host test: Message {}\n", i, i);
-                let _ = stream.write_all(msg.as_bytes()).await;
-            }
-            let _ = stream.flush().await;
-
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            drop(stream);
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-
-        source.stop();
-        let _ = tokio::time::timeout(Duration::from_millis(200), handle).await;
-
-        // Should have received messages
-        let mut total_count = 0;
-        while let Ok(batch) = rx.try_recv() {
-            total_count += batch.message_count();
-        }
-
-        // We should have received at least some messages
-        // (exact count depends on timing)
-        assert!(total_count > 0);
-    }
-
-    #[tokio::test]
-    async fn test_workspace_id_propagation() {
-        let config = SyslogTcpSourceConfig {
-            id: "test_syslog".into(),
-            address: "127.0.0.1".into(),
-            port: 0,
-            workspace_id: 42,
-            flush_interval: Duration::from_millis(10),
-            ..Default::default()
-        };
-
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-
-        let config = SyslogTcpSourceConfig { port, ..config };
-
-        let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-        let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
-
-        let source_clone = Arc::clone(&source);
-        let handle = tokio::spawn(async move {
-            let _ = source_clone.run(CancellationToken::new()).await;
-        });
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{}", port)).await {
-            let msg = "<134>Dec 20 12:34:56 host test: Test message\n";
-            let _ = stream.write_all(msg.as_bytes()).await;
-            let _ = stream.flush().await;
-            tokio::time::sleep(Duration::from_millis(30)).await;
-            drop(stream);
-            tokio::time::sleep(Duration::from_millis(30)).await;
-        }
-
-        source.stop();
-        let _ = tokio::time::timeout(Duration::from_millis(200), handle).await;
-
-        // Check workspace ID in received batch
-        if let Ok(batch) = rx.try_recv() {
-            assert_eq!(batch.workspace_id(), 42);
-        }
-    }
-
-    #[tokio::test]
-    async fn test_crlf_line_endings() {
-        let config = SyslogTcpSourceConfig {
-            id: "test_syslog".into(),
-            address: "127.0.0.1".into(),
-            port: 0,
-            flush_interval: Duration::from_millis(10),
-            ..Default::default()
-        };
-
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-
-        let config = SyslogTcpSourceConfig { port, ..config };
-
-        let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-        let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
-
-        let source_clone = Arc::clone(&source);
-        let handle = tokio::spawn(async move {
-            let _ = source_clone.run(CancellationToken::new()).await;
-        });
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{}", port)).await {
-            // Send with CRLF endings (Windows style)
-            let msg = "<134>Dec 20 12:34:56 host test: CRLF message\r\n";
-            let _ = stream.write_all(msg.as_bytes()).await;
-            let _ = stream.flush().await;
-            tokio::time::sleep(Duration::from_millis(30)).await;
-            drop(stream);
-            tokio::time::sleep(Duration::from_millis(30)).await;
-        }
-
-        source.stop();
-        let _ = tokio::time::timeout(Duration::from_millis(200), handle).await;
-
-        // Check message was received without trailing CRLF
-        if let Ok(batch) = rx.try_recv() {
-            if let Some(msg) = batch.get_message(0) {
-                let msg_str = std::str::from_utf8(msg).unwrap();
-                assert!(!msg_str.ends_with('\r'));
-                assert!(!msg_str.ends_with('\n'));
-                assert!(msg_str.contains("CRLF message"));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_rfc3164_format() {
-        // RFC 3164 format: <PRI>TIMESTAMP HOSTNAME TAG: MESSAGE
-        let config = SyslogTcpSourceConfig {
-            id: "test_syslog".into(),
-            address: "127.0.0.1".into(),
-            port: 0,
-            flush_interval: Duration::from_millis(10),
-            ..Default::default()
-        };
-
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-
-        let config = SyslogTcpSourceConfig { port, ..config };
-
-        let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-        let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
-
-        let source_clone = Arc::clone(&source);
-        let handle = tokio::spawn(async move {
-            let _ = source_clone.run(CancellationToken::new()).await;
-        });
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{}", port)).await {
-            // RFC 3164 format
-            let msg = "<134>Dec 20 12:34:56 router1 %LINK-3-UPDOWN: Interface GigabitEthernet0/1, changed state to up\n";
-            let _ = stream.write_all(msg.as_bytes()).await;
-            let _ = stream.flush().await;
-            tokio::time::sleep(Duration::from_millis(30)).await;
-            drop(stream);
-            tokio::time::sleep(Duration::from_millis(30)).await;
-        }
-
-        source.stop();
-        let _ = tokio::time::timeout(Duration::from_millis(200), handle).await;
-
-        if let Ok(batch) = rx.try_recv() {
-            assert!(batch.message_count() > 0);
-            if let Some(msg) = batch.get_message(0) {
-                let msg_str = std::str::from_utf8(msg).unwrap();
-                assert!(msg_str.starts_with("<134>"));
-                assert!(msg_str.contains("router1"));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_rfc5424_format() {
-        // RFC 5424 format: <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
-        let config = SyslogTcpSourceConfig {
-            id: "test_syslog".into(),
-            address: "127.0.0.1".into(),
-            port: 0,
-            flush_interval: Duration::from_millis(10),
-            ..Default::default()
-        };
-
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-
-        let config = SyslogTcpSourceConfig { port, ..config };
-
-        let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-        let source = Arc::new(SyslogTcpSource::new(config, ShardedSender::new(vec![tx])));
-
-        let source_clone = Arc::clone(&source);
-        let handle = tokio::spawn(async move {
-            let _ = source_clone.run(CancellationToken::new()).await;
-        });
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{}", port)).await {
-            // RFC 5424 format
-            let msg = "<165>1 2023-12-20T12:36:15.003Z server1.example.com myapp 1234 ID47 - Application started\n";
-            let _ = stream.write_all(msg.as_bytes()).await;
-            let _ = stream.flush().await;
-            tokio::time::sleep(Duration::from_millis(30)).await;
-            drop(stream);
-            tokio::time::sleep(Duration::from_millis(30)).await;
-        }
-
-        source.stop();
-        let _ = tokio::time::timeout(Duration::from_millis(200), handle).await;
-
-        if let Ok(batch) = rx.try_recv() {
-            assert!(batch.message_count() > 0);
-            if let Some(msg) = batch.get_message(0) {
-                let msg_str = std::str::from_utf8(msg).unwrap();
-                assert!(msg_str.starts_with("<165>1"));
-                assert!(msg_str.contains("server1.example.com"));
-            }
-        }
-    }
-}
+#[path = "tcp_test.rs"]
+mod tcp_test;

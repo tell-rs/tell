@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 
 /// Default capacity for the replay buffer
 const DEFAULT_CAPACITY: usize = 1000;

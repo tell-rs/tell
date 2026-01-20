@@ -18,7 +18,7 @@ use crate::{
     CollectedTransformer, HumanFormatter, JsonFormatter, PipelineSnapshot, SinkMetricsProvider,
     SourceMetricsProvider, TransformerMetricsProvider,
 };
-use cdp_config::{MetricsConfig, MetricsFormat};
+use tell_config::{MetricsConfig, MetricsFormat};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::time::interval;

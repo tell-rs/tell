@@ -1,11 +1,11 @@
-# cdp-tap
+# tell-tap
 
-Live streaming tap point for the CDP collector - enables `tail -f` style debugging.
+Live streaming tap point for Tell - enables `tail -f` style debugging.
 
 ## TL;DR
 
 ```
-Collector Pipeline                         CLI Client
+Tell Pipeline                              CLI Client
       │                                        │
       ▼                                        │
   TapPoint ──(Unix socket)──► TapServer ◄─────┘
@@ -28,7 +28,7 @@ Collector Pipeline                         CLI Client
 
 ## Performance
 
-With no `collector tail` clients connected:
+With no `tell tail` clients connected:
 ```
 tap_point.tap(batch)  →  atomic load  →  return (< 1ns)
 ```
@@ -41,7 +41,7 @@ With clients connected:
 ## Usage
 
 ```rust
-// In collector startup
+// In tell startup
 let tap_point = Arc::new(TapPoint::new());
 router.set_tap_point(Arc::clone(&tap_point));
 
@@ -67,7 +67,7 @@ All messages: `[4-byte BE length][payload]`
 SubscribeRequest::new()
     .with_workspaces(vec![42])        // workspace_id filter
     .with_sources(vec!["tcp".into()]) // source_id filter
-    .with_types(vec![0, 1])           // batch_type (Event=0, Log=1)
+    .with_types(vec![1, 2])           // batch_type (Event=1, Log=2)
     .with_sample_rate(0.01)           // 1% sampling
     .with_rate_limit(1000)            // max 1000 batches/sec
     .with_last_n(100)                 // replay last 100 on connect

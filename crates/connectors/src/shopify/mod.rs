@@ -7,7 +7,7 @@ use crate::config::ShopifyConnectorConfig;
 use crate::error::ConnectorError;
 use crate::resilience::{CircuitBreaker, ResilienceConfig, execute_with_retry, RetryError};
 use crate::traits::Connector;
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -61,7 +61,7 @@ impl Shopify {
     pub fn new(config: ShopifyConfig) -> Result<Self, ConnectorError> {
         let resilience = ResilienceConfig::default();
         let client = reqwest::Client::builder()
-            .user_agent("cdp-collector/0.1")
+            .user_agent("tell/0.1")
             .timeout(Duration::from_secs(resilience.timeout_secs))
             .build()
             .map_err(|e| ConnectorError::Init(format!("Shopify HTTP client: {}", e)))?;
@@ -89,7 +89,7 @@ impl Shopify {
     pub fn from_config(config: &ShopifyConnectorConfig) -> Result<Self, ConnectorError> {
         let resilience = config.resilience_config();
         let client = reqwest::Client::builder()
-            .user_agent("cdp-collector/0.1")
+            .user_agent("tell/0.1")
             .timeout(Duration::from_secs(resilience.timeout_secs))
             .build()
             .map_err(|e| ConnectorError::Init(format!("Shopify HTTP client: {}", e)))?;

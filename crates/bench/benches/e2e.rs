@@ -8,20 +8,21 @@
 //! 2. **Network E2E benchmarks**: TestClient → Source → Router → Sink
 //!    - Measures full end-to-end throughput including network I/O
 //!
-//! Run with: `cargo bench -p cdp-bench --bench e2e`
+//! Run with: `cargo bench -p tell-bench --bench e2e`
 
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use cdp_auth::ApiKeyStore;
-use cdp_bench::SCENARIOS;
-use cdp_client::test::{SyslogTcpTestClient, SyslogUdpTestClient, TcpTestClient};
-use cdp_client::{BatchBuilder as ClientBatchBuilder, SchemaType};
-use pipeline::{Router, RoutingTable, SinkHandle};
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
-use sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink};
-use cdp_sources::{
+use tell_auth::ApiKeyStore;
+use tell_bench::SCENARIOS;
+use tell_client::test::{SyslogTcpTestClient, SyslogUdpTestClient, TcpTestClient};
+use tell_client::{BatchBuilder as ClientBatchBuilder, SchemaType};
+use tell_pipeline::{Router, SinkHandle};
+use tell_routing::RoutingTable;
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink};
+use tell_sources::{
     SyslogTcpSource, SyslogTcpSourceConfig, SyslogUdpSource, SyslogUdpSourceConfig, TcpSource,
     TcpSourceConfig,
 };

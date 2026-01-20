@@ -1,6 +1,6 @@
-# cdp-sinks
+# tell-sinks
 
-High-performance output sinks for CDP Collector with 40M+ events/sec throughput.
+High-performance output sinks for Tell with 40M+ events/sec throughput.
 
 ## Architecture
 
@@ -32,7 +32,8 @@ src/
 │   ├── chain_writer.rs       # Pluggable writers (PlainText, LZ4, Binary)
 │   ├── chain_writer_test.rs
 │   ├── atomic_rotation.rs    # Zero-loss file rotation with ArcSwap
-│   └── atomic_rotation_test.rs
+│   ├── atomic_rotation_test.rs
+│   └── rate_limited_logger.rs # Prevents log spam under error conditions
 ├── null/                     # Null sink (benchmarking)
 │   ├── mod.rs
 │   └── null_test.rs
@@ -50,7 +51,7 @@ src/
 │   └── mod.rs
 ├── parquet/                  # Parquet sink
 │   └── mod.rs
-└── forwarder/            # Collector-to-collector
+└── forwarder/            # Tell-to-Tell forwarding
     └── mod.rs
 ```
 
@@ -62,9 +63,9 @@ src/
 | `stdout` | Debug output | No | ✅ Complete |
 | `disk_binary` | Binary storage with metadata | Yes | ✅ Complete |
 | `disk_plaintext` | Human-readable logs | Yes | ✅ Complete |
-| `clickhouse` | Analytics database (CDP v1.1) | No | ✅ Complete |
+| `clickhouse` | Analytics database (Tell v1.1) | No | ✅ Complete |
 | `parquet` | Columnar storage | Yes | ✅ Complete |
-| `forwarder` | Collector-to-collector | No | ✅ Complete |
+| `forwarder` | Tell-to-Tell forwarding | No | ✅ Complete |
 
 ## Utilities (`util/`)
 
@@ -75,7 +76,7 @@ Reusable components for building disk sinks:
 Pre-allocated buffer pool using `crossbeam::ArrayQueue` for O(1) get/put.
 
 ```rust
-use cdp_sinks::util::BufferPool;
+use tell_sinks::util::BufferPool;
 
 // Pre-allocate 64 buffers of 32MB each
 let pool = BufferPool::new(64, 32 * 1024 * 1024);
@@ -93,25 +94,33 @@ pool.put(buf);
 Trait-based writers for different output formats:
 
 ```rust
-use cdp_sinks::util::{ChainWriter, PlainTextWriter, Lz4Writer, BinaryWriter};
+use tell_sinks::util::{ChainWriter, PlainTextWriter, Lz4Writer, BinaryWriter, Lz4Config};
 
 // Plain buffered writer
 let writer = PlainTextWriter::new(32 * 1024 * 1024);
 
-// LZ4 compressed writer  
+// LZ4 compressed writer (Go-compatible settings by default: 4MB blocks, content checksum)
 let writer = Lz4Writer::new(32 * 1024 * 1024);
+
+// LZ4 with custom config
+let writer = Lz4Writer::with_config(32 * 1024 * 1024, Lz4Config::fast());
 
 // Binary with optional compression
 let writer = BinaryWriter::new(32 * 1024 * 1024, true); // compressed
 let writer = BinaryWriter::uncompressed(32 * 1024 * 1024);
 ```
 
+LZ4 configuration presets:
+- `Lz4Config::default()` / `go_compatible()` - 4MB blocks, content checksum (matches Go)
+- `Lz4Config::fast()` - 256KB blocks, no checksums (fastest)
+- `Lz4Config::max_compression()` - 8MB blocks (best ratio)
+
 ### `atomic_rotation.rs` - Zero-Loss File Rotation
 
 Lock-free file rotation using `ArcSwap<BufferChain>`:
 
 ```rust
-use cdp_sinks::util::{AtomicRotationSink, RotationConfig, RotationInterval, BinaryWriter};
+use tell_sinks::util::{AtomicRotationSink, RotationConfig, RotationInterval, BinaryWriter};
 
 let config = RotationConfig {
     base_path: "/data/logs".into(),
@@ -157,7 +166,7 @@ Metadata layout:
 ### Usage
 
 ```rust
-use cdp_sinks::disk_binary::{DiskBinarySink, DiskBinaryConfig};
+use tell_sinks::disk_binary::{DiskBinarySink, DiskBinaryConfig};
 use tokio::sync::mpsc;
 
 let config = DiskBinaryConfig::default()
@@ -178,7 +187,7 @@ tx.send(batch).await?;
 ### Reading Binary Files
 
 ```rust
-use cdp_sinks::disk_binary::writer::{BinaryReader, SeekableBinaryReader};
+use tell_sinks::disk_binary::writer::{BinaryReader, SeekableBinaryReader};
 
 // Sequential reading (supports .bin and .bin.lz4)
 let mut reader = BinaryReader::open("data.bin")?;
@@ -209,7 +218,7 @@ src/my_sink/
 ```rust
 // src/my_sink/mod.rs
 use std::sync::Arc;
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 use tokio::sync::mpsc;
 
 pub struct MySink {
@@ -274,7 +283,7 @@ pub mod my_sink;
 ## Tests
 
 ```bash
-cargo test -p cdp-sinks
+cargo test -p tell-sinks
 ```
 
 312 tests covering:
@@ -288,7 +297,7 @@ cargo test -p cdp-sinks
 - Disk plaintext sink (29 tests)
 - Forwarder sink (28 tests)
 - Parquet sink (61 tests) - schema, writer, compression, integration
-- ClickHouse sink (66 tests) - CDP v1.1 schema, 6 tables, event routing, IDENTIFY handling
+- ClickHouse sink (66 tests) - Tell v1.1 schema, 6 tables, event routing, IDENTIFY handling
 
 ## Parquet Sink
 
@@ -334,7 +343,7 @@ parquet/
 ### Usage
 
 ```rust
-use cdp_sinks::parquet::{ParquetSink, ParquetConfig, Compression};
+use tell_sinks::parquet::{ParquetSink, ParquetConfig, Compression};
 
 let config = ParquetConfig::default()
     .with_path("/data/warehouse")
@@ -356,9 +365,9 @@ tokio::spawn(sink.run());
 | `parquet` | Apache Parquet | Analytics, data warehouse | None |
 | `clickhouse` | ClickHouse native | Real-time analytics | ClickHouse |
 
-## ClickHouse Sink (CDP v1.1 Schema)
+## ClickHouse Sink (Tell v1.1 Schema)
 
-Full CDP analytics sink with 6 tables, event-type routing, and IDENTIFY handling.
+Full analytics sink with 6 tables, event-type routing, and IDENTIFY handling.
 
 ### Event Routing
 
@@ -462,11 +471,11 @@ ORDER BY (timestamp, level);
 ### Usage
 
 ```rust
-use cdp_sinks::clickhouse::{ClickHouseSink, ClickHouseConfig};
+use tell_sinks::clickhouse::{ClickHouseSink, ClickHouseConfig};
 
 let config = ClickHouseConfig::default()
     .with_url("http://localhost:8123")
-    .with_database("cdp")
+    .with_database("tell")
     .with_credentials("user", "password")
     .with_batch_size(1000)
     .with_flush_interval(Duration::from_secs(5))
@@ -488,10 +497,10 @@ tokio::spawn(sink.run());
 | **Pattern ID support** | Optional pattern_id for logs from transformer |
 | **User ID generation** | Deterministic UUID v5 from normalized email |
 | **Retry logic** | Exponential backoff on transient failures |
-| `forwarder` | FlatBuffers over TCP | Collector-to-collector | None |
+| `forwarder` | FlatBuffers over TCP | Tell-to-Tell | None |
 
 This flexibility allows you to:
 - **Archive** to Parquet for long-term analytics with any query engine
 - **Stream** to ClickHouse for real-time dashboards
 - **Replay** from binary files for debugging or reprocessing
-- **Forward** between collectors for multi-region setups
+- **Forward** between Tell instances for multi-region setups

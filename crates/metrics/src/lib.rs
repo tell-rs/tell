@@ -1,4 +1,4 @@
-//! CDP Collector - Metrics
+//! Tell - Metrics
 //!
 //! Internal metrics collection and reporting for observability.
 //!
@@ -30,7 +30,7 @@
 //!     │
 //!     └──► run() [consumes self, Arc keeps metrics alive]
 //!
-//! Collector wiring:
+//! Tell wiring:
 //!     1. Create component
 //!     2. Call metrics_handle() → store in Vec<Arc<dyn Provider>>
 //!     3. Spawn component.run()

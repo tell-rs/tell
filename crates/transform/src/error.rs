@@ -56,4 +56,9 @@ impl TransformError {
     pub fn not_initialized(name: impl Into<String>) -> Self {
         Self::NotInitialized(name.into())
     }
+
+    /// Create a cancelled error
+    pub fn cancelled() -> Self {
+        Self::Cancelled
+    }
 }

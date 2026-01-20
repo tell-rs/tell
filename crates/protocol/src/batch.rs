@@ -1,4 +1,4 @@
-//! Batch - Zero-copy batch container for CDP Collector
+//! Batch - Zero-copy batch container for Tell
 //!
 //! The `Batch` struct is the core data type that flows through the pipeline.
 //! It uses `bytes::Bytes` for reference-counted buffer sharing, enabling

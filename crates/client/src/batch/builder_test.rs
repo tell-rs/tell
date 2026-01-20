@@ -1,9 +1,9 @@
 //! Tests for BatchBuilder
 //!
 //! These tests verify that BatchBuilder produces valid FlatBuffer wire format
-//! that can be parsed by the FlatBatch parser in cdp-protocol.
+//! that can be parsed by the FlatBatch parser in tell-protocol.
 
-use cdp_protocol::{FlatBatch, SchemaType};
+use tell_protocol::{FlatBatch, SchemaType};
 
 use crate::{BatchBuilder, BuilderError};
 
@@ -169,16 +169,16 @@ fn test_schema_type_trace() {
 }
 
 #[test]
-fn test_schema_type_inventory() {
+fn test_schema_type_snapshot() {
     let batch = BatchBuilder::new()
         .api_key([0u8; 16])
-        .schema_type(SchemaType::Inventory)
+        .schema_type(SchemaType::Snapshot)
         .data(b"x")
         .build()
         .unwrap();
 
     let parsed = FlatBatch::parse(batch.as_bytes()).unwrap();
-    assert_eq!(parsed.schema_type(), SchemaType::Inventory);
+    assert_eq!(parsed.schema_type(), SchemaType::Snapshot);
 }
 
 // =============================================================================

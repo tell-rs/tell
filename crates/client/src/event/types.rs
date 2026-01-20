@@ -1,4 +1,4 @@
-//! Event types for CDP analytics
+//! Event types for product analytics
 //!
 //! Matches the EventType enum in `event.fbs`.
 

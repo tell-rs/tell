@@ -19,6 +19,7 @@
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(test)]
 #[path = "drain_test.rs"]
@@ -36,11 +37,20 @@ pub struct Pattern {
     /// Pattern template with variables as `<*>`
     pub template: String,
 
+    /// Human-readable name (first 5 non-wildcard tokens)
+    pub canonical_name: String,
+
     /// Token sequence with None for variables
     pub tokens: Vec<Option<String>>,
 
     /// Number of messages matched to this pattern
     pub count: u64,
+
+    /// Unix timestamp when pattern was first seen (seconds since epoch)
+    pub first_seen: u64,
+
+    /// Unix timestamp when pattern was last seen (seconds since epoch)
+    pub last_seen: u64,
 }
 
 impl Pattern {
@@ -52,12 +62,44 @@ impl Pattern {
             .collect::<Vec<_>>()
             .join(" ");
 
+        let canonical_name = generate_canonical_name(&tokens);
+        let now = current_timestamp();
+
         Self {
             id,
             template,
+            canonical_name,
             tokens,
             count: 1,
+            first_seen: now,
+            last_seen: now,
         }
+    }
+}
+
+/// Get current Unix timestamp in seconds
+fn current_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Generate a human-readable canonical name from pattern tokens
+///
+/// Takes the first 5 non-wildcard tokens and joins them with spaces.
+/// Returns "Unknown Pattern" if all tokens are wildcards.
+pub fn generate_canonical_name(tokens: &[Option<String>]) -> String {
+    let name_tokens: Vec<&str> = tokens
+        .iter()
+        .filter_map(|t| t.as_deref())
+        .take(5)
+        .collect();
+
+    if name_tokens.is_empty() {
+        "Unknown Pattern".to_string()
+    } else {
+        name_tokens.join(" ")
     }
 }
 
@@ -264,10 +306,11 @@ impl DrainTree {
         similarity >= self.similarity_threshold
     }
 
-    /// Increment pattern match count
+    /// Increment pattern match count and update last_seen
     fn increment_pattern_count(&self, id: PatternId) {
         if let Some(pattern) = self.patterns.write().get_mut(&id) {
             pattern.count += 1;
+            pattern.last_seen = current_timestamp();
         }
     }
 

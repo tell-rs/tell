@@ -90,6 +90,12 @@ impl RotationInterval {
     }
 }
 
+/// Default write retry attempts (matches Go implementation)
+pub const DEFAULT_WRITE_RETRIES: usize = 3;
+
+/// Default delay between retries
+pub const DEFAULT_RETRY_DELAY: Duration = Duration::from_millis(10);
+
 /// Configuration for atomic rotation
 #[derive(Debug, Clone)]
 pub struct RotationConfig {
@@ -110,6 +116,12 @@ pub struct RotationConfig {
 
     /// Flush interval for periodic flushing
     pub flush_interval: Duration,
+
+    /// Maximum write retry attempts (default: 3, matches Go)
+    pub max_write_retries: usize,
+
+    /// Delay between retry attempts
+    pub retry_delay: Duration,
 }
 
 impl Default for RotationConfig {
@@ -121,6 +133,8 @@ impl Default for RotationConfig {
             buffer_size: 32 * 1024 * 1024,
             queue_size: 1000,
             flush_interval: Duration::from_millis(100),
+            max_write_retries: DEFAULT_WRITE_RETRIES,
+            retry_delay: DEFAULT_RETRY_DELAY,
         }
     }
 }
@@ -293,9 +307,13 @@ impl FileContext {
 
         // Spawn writer task
         let flush_interval = self.config.flush_interval;
+        let retry_config = WriterRetryConfig {
+            max_retries: self.config.max_write_retries,
+            retry_delay: self.config.retry_delay,
+        };
         let chain_id_clone = chain_id.clone();
         tokio::spawn(async move {
-            run_writer_task(chain_id_clone, receiver, writer, flush_interval).await;
+            run_writer_task(chain_id_clone, receiver, writer, flush_interval, retry_config).await;
         });
 
         Ok(BufferChain {
@@ -307,12 +325,22 @@ impl FileContext {
     }
 }
 
+/// Configuration for writer task retry behavior
+#[derive(Debug, Clone, Copy)]
+struct WriterRetryConfig {
+    max_retries: usize,
+    retry_delay: Duration,
+}
+
 /// Writer task that processes write requests for a chain
+///
+/// Implements retry logic matching Go implementation (3 retries by default).
 async fn run_writer_task(
     chain_id: String,
     mut receiver: mpsc::Receiver<WriteRequest>,
     mut writer: Box<dyn ChainWrite>,
     flush_interval: Duration,
+    retry_config: WriterRetryConfig,
 ) {
     let mut flush_ticker = tokio::time::interval(flush_interval);
     flush_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -323,11 +351,36 @@ async fn run_writer_task(
             request = receiver.recv() => {
                 match request {
                     Some(req) => {
-                        if let Err(e) = writer.write_all(&req.buffer) {
+                        // Write with retry logic (matches Go: maxWriteRetries = 3)
+                        let mut last_error = None;
+                        for attempt in 0..retry_config.max_retries {
+                            match writer.write_all(&req.buffer) {
+                                Ok(()) => {
+                                    last_error = None;
+                                    break;
+                                }
+                                Err(e) => {
+                                    last_error = Some(e);
+                                    if attempt < retry_config.max_retries - 1 {
+                                        tracing::warn!(
+                                            chain = %chain_id,
+                                            attempt = attempt + 1,
+                                            max_attempts = retry_config.max_retries,
+                                            "write failed, retrying"
+                                        );
+                                        tokio::time::sleep(retry_config.retry_delay).await;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Log final error if all retries exhausted
+                        if let Some(e) = last_error {
                             tracing::error!(
                                 chain = %chain_id,
                                 error = %e,
-                                "write failed"
+                                attempts = retry_config.max_retries,
+                                "write failed after all retries"
                             );
                         }
                     }
@@ -545,9 +598,13 @@ impl AtomicRotationSink {
 
         // Spawn writer task
         let flush_interval = self.config.flush_interval;
+        let retry_config = WriterRetryConfig {
+            max_retries: self.config.max_write_retries,
+            retry_delay: self.config.retry_delay,
+        };
         let chain_id_clone = chain_id.clone();
         tokio::spawn(async move {
-            run_writer_task(chain_id_clone, receiver, writer, flush_interval).await;
+            run_writer_task(chain_id_clone, receiver, writer, flush_interval, retry_config).await;
         });
 
         Ok(BufferChain {

@@ -54,6 +54,32 @@ pub enum AuthError {
     /// File watcher error
     #[error("file watcher error: {0}")]
     WatchError(String),
+
+    // JWT validation errors
+
+    /// Token is missing or empty
+    #[error("missing token")]
+    MissingToken,
+
+    /// Token format is invalid (not tell_<jwt>)
+    #[error("invalid token format")]
+    InvalidTokenFormat,
+
+    /// JWT signature verification failed
+    #[error("invalid token signature")]
+    InvalidSignature,
+
+    /// Token has expired
+    #[error("token expired")]
+    TokenExpired,
+
+    /// Token is not yet valid (nbf claim)
+    #[error("token not yet valid")]
+    TokenNotYetValid,
+
+    /// Token claims are invalid
+    #[error("invalid token claims: {0}")]
+    InvalidClaims(String),
 }
 
 impl AuthError {

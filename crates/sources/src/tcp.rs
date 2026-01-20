@@ -1,6 +1,6 @@
 //! TCP Source - High-performance FlatBuffers protocol source
 //!
-//! This is the primary data source for CDP Collector, optimized for
+//! This is the primary data source for Tell, optimized for
 //! maximum throughput with zero-copy buffer management.
 //!
 //! # Protocol
@@ -27,8 +27,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use cdp_sources::tcp::{TcpSource, TcpSourceConfig};
-//! use cdp_auth::ApiKeyStore;
+//! use tell_sources::tcp::{TcpSource, TcpSourceConfig};
+//! use tell_auth::ApiKeyStore;
 //! use tokio::sync::mpsc;
 //!
 //! let config = TcpSourceConfig {
@@ -45,19 +45,21 @@
 //! ```
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::{Buf, BytesMut};
-use cdp_auth::ApiKeyStore;
-use cdp_protocol::{BatchBuilder, BatchType, FlatBatch, ProtocolError, SchemaType, SourceId};
+use tell_auth::ApiKeyStore;
+use tell_protocol::{BatchBuilder, BatchType, FlatBatch, ProtocolError, SchemaType, SourceId};
 use crossfire::TrySendError;
+use socket2::{Socket, TcpKeepalive};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::sync::CancellationToken;
 
-use metrics::{SourceMetricsProvider, SourceMetricsSnapshot};
+use tell_metrics::{SourceMetricsProvider, SourceMetricsSnapshot};
 
 use crate::common::{ConnectionInfo, SourceMetrics};
 use crate::ShardedSender;
@@ -76,6 +78,9 @@ const DEFAULT_FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Default buffer size (1MB - larger buffer reduces syscall frequency)
 const DEFAULT_BUFFER_SIZE: usize = 1024 * 1024;
+
+/// Default TCP socket buffer size (256KB - matches Go implementation)
+const DEFAULT_SOCKET_BUFFER_SIZE: usize = 256 * 1024;
 
 /// TCP source configuration
 #[derive(Debug, Clone)]
@@ -107,6 +112,9 @@ pub struct TcpSourceConfig {
     /// TCP nodelay (disable Nagle's algorithm)
     pub nodelay: bool,
 
+    /// TCP socket buffer size for read/write (OS level)
+    pub socket_buffer_size: usize,
+
     /// Connection timeout (0 = no timeout)
     pub connection_timeout: Duration,
 }
@@ -123,6 +131,7 @@ impl Default for TcpSourceConfig {
             forwarding_mode: false,
             keepalive: true,
             nodelay: true,
+            socket_buffer_size: DEFAULT_SOCKET_BUFFER_SIZE,
             connection_timeout: Duration::ZERO,
         }
     }
@@ -157,11 +166,8 @@ pub struct TcpSourceMetrics {
     /// Messages with invalid API keys
     pub auth_failures: AtomicU64,
 
-    /// Messages with invalid FlatBuffer format
-    pub parse_errors: AtomicU64,
-
-    /// Messages that exceeded size limit
-    pub oversized_messages: AtomicU64,
+    /// Malformed messages (oversized, invalid format, etc.)
+    pub messages_malformed: AtomicU64,
 }
 
 impl TcpSourceMetrics {
@@ -170,8 +176,7 @@ impl TcpSourceMetrics {
         Self {
             base: SourceMetrics::new(),
             auth_failures: AtomicU64::new(0),
-            parse_errors: AtomicU64::new(0),
-            oversized_messages: AtomicU64::new(0),
+            messages_malformed: AtomicU64::new(0),
         }
     }
 
@@ -182,17 +187,10 @@ impl TcpSourceMetrics {
         self.base.errors.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Record a parse error
+    /// Record a malformed message (oversized, invalid format, etc.)
     #[inline]
-    pub fn parse_error(&self) {
-        self.parse_errors.fetch_add(1, Ordering::Relaxed);
-        self.base.errors.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// Record an oversized message
-    #[inline]
-    pub fn oversized_message(&self) {
-        self.oversized_messages.fetch_add(1, Ordering::Relaxed);
+    pub fn message_malformed(&self) {
+        self.messages_malformed.fetch_add(1, Ordering::Relaxed);
         self.base.errors.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -206,8 +204,7 @@ impl TcpSourceMetrics {
             batches_sent: self.base.batches_sent.load(Ordering::Relaxed),
             errors: self.base.errors.load(Ordering::Relaxed),
             auth_failures: self.auth_failures.load(Ordering::Relaxed),
-            parse_errors: self.parse_errors.load(Ordering::Relaxed),
-            oversized_messages: self.oversized_messages.load(Ordering::Relaxed),
+            messages_malformed: self.messages_malformed.load(Ordering::Relaxed),
         }
     }
 }
@@ -222,8 +219,7 @@ pub struct TcpMetricsSnapshot {
     pub batches_sent: u64,
     pub errors: u64,
     pub auth_failures: u64,
-    pub parse_errors: u64,
-    pub oversized_messages: u64,
+    pub messages_malformed: u64,
 }
 
 /// Handle for accessing TCP source metrics
@@ -450,10 +446,8 @@ impl TcpSource {
         mut stream: TcpStream,
         peer_addr: SocketAddr,
     ) -> Result<(), TcpSourceError> {
-        // Configure socket
-        if self.config.nodelay {
-            stream.set_nodelay(true)?;
-        }
+        // Configure socket using socket2 for low-level options
+        self.configure_socket(&stream)?;
 
         // Allocate a connection ID for sharding - all batches from this connection
         // will go to the same router worker to preserve ordering
@@ -559,7 +553,7 @@ impl TcpSource {
 
         // Validate message size
         if msg_len > MAX_MESSAGE_SIZE {
-            self.metrics.oversized_message();
+            self.metrics.message_malformed();
             return Err(TcpSourceError::MessageTooLarge {
                 size: msg_len,
                 limit: MAX_MESSAGE_SIZE,
@@ -594,7 +588,7 @@ impl TcpSource {
         let flat_batch = match FlatBatch::parse(msg) {
             Ok(fb) => fb,
             Err(e) => {
-                self.metrics.parse_error();
+                self.metrics.message_malformed();
                 return Err(e.into());
             }
         };
@@ -603,7 +597,7 @@ impl TcpSource {
         let api_key = match flat_batch.api_key_bytes() {
             Ok(key) => key,
             Err(e) => {
-                self.metrics.parse_error();
+                self.metrics.message_malformed();
                 return Err(e.into());
             }
         };
@@ -626,7 +620,7 @@ impl TcpSource {
         let _data = match flat_batch.data() {
             Ok(d) => d,
             Err(e) => {
-                self.metrics.parse_error();
+                self.metrics.message_malformed();
                 return Err(e.into());
             }
         };
@@ -762,6 +756,47 @@ impl TcpSource {
                 return Err(TcpSourceError::ChannelClosed);
             }
         }
+
+        Ok(())
+    }
+
+    /// Configure socket with low-level options (buffer sizes, keepalive, nodelay)
+    ///
+    /// Uses socket2 to set options not directly exposed by tokio::net::TcpStream.
+    fn configure_socket(&self, stream: &TcpStream) -> Result<(), TcpSourceError> {
+        // Get raw fd and wrap in socket2::Socket for configuration
+        // Safety: We're borrowing the fd, not taking ownership
+        let fd = stream.as_raw_fd();
+        let socket = unsafe { Socket::from_raw_fd(fd) };
+
+        // Set TCP_NODELAY (disable Nagle's algorithm)
+        if self.config.nodelay && socket.set_tcp_nodelay(true).is_err() {
+            tracing::debug!("failed to set TCP_NODELAY");
+        }
+
+        // Set socket buffer sizes
+        if self.config.socket_buffer_size > 0 {
+            if let Err(e) = socket.set_recv_buffer_size(self.config.socket_buffer_size) {
+                tracing::debug!(error = %e, "failed to set SO_RCVBUF");
+            }
+            if let Err(e) = socket.set_send_buffer_size(self.config.socket_buffer_size) {
+                tracing::debug!(error = %e, "failed to set SO_SNDBUF");
+            }
+        }
+
+        // Set TCP keepalive to detect dead connections
+        if self.config.keepalive {
+            let keepalive = TcpKeepalive::new()
+                .with_time(Duration::from_secs(60))      // Start probes after 60s idle
+                .with_interval(Duration::from_secs(10)); // Probe every 10s
+
+            if let Err(e) = socket.set_tcp_keepalive(&keepalive) {
+                tracing::debug!(error = %e, "failed to set TCP keepalive");
+            }
+        }
+
+        // IMPORTANT: Don't let socket2 close the fd - tokio still owns it
+        std::mem::forget(socket);
 
         Ok(())
     }

@@ -3,10 +3,10 @@
 use super::{DiskBinaryConfig, DiskBinarySink, MetricsSnapshot};
 use crate::disk_binary::writer::{METADATA_SIZE, MessageMetadata};
 use crate::util::RotationInterval;
-use cdp_client::event::{EventBuilder, EventDataBuilder};
-use cdp_client::log::{LogEntryBuilder, LogDataBuilder};
-use cdp_client::BatchBuilder as FlatBufferBuilder;
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_client::event::{EventBuilder, EventDataBuilder};
+use tell_client::log::{LogEntryBuilder, LogDataBuilder};
+use tell_client::BatchBuilder as FlatBufferBuilder;
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use std::time::Duration;

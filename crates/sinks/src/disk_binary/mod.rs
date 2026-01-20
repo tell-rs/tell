@@ -50,13 +50,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::BytesMut;
-use metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
-use cdp_protocol::Batch;
+use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use tell_protocol::Batch;
 use tokio::sync::mpsc;
 
 use crate::util::{AtomicRotationSink, BinaryWriter, RotationConfig, RotationInterval};
 
-pub use writer::{BinaryReader, METADATA_SIZE, MessageMetadata};
+pub use writer::{BinaryMessage, BinaryReader, METADATA_SIZE, MessageMetadata};
 
 /// Configuration for disk binary sink
 #[derive(Debug, Clone)]
@@ -266,6 +266,8 @@ impl DiskBinarySink {
             buffer_size: config.buffer_size,
             queue_size: config.queue_size,
             flush_interval: config.flush_interval,
+            // Use default retry settings (3 retries, 10ms delay - matches Go)
+            ..Default::default()
         };
 
         let chain_writer = BinaryWriter::new(config.buffer_size, config.compression);

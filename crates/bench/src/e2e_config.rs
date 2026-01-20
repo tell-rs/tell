@@ -7,12 +7,16 @@ use crate::BenchScenario;
 /// Source type for E2E testing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceType {
-    /// CDP TCP source (FlatBuffer protocol)
+    /// TCP source (FlatBuffer protocol)
     Tcp,
     /// Syslog over TCP (line-delimited)
     SyslogTcp,
     /// Syslog over UDP (datagram)
     SyslogUdp,
+    /// HTTP source (JSONL format for events)
+    HttpEvents,
+    /// HTTP source (JSONL format for logs)
+    HttpLogs,
 }
 
 impl SourceType {
@@ -21,6 +25,8 @@ impl SourceType {
             Self::Tcp => "tcp",
             Self::SyslogTcp => "syslog_tcp",
             Self::SyslogUdp => "syslog_udp",
+            Self::HttpEvents => "http_events",
+            Self::HttpLogs => "http_logs",
         }
     }
 
@@ -28,9 +34,25 @@ impl SourceType {
     pub fn default_port(&self) -> u16 {
         match self {
             Self::Tcp => 50000,
-            Self::SyslogTcp => 5514,
-            Self::SyslogUdp => 5514,
+            Self::SyslogTcp => 50514,
+            Self::SyslogUdp => 50515,
+            Self::HttpEvents => 8080,
+            Self::HttpLogs => 8080,
         }
+    }
+
+    /// HTTP endpoint path for HTTP sources
+    pub fn http_path(&self) -> Option<&'static str> {
+        match self {
+            Self::HttpEvents => Some("/v1/events"),
+            Self::HttpLogs => Some("/v1/logs"),
+            _ => None,
+        }
+    }
+
+    /// Whether this source uses HTTP protocol
+    pub fn is_http(&self) -> bool {
+        matches!(self, Self::HttpEvents | Self::HttpLogs)
     }
 }
 
@@ -138,12 +160,47 @@ pub const E2E_SCENARIOS: &[E2EScenario] = &[
         batch_scenario_idx: 1,
         num_batches: 1000,
     },
+    // ===========================================
+    // HTTP Events Source (JSONL protocol)
+    // ===========================================
+    E2EScenario {
+        name: "http_events_to_disk_typical",
+        source: SourceType::HttpEvents,
+        sink: SinkType::DiskBinary,
+        batch_scenario_idx: 1, // typical: 100 events × 200 bytes
+        num_batches: 1000,
+    },
+    E2EScenario {
+        name: "http_events_to_null_typical",
+        source: SourceType::HttpEvents,
+        sink: SinkType::Null,
+        batch_scenario_idx: 1,
+        num_batches: 1000,
+    },
+    // ===========================================
+    // HTTP Logs Source (JSONL protocol)
+    // ===========================================
+    E2EScenario {
+        name: "http_logs_to_disk_typical",
+        source: SourceType::HttpLogs,
+        sink: SinkType::DiskBinary,
+        batch_scenario_idx: 1, // typical: 100 logs × 200 bytes
+        num_batches: 1000,
+    },
+    E2EScenario {
+        name: "http_logs_to_null_typical",
+        source: SourceType::HttpLogs,
+        sink: SinkType::Null,
+        batch_scenario_idx: 1,
+        num_batches: 1000,
+    },
 ];
 
 /// Quick E2E scenarios for fast iteration
 pub const E2E_SCENARIOS_QUICK: &[E2EScenario] = &[
     E2E_SCENARIOS[0], // tcp_to_disk_typical
     E2E_SCENARIOS[3], // syslog_tcp_to_disk_typical
+    E2E_SCENARIOS[7], // http_events_to_disk_typical
 ];
 
 #[cfg(test)]

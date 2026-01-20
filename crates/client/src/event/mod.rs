@@ -1,4 +1,4 @@
-//! Event module - CDP/product analytics events
+//! Event module - Product analytics events
 //!
 //! Builds `event.fbs::Event` and `event.fbs::EventData` messages for
 //! product analytics tracking (Track, Identify, Group, etc.).

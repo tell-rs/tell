@@ -16,8 +16,8 @@ use crate::batch::BuiltBatch;
 /// # Example
 ///
 /// ```ignore
-/// use cdp_client::test::TcpTestClient;
-/// use cdp_client::BatchBuilder;
+/// use tell_client::test::TcpTestClient;
+/// use tell_client::BatchBuilder;
 ///
 /// let batch = BatchBuilder::new()
 ///     .api_key([0x01; 16])
@@ -48,7 +48,7 @@ impl TcpTestClient {
         Ok(Self { stream })
     }
 
-    /// Send a batch to the collector
+    /// Send a batch to the Tell server
     ///
     /// Writes the 4-byte length prefix followed by the batch data.
     ///

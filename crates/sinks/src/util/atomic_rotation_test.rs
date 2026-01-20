@@ -73,6 +73,7 @@ fn test_rotation_config_custom() {
         buffer_size: 16 * 1024 * 1024,
         queue_size: 500,
         flush_interval: Duration::from_millis(50),
+        ..Default::default()
     };
 
     assert_eq!(config.base_path.to_str().unwrap(), "/custom/path");
@@ -158,6 +159,7 @@ async fn test_sink_creation() {
         buffer_size: 4096,
         queue_size: 10,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -176,6 +178,7 @@ async fn test_sink_submit_creates_workspace() {
         buffer_size: 4096,
         queue_size: 10,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -201,6 +204,7 @@ async fn test_sink_submit_multiple_workspaces() {
         buffer_size: 4096,
         queue_size: 10,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -227,6 +231,7 @@ async fn test_sink_submit_same_workspace_multiple_times() {
         buffer_size: 4096,
         queue_size: 100,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -282,6 +287,7 @@ async fn test_sink_metrics() {
         buffer_size: 4096,
         queue_size: 100,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -327,6 +333,7 @@ async fn test_sink_stop() {
         buffer_size: 4096,
         queue_size: 100,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -357,6 +364,7 @@ async fn test_sink_creates_directory_structure() {
         buffer_size: 4096,
         queue_size: 10,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -388,6 +396,7 @@ async fn test_sink_writes_data_to_file() {
         buffer_size: 4096,
         queue_size: 10,
         flush_interval: Duration::from_millis(10),
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);
@@ -441,6 +450,7 @@ async fn test_sink_backpressure_returns_buffer() {
         buffer_size: 4096,
         queue_size: 2,                           // Very small queue
         flush_interval: Duration::from_secs(10), // Long flush interval
+        ..Default::default()
     };
 
     let writer = PlainTextWriter::new(4096);

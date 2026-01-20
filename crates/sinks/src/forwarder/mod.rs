@@ -1,6 +1,6 @@
-//! Forwarder Sink - Collector-to-Collector Forwarding
+//! Forwarder Sink - Tell-to-Tell Forwarding
 //!
-//! Forwards batches to a remote collector while preserving original client source IPs.
+//! Forwards batches to a remote Tell server while preserving original client source IPs.
 //!
 //! # Design
 //!
@@ -16,14 +16,14 @@
 //! [4 bytes: length (big-endian)][N bytes: FlatBuffer Batch with source_ip field]
 //! ```
 //!
-//! The receiving collector must have `forwarding_mode: true` to honor
+//! The receiving Tell server must have `forwarding_mode: true` to honor
 //! the source_ip field in incoming batches.
 //!
 //! # Example
 //!
 //! ```ignore
 //! let config = ForwarderConfig::new(
-//!     "collector.example.com:8081",
+//!     "tell.example.com:8081",
 //!     "0123456789abcdef0123456789abcdef"
 //! )?;
 //!
@@ -40,9 +40,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use cdp_client::BatchBuilder;
-use cdp_protocol::{Batch, FlatBatch};
-use metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use tell_client::BatchBuilder;
+use tell_protocol::{Batch, FlatBatch};
+use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use socket2::{SockRef, TcpKeepalive};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, mpsc};
@@ -51,7 +52,7 @@ use tokio::time::timeout;
 /// Configuration for forwarder sink
 #[derive(Debug, Clone)]
 pub struct ForwarderConfig {
-    /// Target collector address (host:port)
+    /// Target Tell server address (host:port)
     pub target: String,
 
     /// Hex-encoded API key (32 hex chars = 16 bytes)
@@ -74,6 +75,12 @@ pub struct ForwarderConfig {
 
     /// Wait time before reconnecting
     pub reconnect_interval: Duration,
+
+    /// TCP keep-alive enabled
+    pub tcp_keepalive: bool,
+
+    /// TCP keep-alive interval (only used if tcp_keepalive is true)
+    pub tcp_keepalive_interval: Duration,
 }
 
 impl ForwarderConfig {
@@ -81,7 +88,7 @@ impl ForwarderConfig {
     ///
     /// # Arguments
     ///
-    /// * `target` - Target collector address (host:port)
+    /// * `target` - Target Tell server address (host:port)
     /// * `api_key` - Hex-encoded API key (32 hex chars)
     ///
     /// # Errors
@@ -103,6 +110,8 @@ impl ForwarderConfig {
             retry_attempts: 3,
             retry_interval: Duration::from_secs(1),
             reconnect_interval: Duration::from_secs(5),
+            tcp_keepalive: true,
+            tcp_keepalive_interval: Duration::from_secs(30),
         })
     }
 
@@ -138,6 +147,20 @@ impl ForwarderConfig {
     #[must_use]
     pub fn with_reconnect_interval(mut self, interval: Duration) -> Self {
         self.reconnect_interval = interval;
+        self
+    }
+
+    /// Enable or disable TCP keep-alive
+    #[must_use]
+    pub fn with_tcp_keepalive(mut self, enabled: bool) -> Self {
+        self.tcp_keepalive = enabled;
+        self
+    }
+
+    /// Set TCP keep-alive interval
+    #[must_use]
+    pub fn with_tcp_keepalive_interval(mut self, interval: Duration) -> Self {
+        self.tcp_keepalive_interval = interval;
         self
     }
 }
@@ -306,7 +329,7 @@ pub enum ForwarderError {
     BuildError(String),
 }
 
-/// Forwarder sink for collector-to-collector forwarding
+/// Forwarder sink for Tell-to-Tell forwarding
 pub struct ForwarderSink {
     /// Channel receiver for incoming batches
     receiver: mpsc::Receiver<Arc<Batch>>,
@@ -418,7 +441,7 @@ impl ForwarderSink {
         snapshot
     }
 
-    /// Connect to the target SOC collector
+    /// Connect to the target Tell server
     async fn connect(&self) -> Result<(), ForwarderError> {
         let mut conn = self.connection.lock().await;
 
@@ -459,6 +482,30 @@ impl ForwarderSink {
             );
         }
 
+        // Set TCP keep-alive (non-fatal if it fails)
+        if self.config.tcp_keepalive {
+            let sock_ref = SockRef::from(&stream);
+            let keepalive = TcpKeepalive::new().with_time(self.config.tcp_keepalive_interval);
+
+            // On Linux, also set the interval between probes
+            #[cfg(target_os = "linux")]
+            let keepalive = keepalive.with_interval(self.config.tcp_keepalive_interval);
+
+            if let Err(e) = sock_ref.set_tcp_keepalive(&keepalive) {
+                tracing::debug!(
+                    sink = %self.name,
+                    error = %e,
+                    "failed to set TCP keep-alive, continuing without keep-alive"
+                );
+            } else {
+                tracing::trace!(
+                    sink = %self.name,
+                    interval_secs = self.config.tcp_keepalive_interval.as_secs(),
+                    "TCP keep-alive enabled"
+                );
+            }
+        }
+
         self.metrics.record_reconnect();
         tracing::debug!(
             sink = %self.name,
@@ -495,16 +542,16 @@ impl ForwarderSink {
                     );
                     self.metrics.record_failed();
 
-                    // Try to reconnect
+                    // Try to reconnect and continue with remaining messages
                     if let Err(reconnect_err) = self.connect().await {
                         tracing::error!(
                             sink = %self.name,
                             error = %reconnect_err,
-                            "reconnection failed"
+                            "reconnection failed, will retry on next message"
                         );
                         tokio::time::sleep(self.config.reconnect_interval).await;
                     }
-                    return;
+                    // Continue processing remaining messages in batch (like Go implementation)
                 }
             }
         }
@@ -547,7 +594,7 @@ impl ForwarderSink {
         // Convert source IP to 16-byte IPv6 format
         let source_ip_bytes = ip_to_bytes(source_ip);
 
-        // Build new batch using cdp-client::BatchBuilder
+        // Build new batch using tell-client::BatchBuilder
         let built = BatchBuilder::new()
             .api_key(self.config.api_key_bytes)
             .schema_type(original.schema_type())

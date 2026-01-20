@@ -283,3 +283,94 @@ fn test_clear() {
     tree.clear();
     assert_eq!(tree.pattern_count(), 0);
 }
+
+#[test]
+fn test_canonical_name_simple() {
+    let tree = DrainTree::new(0.5, 100);
+
+    let id = tree.parse("User logged in successfully");
+    let pattern = tree.get_pattern(id).unwrap();
+
+    assert_eq!(pattern.canonical_name, "User logged in successfully");
+}
+
+#[test]
+fn test_canonical_name_with_variables() {
+    let tree = DrainTree::new(0.5, 100);
+
+    let id = tree.parse("User 12345 logged in from 192.168.1.1");
+    let pattern = tree.get_pattern(id).unwrap();
+
+    // Should skip the variable tokens and take first 5 non-wildcards
+    assert_eq!(pattern.canonical_name, "User logged in from");
+}
+
+#[test]
+fn test_canonical_name_truncated() {
+    let tree = DrainTree::new(0.5, 100);
+
+    let id = tree.parse("This is a very long message with many tokens");
+    let pattern = tree.get_pattern(id).unwrap();
+
+    // Should only have first 5 tokens
+    assert_eq!(pattern.canonical_name, "This is a very long");
+}
+
+#[test]
+fn test_canonical_name_all_variables() {
+    // Create pattern with mostly variables
+    let tokens: Vec<Option<String>> = vec![None, None, None];
+    let canonical = generate_canonical_name(&tokens);
+    assert_eq!(canonical, "Unknown Pattern");
+}
+
+#[test]
+fn test_canonical_name_fewer_than_five_tokens() {
+    let tree = DrainTree::new(0.5, 100);
+
+    let id = tree.parse("Error found");
+    let pattern = tree.get_pattern(id).unwrap();
+
+    assert_eq!(pattern.canonical_name, "Error found");
+}
+
+#[test]
+fn test_pattern_timestamps() {
+    let tree = DrainTree::new(0.5, 100);
+
+    let id = tree.parse("User logged in");
+    let pattern = tree.get_pattern(id).unwrap();
+
+    // first_seen and last_seen should be set
+    assert!(pattern.first_seen > 0);
+    assert!(pattern.last_seen > 0);
+    assert!(pattern.last_seen >= pattern.first_seen);
+}
+
+#[test]
+fn test_last_seen_updated_on_match() {
+    use std::thread;
+    use std::time::Duration;
+
+    let tree = DrainTree::new(0.5, 100);
+
+    // Create pattern
+    let id = tree.parse("Request completed");
+    let pattern1 = tree.get_pattern(id).unwrap();
+    let first_last_seen = pattern1.last_seen;
+
+    // Wait a tiny bit and match again
+    thread::sleep(Duration::from_millis(10));
+    tree.parse("Request completed");
+
+    let pattern2 = tree.get_pattern(id).unwrap();
+
+    // first_seen should be unchanged
+    assert_eq!(pattern2.first_seen, pattern1.first_seen);
+
+    // last_seen should be updated (or same if sub-second granularity)
+    assert!(pattern2.last_seen >= first_last_seen);
+
+    // count should be incremented
+    assert_eq!(pattern2.count, 2);
+}

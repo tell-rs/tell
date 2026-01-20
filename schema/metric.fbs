@@ -3,8 +3,6 @@
 // Designed for zero-copy reads and efficient batching
 // Compatible with OpenTelemetry semantics (nanosecond timestamps, temporality)
 
-include "common.fbs";
-
 namespace schema.metric;
 
 /// Metric type - determines how to interpret the value

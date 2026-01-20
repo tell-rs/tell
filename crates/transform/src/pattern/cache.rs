@@ -14,8 +14,9 @@
 
 use parking_lot::Mutex;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
+use xxhash_rust::xxh3::xxh3_64;
 
 use super::drain::PatternId;
 
@@ -109,10 +110,12 @@ impl PatternCache {
     /// Look up pattern ID for a message
     ///
     /// Returns `Some(pattern_id)` if found in cache, `None` if cache miss.
-    pub fn get(&self, message: &str) -> Option<PatternId> {
+    /// Service is included in hash to ensure same message from different services
+    /// gets different patterns (service isolation).
+    pub fn get(&self, service: &str, message: &str) -> Option<PatternId> {
         self.stats.total_lookups.fetch_add(1, Ordering::Relaxed);
 
-        let message_hash = hash_message(message);
+        let message_hash = hash_message(service, message);
 
         // L1 lookup: exact message
         if let Some(id) = self.l1_cache.lock().get(&message_hash) {
@@ -122,7 +125,7 @@ impl PatternCache {
         self.stats.l1_misses.fetch_add(1, Ordering::Relaxed);
 
         // L2 lookup: template hash (simplified - just normalized tokens)
-        let template_hash = hash_template(message);
+        let template_hash = hash_template(service, message);
         if let Some(id) = self.l2_cache.lock().get(&template_hash) {
             self.stats.l2_hits.fetch_add(1, Ordering::Relaxed);
 
@@ -136,17 +139,18 @@ impl PatternCache {
     }
 
     /// Insert a pattern ID for a message
-    pub fn put(&self, message: &str, pattern_id: PatternId) {
-        let message_hash = hash_message(message);
-        let template_hash = hash_template(message);
+    /// Service is included in hash for service isolation.
+    pub fn put(&self, service: &str, message: &str, pattern_id: PatternId) {
+        let message_hash = hash_message(service, message);
+        let template_hash = hash_template(service, message);
 
         self.l1_cache.lock().put(message_hash, pattern_id);
         self.l2_cache.lock().put(template_hash, pattern_id);
     }
 
     /// Insert only to L1 cache (for exact message matches)
-    pub fn put_l1(&self, message: &str, pattern_id: PatternId) {
-        let message_hash = hash_message(message);
+    pub fn put_l1(&self, service: &str, message: &str, pattern_id: PatternId) {
+        let message_hash = hash_message(service, message);
         self.l1_cache.lock().put(message_hash, pattern_id);
     }
 
@@ -263,17 +267,19 @@ impl<K: Eq + Hash + Copy, V: Copy> LruCache<K, V> {
     }
 }
 
-/// Hash a message for L1 cache lookup
-fn hash_message(message: &str) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    message.hash(&mut hasher);
-    hasher.finish()
+/// Hash a message for L1 cache lookup using xxhash (fast, non-cryptographic)
+/// Includes service for service isolation (same message, different service = different hash)
+pub fn hash_message(service: &str, message: &str) -> u64 {
+    // Format: "service:message" then hash
+    let combined = format!("{}:{}", service, message);
+    xxh3_64(combined.as_bytes())
 }
 
-/// Hash a message template for L2 cache lookup
+/// Hash a message template for L2 cache lookup using xxhash
 ///
 /// Normalizes the message by replacing likely variables with placeholders.
-fn hash_template(message: &str) -> u64 {
+/// Includes service for service isolation.
+pub fn hash_template(service: &str, message: &str) -> u64 {
     let normalized: String = message
         .split_whitespace()
         .map(|token| {
@@ -286,9 +292,9 @@ fn hash_template(message: &str) -> u64 {
         .collect::<Vec<_>>()
         .join(" ");
 
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    normalized.hash(&mut hasher);
-    hasher.finish()
+    // Format: "service:normalized" then hash
+    let combined = format!("{}:{}", service, normalized);
+    xxh3_64(combined.as_bytes())
 }
 
 /// Quick check if a token is likely a variable

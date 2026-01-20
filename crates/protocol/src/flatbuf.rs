@@ -2,7 +2,7 @@
 //!
 //! Zero-copy parsing of FlatBuffer messages without code generation.
 //! This module provides direct access to the wire format as defined in
-//! `../cdp-collector/pkg/schema/common.fbs`.
+//! `crates/protocol/schema/common.fbs`.
 //!
 //! # Wire Format
 //!
@@ -26,11 +26,7 @@
 //! This module performs bounds checking on all accesses. Invalid messages
 //! will return errors rather than panicking or reading out of bounds.
 
-use crate::{API_KEY_LENGTH, IPV6_LENGTH, ProtocolError, Result, SchemaType};
-
-/// Minimum valid FlatBuffer message size
-/// 4 bytes root offset + 4 bytes vtable offset minimum
-const MIN_MESSAGE_SIZE: usize = 8;
+use crate::{API_KEY_LENGTH, IPV6_LENGTH, MAX_REASONABLE_SIZE, MIN_BATCH_SIZE, ProtocolError, Result, SchemaType};
 
 /// Field IDs from common.fbs (these are vtable slot indices, not byte offsets)
 /// Slot 0 and 1 are reserved for vtable_size and table_size
@@ -76,15 +72,28 @@ impl<'a> FlatBatch<'a> {
     /// copy any data. Field access is deferred until accessor methods
     /// are called.
     ///
+    /// # Validation Stages (matching Go SafeGetRootAsBatch)
+    ///
+    /// 1. Size bounds check (min 16 bytes, max 100MB)
+    /// 2. Root offset sanity check
+    /// 3. VTable sanity check
+    /// 4. Bounds checking on all field accesses (Rust memory safety)
+    ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Message is too short
+    /// - Message is too short (< 16 bytes)
+    /// - Message exceeds reasonable size (> 100MB)
     /// - Root offset is invalid
     /// - VTable structure is invalid
     pub fn parse(buf: &'a [u8]) -> Result<Self> {
-        if buf.len() < MIN_MESSAGE_SIZE {
-            return Err(ProtocolError::too_short(MIN_MESSAGE_SIZE, buf.len()));
+        // Stage 1: Size bounds check
+        if buf.len() < MIN_BATCH_SIZE {
+            return Err(ProtocolError::too_short(MIN_BATCH_SIZE, buf.len()));
+        }
+
+        if buf.len() > MAX_REASONABLE_SIZE {
+            return Err(ProtocolError::message_too_large(buf.len(), MAX_REASONABLE_SIZE));
         }
 
         // Read root offset (first 4 bytes, little-endian u32)
@@ -103,15 +112,18 @@ impl<'a> FlatBatch<'a> {
         let table_offset = root_offset;
 
         // Read vtable offset (i32 at table start, relative to table position)
+        // FlatBuffers spec: vtable_location = table_location - soffset
+        // The soffset is ALWAYS subtracted, regardless of sign
         let vtable_soffset = read_i32(buf, table_offset)?;
-        let vtable_offset = if vtable_soffset < 0 {
+        let vtable_offset = if vtable_soffset >= 0 {
             table_offset
-                .checked_sub((-vtable_soffset) as usize)
+                .checked_sub(vtable_soffset as usize)
                 .ok_or_else(|| {
                     ProtocolError::invalid_flatbuffer("vtable offset underflow".to_string())
                 })?
         } else {
-            table_offset + vtable_soffset as usize
+            // Negative soffset means vtable is after table (rare but valid)
+            table_offset + ((-vtable_soffset) as usize)
         };
 
         // Validate vtable offset
@@ -374,4 +386,51 @@ pub(crate) fn read_u64(buf: &[u8], offset: usize) -> Result<u64> {
         buf[offset + 6],
         buf[offset + 7],
     ]))
+}
+
+// =============================================================================
+// Quick heuristic for fast rejection
+// =============================================================================
+
+/// Check if data is likely a FlatBuffer (quick heuristic)
+///
+/// This performs fast checks to reject obviously invalid data (JSON, XML, etc.)
+/// before attempting full parsing. This is a performance optimization for
+/// high-throughput scenarios where garbage data may be received.
+///
+/// # Returns
+///
+/// - `true` if the data has FlatBuffer-like characteristics
+/// - `false` if the data is obviously not a FlatBuffer
+///
+/// Note: Returning `true` does not guarantee the data is valid - use `FlatBatch::parse()`
+/// for full validation.
+#[inline]
+pub fn is_likely_flatbuffer(buf: &[u8]) -> bool {
+    // Too small to be valid
+    if buf.len() < MIN_BATCH_SIZE {
+        return false;
+    }
+
+    // Quick rejection of common non-FlatBuffer formats
+    if let Some(&first) = buf.first() {
+        // JSON starts with '{' or '['
+        // XML starts with '<'
+        // These are common garbage data patterns
+        if first == b'{' || first == b'[' || first == b'<' {
+            return false;
+        }
+    }
+
+    // Check if root offset looks reasonable
+    // FlatBuffers store root offset as little-endian u32 in first 4 bytes
+    let root_offset = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+
+    // Root offset should be between 4 and buffer length
+    // A root offset of 0-3 is invalid, and beyond buffer length is invalid
+    if root_offset < 4 || root_offset >= buf.len() {
+        return false;
+    }
+
+    true
 }

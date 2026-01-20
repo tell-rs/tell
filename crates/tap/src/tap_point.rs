@@ -1,10 +1,10 @@
 //! TapPoint - the broadcast point for live streaming
 //!
-//! `TapPoint` is the integration point between the collector pipeline and
+//! `TapPoint` is the integration point between the Tell pipeline and
 //! the tap streaming system. It provides:
 //!
 //! - Zero-cost when no subscribers (inline check)
-//! - Metadata-only filtering (no FlatBuffer decode on collector side)
+//! - Metadata-only filtering (no FlatBuffer decode on server side)
 //! - Replay buffer for late joiners
 //! - Automatic cleanup of disconnected subscribers
 //!
@@ -27,7 +27,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, trace};
 
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 
 use crate::SubscribeRequest;
 use crate::buffer::ReplayBuffer;

@@ -509,12 +509,12 @@ fn test_event_data_100_events() {
 }
 
 // =============================================================================
-// Roundtrip tests with cdp-protocol decoder
+// Roundtrip tests with tell-protocol decoder
 // =============================================================================
 
 #[test]
 fn test_event_data_roundtrip_single_event() {
-    use cdp_protocol::decode_event_data;
+    use tell_protocol::decode_event_data;
 
     let event = EventBuilder::new()
         .track("page_view")
@@ -529,12 +529,12 @@ fn test_event_data_roundtrip_single_event() {
 
     let event_data = EventDataBuilder::new().add(event).build().unwrap();
 
-    // Decode using cdp-protocol
+    // Decode using tell-protocol
     let decoded = decode_event_data(event_data.as_bytes()).expect("should decode event data");
 
     assert_eq!(decoded.len(), 1, "should have decoded 1 event");
     let ev = &decoded[0];
-    assert_eq!(ev.event_type, cdp_protocol::EventType::Track);
+    assert_eq!(ev.event_type, tell_protocol::EventType::Track);
     assert_eq!(ev.event_name, Some("page_view"));
     assert_eq!(ev.timestamp, 1700000000000);
     assert_eq!(ev.device_id, Some(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
@@ -546,7 +546,7 @@ fn test_event_data_roundtrip_single_event() {
 
 #[test]
 fn test_event_data_roundtrip_multiple_events() {
-    use cdp_protocol::decode_event_data;
+    use tell_protocol::decode_event_data;
 
     let event1 = EventBuilder::new()
         .track("event_1")
@@ -581,20 +581,20 @@ fn test_event_data_roundtrip_multiple_events() {
 
     assert_eq!(decoded.len(), 3, "should have decoded 3 events");
 
-    assert_eq!(decoded[0].event_type, cdp_protocol::EventType::Track);
+    assert_eq!(decoded[0].event_type, tell_protocol::EventType::Track);
     assert_eq!(decoded[0].event_name, Some("event_1"));
     assert_eq!(decoded[0].timestamp, 1000);
 
-    assert_eq!(decoded[1].event_type, cdp_protocol::EventType::Identify);
+    assert_eq!(decoded[1].event_type, tell_protocol::EventType::Identify);
     assert_eq!(decoded[1].timestamp, 2000);
 
-    assert_eq!(decoded[2].event_type, cdp_protocol::EventType::Context);
+    assert_eq!(decoded[2].event_type, tell_protocol::EventType::Context);
     assert_eq!(decoded[2].timestamp, 3000);
 }
 
 #[test]
 fn test_full_batch_roundtrip() {
-    use cdp_protocol::{FlatBatch, SchemaType, decode_event_data};
+    use tell_protocol::{FlatBatch, SchemaType, decode_event_data};
     use crate::BatchBuilder;
 
     let event = EventBuilder::new()
@@ -624,6 +624,6 @@ fn test_full_batch_roundtrip() {
     let decoded = decode_event_data(data).expect("should decode event data");
 
     assert_eq!(decoded.len(), 1);
-    assert_eq!(decoded[0].event_type, cdp_protocol::EventType::Track);
+    assert_eq!(decoded[0].event_type, tell_protocol::EventType::Track);
     assert_eq!(decoded[0].event_name, Some("checkout"));
 }

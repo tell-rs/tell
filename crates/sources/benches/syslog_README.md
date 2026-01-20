@@ -1,6 +1,6 @@
 # Syslog Source Benchmarks
 
-Run: `cargo bench -p cdp-sources --bench syslog`
+Run: `cargo bench -p tell-sources --bench syslog`
 
 Measures:
 - TCP: Line finding and batch building

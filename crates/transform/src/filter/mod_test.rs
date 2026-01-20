@@ -1,7 +1,7 @@
 //! Tests for filter transformer
 
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use std::sync::atomic::Ordering;
 
 fn make_json_batch(messages: &[&str]) -> Batch {

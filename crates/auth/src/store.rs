@@ -2,6 +2,10 @@
 //!
 //! The `ApiKeyStore` holds a mapping from API keys to workspace IDs.
 //! Designed for O(1) lookup with no allocations in the hot path.
+//!
+//! # Security
+//!
+//! API key validation uses constant-time comparison to prevent timing attacks.
 
 use std::collections::HashMap;
 use std::fs;
@@ -10,6 +14,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use subtle::ConstantTimeEq;
 
 use crate::error::{AuthError, Result};
 use crate::workspace::WorkspaceId;
@@ -26,7 +31,7 @@ pub type ApiKey = [u8; API_KEY_LENGTH];
 /// # Example
 ///
 /// ```
-/// use cdp_auth::{ApiKeyStore, WorkspaceId};
+/// use tell_auth::{ApiKeyStore, WorkspaceId};
 ///
 /// let mut store = ApiKeyStore::new();
 ///
@@ -140,16 +145,36 @@ impl FromStr for ApiKeyStore {
 impl ApiKeyStore {
     /// Validate an API key and return the associated workspace ID
     ///
-    /// This is the hot path - O(1) lookup with no allocations.
+    /// Uses constant-time comparison to prevent timing attacks.
     /// Returns `None` if the key is not found.
+    ///
+    /// # Security
+    ///
+    /// This function iterates all keys using constant-time comparison,
+    /// ensuring an attacker cannot determine key validity through timing.
     #[inline]
     pub fn validate(&self, key: &ApiKey) -> Option<WorkspaceId> {
-        self.inner.read().keys.get(key).cloned()
+        let inner = self.inner.read();
+
+        // Iterate all keys with constant-time comparison
+        // This prevents timing attacks at the cost of O(n) instead of O(1)
+        let mut result: Option<WorkspaceId> = None;
+
+        for (stored_key, workspace_id) in inner.keys.iter() {
+            // Constant-time comparison: always compare all bytes
+            if bool::from(key.ct_eq(stored_key)) {
+                result = Some(*workspace_id);
+                // Don't break early - continue iterating to maintain constant time
+            }
+        }
+
+        result
     }
 
     /// Validate an API key slice (must be exactly 16 bytes)
     ///
     /// Returns `None` if the key is invalid length or not found.
+    /// Uses constant-time comparison.
     #[inline]
     pub fn validate_slice(&self, key: &[u8]) -> Option<WorkspaceId> {
         if key.len() != API_KEY_LENGTH {
@@ -158,6 +183,15 @@ impl ApiKeyStore {
 
         let key_array: &ApiKey = key.try_into().ok()?;
         self.validate(key_array)
+    }
+
+    /// Fast validation using HashMap (NOT constant-time)
+    ///
+    /// Use this only when timing attacks are not a concern
+    /// (e.g., internal services, rate-limited endpoints).
+    #[inline]
+    pub fn validate_fast(&self, key: &ApiKey) -> Option<WorkspaceId> {
+        self.inner.read().keys.get(key).cloned()
     }
 
     /// Insert an API key

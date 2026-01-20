@@ -7,7 +7,7 @@ use crate::{
     format::MetricsFormatter, HumanFormatter, JsonFormatter, SinkMetricsProvider,
     SinkMetricsSnapshot,
 };
-use cdp_config::MetricsFormat;
+use tell_config::MetricsFormat;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tokio_util::sync::CancellationToken;

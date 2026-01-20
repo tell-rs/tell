@@ -1,14 +1,14 @@
 [package]
-name = "sinks"
+name = "tell-sinks"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Output sinks (ClickHouse, disk, parquet, etc) for CDP Collector"
+description = "Output sinks (ClickHouse, disk, parquet, etc) for Tell"
 
 [dependencies]
-cdp-protocol = { workspace = true }
-metrics = { workspace = true }
+tell-protocol = { workspace = true }
+tell-metrics = { workspace = true }
 
 tokio = { workspace = true }
 bytes = { workspace = true }
@@ -26,25 +26,40 @@ dashmap = { workspace = true }
 # Date/time for rotation paths
 chrono = { workspace = true }
 
+# Terminal colors
+owo-colors = { workspace = true }
+
 # Compression
 lz4_flex = { workspace = true }
 
 # Client for building FlatBuffer messages (SOC forwarder)
-cdp-client = { workspace = true }
+tell-client = { workspace = true }
+
+# Socket configuration (TCP keep-alive)
+socket2 = { workspace = true }
 
 # ClickHouse client
 clickhouse = { workspace = true }
 
+# UUID for ClickHouse UUID columns
+uuid = { workspace = true }
+
+# Enum repr serialization (for ClickHouse Enum8)
+serde_repr = { workspace = true }
+
 # Parquet support
 parquet = { workspace = true }
 arrow = { workspace = true }
+
+# HTTP client for Arrow ClickHouse sink
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }
 tempfile = { workspace = true }
 criterion = { workspace = true, features = ["async_tokio"] }
 walkdir = "2.5"
-cdp-bench = { workspace = true }
+tell-bench = { workspace = true }
 
 [features]
 default = []

@@ -5,8 +5,8 @@
 
 use std::sync::Arc;
 
-use cdp_protocol::Batch;
-use cdp_routing::SinkId;
+use tell_protocol::Batch;
+use tell_routing::SinkId;
 use tokio::sync::mpsc;
 
 /// Handle to a sink for sending batches
@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 ///
 /// # Design
 ///
-/// - Uses `cdp_routing::SinkId` (u16) for O(1) array indexing
+/// - Uses `tell_routing::SinkId` (u16) for O(1) array indexing
 /// - Stores sink name for debugging/logging
 /// - Wraps `mpsc::Sender<Arc<Batch>>` for zero-copy fan-out
 ///

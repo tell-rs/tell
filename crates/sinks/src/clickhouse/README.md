@@ -1,16 +1,76 @@
-# ClickHouse Sink (CDP v1.1 Schema)
+# ClickHouse Sink (Tell v1.1 Schema)
 
-High-performance ClickHouse sink implementing the full CDP v1.1 analytics schema.
+High-performance ClickHouse sink implementing the full Tell v1.1 analytics schema.
 
 ## TL;DR
 
-- **6 tables**: events_v1, users_v1, user_devices, user_traits, context_v1, logs_v1
+- **2 implementations**: Arrow HTTP (recommended) and Native protocol
+- **7 tables**: events_v1, users_v1, user_devices, user_traits, context_v1, logs_v1, snapshots_v1
 - **Smart routing**: TRACK→events, IDENTIFY→3 tables (parallel), CONTEXT→context, LOG→logs
-- **IDENTIFY handling**: Extracts email→user_id, links devices, expands traits to key-value rows
-- **CONTEXT extraction**: Parses device_type, os, app_version, timezone, locale, country, city from payload
-- **Pattern ID support**: Optional pattern_id field for logs from transformer
-- **Concurrent flush**: All 6 tables flushed in parallel via tokio::join!
-- **66 tests**: Full coverage of routing, extraction, and edge cases
+- **Concurrent flush**: All tables flushed in parallel via tokio::join!
+
+## Implementations
+
+| Type | Config | Port | Protocol | Use Case |
+|------|--------|------|----------|----------|
+| `clickhouse` | Arrow HTTP | 8123 | HTTP + Arrow IPC | **Recommended** - High throughput (65M+ events/sec) |
+| `clickhouse_native` | Native | 9000 | ClickHouse native | Legacy - If you need native protocol features |
+
+### Arrow HTTP Sink (Recommended)
+
+```toml
+[sinks.clickhouse]
+type = "clickhouse"
+host = "localhost:8123"    # HTTP port
+database = "tell"
+username = "default"
+password = "secret"
+batch_size = 50000
+flush_interval = "5s"
+```
+
+```rust
+use sinks::clickhouse::{ArrowClickHouseSink, ClickHouseConfig};
+
+let config = ClickHouseConfig::default()
+    .with_url("http://localhost:8123")
+    .with_database("tell")
+    .with_credentials("user", "password")
+    .with_batch_size(50000);
+
+let sink = ArrowClickHouseSink::new(config, receiver);
+tokio::spawn(sink.run());
+```
+
+**Why Arrow?**
+- UUIDs: FlatBuffer bytes → Arrow FixedSizeBinary(16) → ClickHouse UUID (single 16-byte copy)
+- Columnar batches match ClickHouse's internal storage format
+- HTTP `FORMAT Arrow` endpoint - native Arrow ingestion, no row parsing
+
+### Native Protocol Sink
+
+```toml
+[sinks.clickhouse_legacy]
+type = "clickhouse_native"
+host = "localhost:9000"    # Native port
+database = "tell"
+username = "default"
+password = "secret"
+batch_size = 50000
+flush_interval = "5s"
+```
+
+```rust
+use sinks::clickhouse::{ClickHouseSink, ClickHouseConfig};
+
+let config = ClickHouseConfig::default()
+    .with_url("http://localhost:9000")  // Note: crate still uses http:// prefix
+    .with_database("tell")
+    .with_credentials("user", "password");
+
+let sink = ClickHouseSink::new(config, receiver);
+tokio::spawn(sink.run());
+```
 
 ## Event Routing
 
@@ -19,24 +79,21 @@ High-performance ClickHouse sink implementing the full CDP v1.1 analytics schema
 | `TRACK` | events_v1 | Standard event tracking |
 | `IDENTIFY` | users_v1 + user_devices + user_traits | 3 parallel inserts |
 | `CONTEXT` | context_v1 | Device/location fields extracted from payload |
-| `GROUP`, `ALIAS`, `ENRICH` | *(dropped)* | Logged as warning, not routed (matches Go) |
-| `LOG` | logs_v1 | With optional pattern_id |
+| `GROUP`, `ALIAS`, `ENRICH` | *(dropped)* | Logged as warning, not routed |
+| `LOG` | logs_v1 | With optional pattern_id from transformer |
+| `SNAPSHOT` | snapshots_v1 | Connector data snapshots |
 
-## Usage
+## Configuration Options
 
-```rust
-use cdp_sinks::clickhouse::{ClickHouseSink, ClickHouseConfig};
-
-let config = ClickHouseConfig::default()
-    .with_url("http://localhost:8123")
-    .with_database("cdp")
-    .with_credentials("user", "password")
-    .with_batch_size(1000);
-
-let (tx, rx) = mpsc::channel(1000);
-let sink = ClickHouseSink::new(config, rx);
-tokio::spawn(sink.run());
-```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `host` | *(required)* | ClickHouse endpoint (8123 for HTTP, 9000 for native) |
+| `database` | `default` | Database name |
+| `username` | `default` | Auth username |
+| `password` | *(empty)* | Auth password |
+| `batch_size` | `50000` | Rows per table before flush |
+| `flush_interval` | `5s` | Timer-based flush |
+| `retry_attempts` | `3` | Retries with exponential backoff |
 
 ## Table Schemas
 
@@ -44,18 +101,18 @@ tokio::spawn(sink.run());
 ```sql
 CREATE TABLE events_v1 (
     timestamp DateTime64(3),
-    event_name String,
+    event_name LowCardinality(String),
     device_id UUID,
     session_id UUID,
-    properties String,
-    _raw String,
-    source_ip FixedString(16)
+    source_ip FixedString(16),
+    properties JSON,
+    _raw String
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, device_id);
 ```
 
-### users_v1 (IDENTIFY - core identity)
+### users_v1 (IDENTIFY)
 ```sql
 CREATE TABLE users_v1 (
     user_id String,        -- UUID v5 from normalized email
@@ -66,7 +123,7 @@ CREATE TABLE users_v1 (
 ORDER BY user_id;
 ```
 
-### user_devices (IDENTIFY - device relationships)
+### user_devices (IDENTIFY)
 ```sql
 CREATE TABLE user_devices (
     user_id String,
@@ -76,7 +133,7 @@ CREATE TABLE user_devices (
 ORDER BY (user_id, device_id);
 ```
 
-### user_traits (IDENTIFY - key-value traits)
+### user_traits (IDENTIFY)
 ```sql
 CREATE TABLE user_traits (
     user_id String,
@@ -93,19 +150,19 @@ CREATE TABLE context_v1 (
     timestamp DateTime64(3),
     device_id UUID,
     session_id UUID,
-    device_type String,
-    device_model String,
-    operating_system String,
+    source_ip FixedString(16),
+    device_type LowCardinality(String),
+    device_model LowCardinality(String),
+    operating_system LowCardinality(String),
     os_version String,
     app_version String,
     app_build String,
     timezone String,
     locale FixedString(5),
-    country String,
+    country LowCardinality(String),
     region String,
     city String,
-    properties String,
-    source_ip FixedString(16)
+    properties JSON
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, device_id);
@@ -115,17 +172,30 @@ ORDER BY (timestamp, device_id);
 ```sql
 CREATE TABLE logs_v1 (
     timestamp DateTime64(3),
-    level LowCardinality(String),
-    source String,
-    service String,
+    level Enum8('EMERGENCY'=0, 'ALERT'=1, 'CRITICAL'=2, 'ERROR'=3,
+                'WARNING'=4, 'NOTICE'=5, 'INFO'=6, 'DEBUG'=7, 'TRACE'=8),
+    source LowCardinality(String),
+    service LowCardinality(String),
     session_id UUID,
     source_ip FixedString(16),
-    pattern_id Nullable(UInt64),  -- From transformer
-    message String,
+    pattern_id Nullable(UInt64),
+    message JSON,
     _raw String
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, level);
+```
+
+### snapshots_v1 (SNAPSHOT)
+```sql
+CREATE TABLE snapshots_v1 (
+    timestamp DateTime64(3),
+    connector LowCardinality(String),
+    entity String,
+    metrics JSON
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (timestamp, connector);
 ```
 
 ## IDENTIFY Flow
@@ -139,27 +209,3 @@ When an IDENTIFY event arrives:
 5. **Insert to user_traits**: Expand `traits` object to individual key-value rows
 
 All 3 inserts happen in parallel.
-
-## Configuration
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `url` | `http://localhost:8123` | ClickHouse HTTP endpoint |
-| `database` | `default` | Database name |
-| `username` | None | Optional auth |
-| `password` | None | Optional auth |
-| `batch_size` | 1000 | Rows per table before flush |
-| `flush_interval` | 5s | Timer-based flush |
-| `retry_attempts` | 3 | Retries with exponential backoff |
-
-## Parity with Go Implementation
-
-This Rust implementation matches the Go `cdp-collector/pkg/sinks/clickhouse` sink:
-
-- ✅ Same 6-table schema
-- ✅ Same event routing logic
-- ✅ Same IDENTIFY → 3 table handling
-- ✅ Same CONTEXT field extraction
-- ✅ Same user_id generation (UUID v5 from email)
-- ✅ Same pattern_id support for logs
-- ✅ Same concurrent flush pattern

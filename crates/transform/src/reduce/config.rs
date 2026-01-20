@@ -1,6 +1,6 @@
 //! Reduce transformer configuration
 
-use cdp_config::TransformerInstanceConfig;
+use tell_config::TransformerInstanceConfig;
 use std::time::Duration;
 
 #[cfg(test)]

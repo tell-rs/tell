@@ -2,7 +2,7 @@
 //!
 //! Constructs valid FlatBuffer wire format messages matching the schema
 //! in `schema/common.fbs`. This is a hand-written builder that produces
-//! bytes compatible with the `FlatBatch` parser in `cdp-protocol`.
+//! bytes compatible with the `FlatBatch` parser in `tell-protocol`.
 //!
 //! # Wire Format
 //!
@@ -23,7 +23,7 @@
 //! ```
 
 use bytes::Bytes;
-use cdp_protocol::{SchemaType, API_KEY_LENGTH, IPV6_LENGTH};
+use tell_protocol::{SchemaType, API_KEY_LENGTH, IPV6_LENGTH};
 
 use crate::error::{BuilderError, Result};
 
@@ -53,7 +53,7 @@ const DEFAULT_VERSION: u8 = 100;
 /// # Example
 ///
 /// ```
-/// use cdp_client::{BatchBuilder, SchemaType};
+/// use tell_client::{BatchBuilder, SchemaType};
 ///
 /// let batch = BatchBuilder::new()
 ///     .api_key([0x01; 16])
@@ -343,8 +343,8 @@ fn build_flatbuffer(
     // === Table ===
     let table_start = buf.len();
 
-    // soffset: signed offset to vtable (negative because vtable is before)
-    let soffset: i32 = -((table_start - vtable_start) as i32);
+    // soffset: distance from table to vtable (standard FlatBuffers: vtable = table - soffset)
+    let soffset: i32 = (table_start - vtable_start) as i32;
     buf.extend_from_slice(&soffset.to_le_bytes());
 
     // Placeholders for vector offsets

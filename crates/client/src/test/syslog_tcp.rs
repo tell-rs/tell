@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 /// # Example
 ///
 /// ```ignore
-/// use cdp_client::test::SyslogTcpTestClient;
+/// use tell_client::test::SyslogTcpTestClient;
 ///
 /// let mut client = SyslogTcpTestClient::connect("127.0.0.1:514").await?;
 ///
@@ -135,7 +135,7 @@ impl SyslogTcpTestClient {
     /// # Example
     ///
     /// ```
-    /// use cdp_client::test::SyslogTcpTestClient;
+    /// use tell_client::test::SyslogTcpTestClient;
     ///
     /// let msg = SyslogTcpTestClient::rfc3164(134, "server1", "myapp", "Hello world");
     /// assert!(msg.starts_with("<134>"));
@@ -187,7 +187,7 @@ impl SyslogTcpTestClient {
     /// # Example
     ///
     /// ```
-    /// use cdp_client::test::SyslogTcpTestClient;
+    /// use tell_client::test::SyslogTcpTestClient;
     ///
     /// let msg = SyslogTcpTestClient::rfc5424(165, "server1", "myapp", "1234", "ID47", "Hello");
     /// assert!(msg.starts_with("<165>1"));

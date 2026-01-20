@@ -174,17 +174,17 @@ max_child_nodes = 50
         let toml = r#"
 type = "pattern_matcher"
 persistence_enabled = true
-persistence_file = "/var/lib/cdp/patterns.json"
+persistence_file = "/var/lib/tell/patterns.json"
 "#;
         let config: TransformerInstanceConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.get_bool("persistence_enabled"), Some(true));
         assert_eq!(
             config.get_str("persistence_file"),
-            Some("/var/lib/cdp/patterns.json")
+            Some("/var/lib/tell/patterns.json")
         );
         assert_eq!(
             config.get_path("persistence_file"),
-            Some(PathBuf::from("/var/lib/cdp/patterns.json"))
+            Some(PathBuf::from("/var/lib/tell/patterns.json"))
         );
     }
 

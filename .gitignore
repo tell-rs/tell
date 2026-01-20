@@ -42,9 +42,8 @@ parquet/
 *.bin.lz4
 
 # Todos
-TODO-*
+TODO*
+TEST-*
 .director/
--e 
-# Private
-ROADMAP.md
-.launch/
+
+dist/

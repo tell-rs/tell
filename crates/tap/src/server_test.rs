@@ -4,7 +4,7 @@
 //! which is better done in a separate integration test file.
 
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 
 /// Helper to create a test batch
 fn make_batch(workspace_id: u32, source_id: &str, batch_type: BatchType) -> Batch {
@@ -42,7 +42,7 @@ fn test_batch_to_envelope() {
 
     assert_eq!(envelope.workspace_id, 42);
     assert_eq!(envelope.source_id, "tcp_main");
-    assert_eq!(envelope.batch_type, 0); // Event = 0
+    assert_eq!(envelope.batch_type, 1); // Event = 1
 }
 
 #[test]
@@ -55,6 +55,6 @@ fn test_batch_to_envelope_preserves_metadata() {
 
     assert_eq!(envelope.workspace_id, 123);
     assert_eq!(envelope.source_id, "syslog");
-    assert_eq!(envelope.batch_type, 1); // Log = 1
+    assert_eq!(envelope.batch_type, 2); // Log = 2
     assert_eq!(envelope.count, 0); // Empty batch
 }

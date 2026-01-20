@@ -1,6 +1,6 @@
 [package]
-name = "cdp-config"
-description = "Configuration loading and validation for CDP Collector"
+name = "tell-config"
+description = "Configuration loading and validation for Tell"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 # Serialization
 serde = { workspace = true }
-toml = "0.8"
+toml = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }

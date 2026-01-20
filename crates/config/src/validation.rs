@@ -101,8 +101,18 @@ fn validate_sinks(config: &Config) -> Result<()> {
                     return Err(ConfigError::missing_field("sink", name, "host"));
                 }
             }
+            SinkConfig::ClickhouseNative(ch) => {
+                if ch.host.is_empty() {
+                    return Err(ConfigError::missing_field("sink", name, "host"));
+                }
+            }
             SinkConfig::Parquet(pq) => {
                 if pq.path.is_empty() {
+                    return Err(ConfigError::missing_field("sink", name, "path"));
+                }
+            }
+            SinkConfig::ArrowIpc(arrow) => {
+                if arrow.path.is_empty() {
                     return Err(ConfigError::missing_field("sink", name, "path"));
                 }
             }
@@ -507,7 +517,7 @@ sinks = []
         let toml = r#"
 [sinks.forwarder]
 type = "forwarder"
-target = "collector.example.com:8081"
+target = "tell.example.com:8081"
 api_key = "tooshort"
 "#;
         let result = Config::from_str(toml);
@@ -522,7 +532,7 @@ api_key = "tooshort"
         let toml = r#"
 [sinks.forwarder]
 type = "forwarder"
-target = "collector.example.com:8081"
+target = "tell.example.com:8081"
 api_key = "0123456789abcdef0123456789abcdef"
 "#;
         let config = Config::from_str(toml).unwrap();

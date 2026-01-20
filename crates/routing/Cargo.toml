@@ -1,13 +1,13 @@
 [package]
-name = "cdp-routing"
+name = "tell-routing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Routing rules and pre-compiled routing tables for CDP Collector"
+description = "Routing rules and pre-compiled routing tables for Tell"
 
 [dependencies]
-cdp-protocol = { workspace = true }
+tell-protocol = { workspace = true }
 
 thiserror = { workspace = true }
 

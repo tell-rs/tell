@@ -24,7 +24,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 use tracing::{debug, error, info, warn};
 
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 
 use crate::error::{Result, TapError};
 use crate::protocol::{TapEnvelope, TapMessage, read_length_prefix};

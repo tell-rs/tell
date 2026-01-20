@@ -1,17 +1,17 @@
 [package]
-name = "pipeline"
+name = "tell-pipeline"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Async router and channel-based pipeline for CDP Collector"
+description = "Async router and channel-based pipeline for Tell"
 
 [dependencies]
-cdp-protocol = { workspace = true }
-cdp-routing = { workspace = true }
-cdp-transform = { workspace = true }
-metrics = { workspace = true }
-tap = { workspace = true }
+tell-protocol = { workspace = true }
+tell-routing = { workspace = true }
+tell-transform = { workspace = true }
+tell-metrics = { workspace = true }
+tell-tap = { workspace = true }
 
 tokio = { workspace = true }
 parking_lot = { workspace = true }

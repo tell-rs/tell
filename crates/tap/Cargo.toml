@@ -1,11 +1,11 @@
 [package]
-name = "tap"
+name = "tell-tap"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Live streaming tap point for CDP collector - enables CLI tail functionality"
+description = "Live streaming tap point for Tell - enables CLI tail functionality"
 
 [dependencies]
 # Async runtime
@@ -27,7 +27,7 @@ tracing = { workspace = true }
 rand = "0.8"
 
 # Internal crates
-cdp-protocol = { workspace = true }
+tell-protocol = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }

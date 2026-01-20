@@ -5,7 +5,7 @@ Builds the outer FlatBuffer wrapper (`common.fbs::Batch`).
 ## TL;DR
 
 ```rust
-use cdp_client::{BatchBuilder, SchemaType};
+use tell_client::{BatchBuilder, SchemaType};
 
 let batch = BatchBuilder::new()
     .api_key([0x01; 16])
@@ -32,7 +32,7 @@ Batch {
 ## Usage with Event/Log Modules
 
 ```rust
-use cdp_client::{BatchBuilder, EventBuilder, EventDataBuilder, SchemaType};
+use tell_client::{BatchBuilder, EventBuilder, EventDataBuilder, SchemaType};
 
 // Build inner payload
 let event = EventBuilder::new()

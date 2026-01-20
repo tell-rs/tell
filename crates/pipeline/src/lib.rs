@@ -1,4 +1,4 @@
-//! CDP Collector - Pipeline
+//! Tell - Pipeline
 //!
 //! The async router that connects sources to sinks via channels.
 //!
@@ -24,7 +24,7 @@
 //!
 //! ```ignore
 //! use pipeline::{Router, SinkHandle};
-//! use cdp_routing::{RoutingTable, SinkId};
+//! use tell_routing::{RoutingTable, SinkId};
 //! use tokio::sync::mpsc;
 //!
 //! // Build routing table
@@ -55,14 +55,14 @@ mod router;
 mod sink_handle;
 
 pub use error::{PipelineError, Result};
-pub use metrics::{MetricsSnapshot, RouterMetrics};
+pub use metrics::{BackpressureTracker, MetricsSnapshot, RouterMetrics};
 pub use router::{Router, RouterMetricsHandle};
 pub use sink_handle::SinkHandle;
 
 // Re-export key types from dependencies for convenience
-pub use cdp_protocol::Batch;
-pub use cdp_routing::{RoutingTable, SinkId, SourceId};
-pub use cdp_transform::Chain as TransformChain;
+pub use tell_protocol::Batch;
+pub use tell_routing::{RoutingTable, SinkId, SourceId};
+pub use tell_transform::Chain as TransformChain;
 
 /// Default channel buffer size for sink channels
 pub const DEFAULT_CHANNEL_SIZE: usize = 1000;

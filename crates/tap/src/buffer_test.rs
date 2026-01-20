@@ -1,7 +1,7 @@
 //! Tests for replay buffer
 
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 
 /// Helper to create a test batch with a unique identifier
 fn make_batch(id: u32) -> Arc<Batch> {

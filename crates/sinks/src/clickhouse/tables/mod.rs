@@ -1,4 +1,4 @@
-//! ClickHouse table row types for CDP v1.1 schema
+//! ClickHouse table row types for Tell v1.1 schema
 //!
 //! Each module corresponds to a logical table group in ClickHouse.
 
@@ -8,7 +8,7 @@ mod snapshots;
 mod users;
 
 pub use events::{ContextRow, EventRow};
-pub use logs::LogRow;
+pub use logs::{LogLevelEnum, LogRow};
 pub use snapshots::SnapshotRow;
 pub use users::{UserDeviceRow, UserRow, UserTraitRow};
 

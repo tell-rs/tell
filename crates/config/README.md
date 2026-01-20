@@ -1,6 +1,6 @@
-# cdp-config
+# tell-config
 
-TOML configuration loading and validation for CDP Collector.
+TOML configuration loading and validation for Tell.
 
 ## What it does
 
@@ -25,7 +25,7 @@ See `configs/example.toml` for all available options.
 ## Usage
 
 ```rust
-use cdp_config::Config;
+use tell_config::Config;
 use std::str::FromStr;
 
 // From file
@@ -58,7 +58,7 @@ for (name, sink) in config.sinks.iter() {
 ## Tests
 
 ```bash
-cargo test -p cdp-config
+cargo test -p tell-config
 ```
 
 78 tests covering parsing, defaults, validation, and edge cases.

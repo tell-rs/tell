@@ -119,7 +119,7 @@ token = "ghp_xxx"
 
 ```bash
 # Manual pull (no scheduling)
-collector pull github rust-lang/rust --output json
+tell pull github rust-lang/rust --output json
 
 # Test with fast schedule
 [connectors.test]

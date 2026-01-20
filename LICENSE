@@ -24,26 +24,19 @@ any written claim of patent infringement relating to the Software, Your
 patent license for the Software granted under this Agreement terminates
 immediately.
 
-License Key Requirements
+License Key
 
-If You are an Individual, You may use the Software without a License Key.
+If Your Annual Revenue is less than One Million US Dollars ($1,000,000), You
+may use the Software without a License Key.
 
-If You are a Company, You must obtain a License Key from Licensor before
-using the Software in any environment. To obtain a License Key, You must
-register with Licensor and provide accurate information including Your
-company name, contact information, and Annual Revenue. You represent and
-warrant that all information You provide to Licensor is complete and accurate
-at the time of submission and that You will update such information if it
-changes materially.
+If Your Annual Revenue is One Million US Dollars ($1,000,000) or more, You
+must obtain a License Key from Licensor and maintain the appropriate
+Subscription before using the Software. To obtain a License Key, register
+with Licensor at tell.rs.
 
 You must keep any License Key confidential and will not share it with third
 parties other than Your affiliates, contractors, and agents who are obligated
-to keep it confidential and use it solely on Your behalf. You will ensure
-that such parties comply with the terms of this Agreement, and You will be
-responsible for their acts and omissions.
-
-You acknowledge that the Software may be subject to export control laws and
-regulations. You agree to comply with all applicable export laws.
+to keep it confidential and use it solely on Your behalf.
 
 Payment Obligations
 
@@ -63,9 +56,33 @@ maintain a current Enterprise Subscription with Licensor. Enterprise
 Subscription fees are determined by agreement between You and Licensor,
 starting at Two Thousand US Dollars ($2,000) per month.
 
+(d) Managed Services: If You deploy, install, or operate the Software on
+behalf of third-party clients (as an MSSP, MSP, or similar service provider),
+whether hosted in Your infrastructure, the client's infrastructure, or any
+third-party environment, You must maintain a current Managed Services
+Subscription with Licensor. You must pay a separate fee for each Managed
+Client, determined by the Managed Client's Annual Revenue using the same
+tiers above, with a minimum fee of Ninety-Nine US Dollars ($99) per month per
+Managed Client. For Managed Clients with Annual Revenue of Ten Million US
+Dollars ($10,000,000) or more, Enterprise Subscription terms apply to that
+Managed Client. Managed Services fees are in addition to any Subscription
+required for Your own use of the Software. If the Annual Revenue of a Managed
+Client is unknown, You must either obtain that information from the client or
+contact Licensor to establish an estimated fee.
+
+(e) Government, Education, and Non-Profit Organizations: If You are a
+government entity, educational institution, or non-profit organization,
+contact Licensor to determine appropriate Subscription terms, as revenue-
+based pricing may not apply.
+
 Payment obligations apply regardless of how many instances of the Software
 You operate or how many users access it. There are no per-seat, per-event, or
 usage-based fees.
+
+Licensor reserves the right to modify Subscription fees and terms upon 90
+days written notice. Continued use of the Software after such notice
+constitutes acceptance of the modified terms. Current pricing is made available
+by Licensor at tell.rs.
 
 Revenue Reporting
 
@@ -78,18 +95,6 @@ Licensor may, upon reasonable notice, request verification of Your Annual
 Revenue if Licensor has a good-faith belief that Your reported revenue is
 inaccurate. You agree to cooperate with such verification requests.
 
-Telemetry
-
-The Software may collect and transmit Telemetry to Licensor. Telemetry helps
-Licensor improve the Software and understand how it is used. For Individuals,
-Telemetry is optional and may be disabled. For Companies, Telemetry is
-required unless Licensor has provided You with a License Key that permits
-Telemetry to be disabled.
-
-You understand and agree that Licensor may use information collected as part
-of Telemetry in accordance with Licensor's Privacy Policy. Telemetry does not
-include Your proprietary data processed by the Software.
-
 Restrictions
 
 You will not, and will not permit others to:
@@ -97,7 +102,8 @@ You will not, and will not permit others to:
 (a) Offer the Software or a Modified Version to third parties as a managed
 service, hosted service, or software-as-a-service, where the service provides
 users with access to any substantial set of the features or functionality of
-the Software;
+the Software, unless You have a current Managed Services Subscription with
+Licensor that covers such use;
 
 (b) Alter, remove, or obscure any licensing, copyright, trademark, or other
 notices of Licensor in the Software or a Modified Version;
@@ -107,8 +113,7 @@ consent, except as required for reasonable and customary use in describing
 the origin of the Software;
 
 (d) Circumvent, disable, or interfere with any mechanism in the Software
-related to License Key validation or Telemetry, except where Your License Key
-explicitly permits disabling Telemetry.
+related to License Key validation.
 
 If You create a Modified Version, You must include prominent notices stating
 that You have modified the Software and must include a copy of this Agreement
@@ -162,10 +167,9 @@ CLAIM, OR (II) ONE HUNDRED US DOLLARS ($100).
 
 Governing Law
 
-This Agreement is governed by the laws of Denmark, without regard to conflict
+This Agreement is governed by the laws of Singapore, without regard to conflict
 of law principles. Any dispute arising out of or relating to this Agreement
-shall be subject to the exclusive jurisdiction of the courts of Copenhagen,
-Denmark.
+shall be subject to the exclusive jurisdiction of the courts of Singapore.
 
 Definitions
 
@@ -177,40 +181,36 @@ You) during Your most recently completed fiscal year, calculated in
 accordance with generally accepted accounting principles. For newly formed
 entities, Annual Revenue means projected revenue for the current fiscal year.
 
-"Company" means any legal entity, including corporations, partnerships,
-limited liability companies, and sole proprietorships operated as a business.
-An Individual who uses the Software for commercial purposes or on behalf of a
-Company is considered a Company for purposes of this Agreement.
+"Enterprise Subscription" means a paid subscription with Annual Revenue of
+Ten Million US Dollars ($10,000,000) or more.
 
-"Enterprise Subscription" means a paid subscription for Companies with Annual
-Revenue of Ten Million US Dollars ($10,000,000) or more.
+"Managed Client" means a third-party entity on whose behalf You operate the
+Software under a Managed Services Subscription.
 
-"Individual" means a natural person who uses the Software for personal,
-non-commercial purposes, including learning, hobby projects, and personal
-development.
+"Managed Services Subscription" means a paid subscription that permits You to
+deploy, install, and/or operate the Software on behalf of third-party
+clients, whether in Your own infrastructure, the client's infrastructure, or
+a third-party cloud environment, such as in an MSSP, MSP, or similar managed
+services arrangement.
 
 "License Key" means a unique identifier provided by Licensor that identifies
 You as a licensed user of the Software.
 
-"Licensor" means [COMPANY NAME], a company organized under the laws of
-Denmark.
+"Licensor" means BETA BLOCKS pte. ltd., a company organized under the laws of
+Singapore.
 
 "Modified Version" means any derivative work of the Software that provides
 all or substantially all of the features and functionality of the unmodified
 Software.
 
-"Pro Subscription" means a paid subscription for Companies with Annual
-Revenue between One Million US Dollars ($1,000,000) and Ten Million US
-Dollars ($10,000,000).
+"Pro Subscription" means a paid subscription with Annual Revenue between One
+Million US Dollars ($1,000,000) and Ten Million US Dollars ($10,000,000).
 
 "Software" means the software provided under this Agreement, including any
 updates or new versions made available by Licensor.
 
-"Subscription" means either a Pro Subscription or an Enterprise Subscription.
-
-"Telemetry" means anonymous data about Your use of the Software, such as
-feature usage, performance metrics, and error reports, that is transmitted
-to Licensor.
+"Subscription" means a Pro Subscription, Enterprise Subscription, or Managed
+Services Subscription.
 
 "Third-Party Software" means software components included with or used by the
 Software that are provided under separate license terms.

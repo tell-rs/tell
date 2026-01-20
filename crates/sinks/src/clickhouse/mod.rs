@@ -1,7 +1,7 @@
-//! ClickHouse Sink - Full CDP Analytics Database
+//! ClickHouse Sink - Full Analytics Database
 //!
 //! High-performance sink for inserting events and logs into ClickHouse.
-//! Implements the full CDP v1.1 schema with 7 tables and smart event routing.
+//! Implements the full Tell v1.1 schema with 7 tables and smart event routing.
 //!
 //! # Features
 //!
@@ -25,7 +25,14 @@
 //! | context_v1 | CONTEXT device/location |
 //! | logs_v1 | Log entries |
 //! | snapshots_v1 | Connector snapshots |
+//!
+//! # Implementations
+//!
+//! Two implementations are available:
+//! - **Row-based** (`ClickHouseSink`): Uses clickhouse crate with row structs
+//! - **Arrow-based** (`arrow::ArrowClickHouseSink`): HTTP Arrow format for better performance
 
+pub mod arrow;
 mod config;
 mod error;
 mod helpers;
@@ -45,6 +52,9 @@ pub use tables::{
     ContextRow, EventRow, LogRow, SnapshotRow, UserDeviceRow, UserRow, UserTraitRow,
 };
 
+// Arrow-based sink (recommended for high throughput)
+pub use arrow::ArrowClickHouseSink;
+
 // Re-export for crate-internal testing
 #[cfg(test)]
 pub(crate) use sink::TableBatches;
@@ -55,3 +65,7 @@ pub use helpers::{extract_source_ip, generate_user_id_from_email, normalize_loca
 #[cfg(test)]
 #[path = "clickhouse_test.rs"]
 mod clickhouse_test;
+
+#[cfg(test)]
+#[path = "helpers_test.rs"]
+mod helpers_test;

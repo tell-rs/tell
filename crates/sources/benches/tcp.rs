@@ -2,7 +2,7 @@
 //!
 //! Benchmarks for the hot path in TCP source processing.
 //!
-//! Run with: `cargo bench -p cdp-sources --bench tcp`
+//! Run with: `cargo bench -p tell-sources --bench tcp`
 //!
 //! # Terminology
 //!
@@ -24,7 +24,7 @@
 //!
 //! # Test Scenarios
 //!
-//! Uses payload sizes based on `cdp_bench` scenarios:
+//! Uses payload sizes based on `tell_bench` scenarios:
 //! - Small: ~1KB payload (realtime_small: 10 events × 100 bytes)
 //! - Medium: ~20KB payload (typical: 100 events × 200 bytes)
 //! - Large: ~100KB payload (high_volume: 500 events × 200 bytes)
@@ -33,11 +33,11 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 
 use bytes::{Buf, BytesMut};
-use cdp_auth::ApiKeyStore;
-use cdp_client::BatchBuilder;
-use cdp_bench::{BenchScenario, SCENARIOS};
-use cdp_protocol::{FlatBatch, SchemaType};
-use cdp_sources::tcp::{bytes_to_ip, ip_to_bytes};
+use tell_auth::ApiKeyStore;
+use tell_client::BatchBuilder;
+use tell_bench::{BenchScenario, SCENARIOS};
+use tell_protocol::{FlatBatch, SchemaType};
+use tell_sources::tcp::{bytes_to_ip, ip_to_bytes};
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 
 /// Test API key (hex: 0102030405060708090a0b0c0d0e0f10)

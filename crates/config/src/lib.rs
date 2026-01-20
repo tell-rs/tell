@@ -1,4 +1,4 @@
-//! CDP Collector Configuration
+//! Tell Configuration
 //!
 //! TOML-based configuration loading with sensible defaults.
 //! Minimal config should just work - only specify what you need to change.
@@ -8,7 +8,7 @@
 //! Use the `FromStr` trait to parse configuration:
 //!
 //! ```
-//! use cdp_config::Config;
+//! use tell_config::Config;
 //! use std::str::FromStr;
 //!
 //! let config = Config::from_str("[sinks.stdout]\ntype = \"stdout\"").unwrap();
@@ -30,6 +30,8 @@
 //!
 //! See `configs/example.toml` for all available options.
 
+mod api;
+mod auth;
 mod connectors;
 mod error;
 mod global;
@@ -45,6 +47,8 @@ use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
+pub use api::ApiConfig;
+pub use auth::{AuthConfig, LocalAuthConfig, WorkOsConfig};
 pub use connectors::{ConnectorsConfig, RawConnectorConfig};
 pub use error::{ConfigError, Result};
 pub use global::GlobalConfig;
@@ -55,9 +59,10 @@ pub use transformers::{
     is_known_transformer_type, TransformerInstanceConfig, KNOWN_TRANSFORMER_TYPES,
 };
 pub use sinks::{
-    ClickHouseSinkConfig, DiskBinarySinkConfig, DiskPlaintextSinkConfig, NullSinkConfig,
-    ParquetSinkConfig, SinkConfig, SinkMetricsConfig, SinksConfig, ForwarderSinkConfig,
-    StdoutSinkConfig,
+    ArrowIpcSinkConfig, ClickHouseNativeSinkConfig, ClickHouseSinkConfig, Compression,
+    DiskBinarySinkConfig, DiskPlaintextSinkConfig, ForwarderSinkConfig, NullSinkConfig,
+    ParquetCompression, ParquetDataFormat, ParquetSinkConfig, RotationInterval, SinkConfig,
+    SinkMetricsConfig, SinksConfig, StdoutSinkConfig,
 };
 pub use sources::{
     SourcesConfig, SyslogTcpSourceConfig, SyslogUdpSourceConfig, TcpDebugSourceConfig,
@@ -80,6 +85,12 @@ pub struct Config {
 
     /// Metrics reporting configuration
     pub metrics: MetricsConfig,
+
+    /// Authentication configuration
+    pub auth: AuthConfig,
+
+    /// API client configuration (for CLI commands)
+    pub api: ApiConfig,
 
     /// Data sources (TCP, Syslog, etc.)
     pub sources: SourcesConfig,

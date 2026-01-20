@@ -1,0 +1,38 @@
+[package]
+name = "tell-query"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Query execution layer for Tell - supports ClickHouse and local Arrow IPC"
+
+[dependencies]
+# Async
+tokio = { workspace = true }
+async-trait = "0.1"
+
+# Polars for Arrow IPC queries
+polars = { version = "0.46", features = ["sql", "ipc", "lazy", "parquet"] }
+
+# ClickHouse client (HTTP interface)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# File discovery
+glob = "0.3"
+
+# Error handling
+thiserror = { workspace = true }
+
+# Utilities
+chrono = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+arrow = { workspace = true }

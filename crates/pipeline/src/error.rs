@@ -4,7 +4,7 @@
 
 use thiserror::Error;
 
-use cdp_routing::SinkId;
+use tell_routing::SinkId;
 
 /// Pipeline errors
 #[derive(Debug, Error)]

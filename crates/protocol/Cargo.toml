@@ -1,6 +1,6 @@
 [package]
-name = "cdp-protocol"
-description = "Zero-copy protocol types for CDP Collector"
+name = "tell-protocol"
+description = "Zero-copy protocol types for Tell"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,6 @@ license.workspace = true
 
 [dependencies]
 bytes = { workspace = true }
-flatbuffers = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

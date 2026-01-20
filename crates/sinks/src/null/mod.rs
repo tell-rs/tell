@@ -26,8 +26,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
-use cdp_protocol::Batch;
+use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use tell_protocol::Batch;
 use tokio::sync::mpsc;
 
 /// Configuration for null sink

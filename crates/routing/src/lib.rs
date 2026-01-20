@@ -1,4 +1,4 @@
-//! CDP Collector - Routing
+//! Tell - Routing
 //!
 //! Pre-compiled routing tables for O(1) source→sinks lookup.
 //! Zero-copy design: all allocations happen at compile time, not per-batch.
@@ -19,8 +19,8 @@
 //! # Example
 //!
 //! ```
-//! use cdp_routing::{RoutingTable, SinkId};
-//! use cdp_protocol::SourceId;
+//! use tell_routing::{RoutingTable, SinkId};
+//! use tell_protocol::SourceId;
 //!
 //! // At startup: compile routing table from config
 //! let mut table = RoutingTable::new();
@@ -44,4 +44,4 @@ pub use sink_id::SinkId;
 pub use table::{RoutingTable, RoutingTableBuilder};
 
 // Re-export SourceId for convenience
-pub use cdp_protocol::SourceId;
+pub use tell_protocol::SourceId;

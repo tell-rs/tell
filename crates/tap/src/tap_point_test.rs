@@ -1,7 +1,7 @@
 //! Tests for TapPoint
 
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 
 /// Helper to create a test batch
 fn make_batch(workspace_id: u32, source_id: &str, batch_type: BatchType) -> Arc<Batch> {

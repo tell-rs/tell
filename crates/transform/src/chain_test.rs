@@ -3,7 +3,8 @@
 use super::*;
 use crate::noop::NoopTransformer;
 use crate::TransformError;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
+use tokio_util::sync::CancellationToken;
 
 fn create_test_batch() -> Batch {
     let source_id = SourceId::new("test");
@@ -212,4 +213,256 @@ async fn test_chain_error_stops_execution() {
 
     assert!(result.is_err());
     assert!(!second_called.load(Ordering::SeqCst), "Second transformer should not be called after error");
+}
+
+#[test]
+fn test_chain_close_empty() {
+    let chain = Chain::empty();
+    let result = chain.close();
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_chain_close_with_noop() {
+    let chain = Chain::new(vec![Box::new(NoopTransformer)]);
+    let result = chain.close();
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_chain_close_calls_all_transformers() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    let close_count = Arc::new(AtomicUsize::new(0));
+
+    struct CountingTransformer {
+        close_count: Arc<AtomicUsize>,
+        name: &'static str,
+    }
+
+    impl Transformer for CountingTransformer {
+        fn transform<'a>(
+            &'a self,
+            batch: Batch,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
+        > {
+            Box::pin(async move { Ok(batch) })
+        }
+
+        fn name(&self) -> &'static str {
+            self.name
+        }
+
+        fn close(&self) -> TransformResult<()> {
+            self.close_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    let chain = Chain::new(vec![
+        Box::new(CountingTransformer {
+            close_count: Arc::clone(&close_count),
+            name: "first",
+        }),
+        Box::new(CountingTransformer {
+            close_count: Arc::clone(&close_count),
+            name: "second",
+        }),
+        Box::new(CountingTransformer {
+            close_count: Arc::clone(&close_count),
+            name: "third",
+        }),
+    ]);
+
+    let result = chain.close();
+    assert!(result.is_ok());
+    assert_eq!(close_count.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn test_chain_close_continues_after_error() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    let close_count = Arc::new(AtomicUsize::new(0));
+
+    struct FailingCloseTransformer;
+
+    impl Transformer for FailingCloseTransformer {
+        fn transform<'a>(
+            &'a self,
+            batch: Batch,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
+        > {
+            Box::pin(async move { Ok(batch) })
+        }
+
+        fn name(&self) -> &'static str {
+            "failing_close"
+        }
+
+        fn close(&self) -> TransformResult<()> {
+            Err(TransformError::failed("intentional close failure"))
+        }
+    }
+
+    struct CountingTransformer {
+        close_count: Arc<AtomicUsize>,
+    }
+
+    impl Transformer for CountingTransformer {
+        fn transform<'a>(
+            &'a self,
+            batch: Batch,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
+        > {
+            Box::pin(async move { Ok(batch) })
+        }
+
+        fn name(&self) -> &'static str {
+            "counting"
+        }
+
+        fn close(&self) -> TransformResult<()> {
+            self.close_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    let chain = Chain::new(vec![
+        Box::new(CountingTransformer {
+            close_count: Arc::clone(&close_count),
+        }),
+        Box::new(FailingCloseTransformer),
+        Box::new(CountingTransformer {
+            close_count: Arc::clone(&close_count),
+        }),
+    ]);
+
+    let result = chain.close();
+
+    // Should return error from failing transformer
+    assert!(result.is_err());
+
+    // But all transformers should have been closed
+    assert_eq!(close_count.load(Ordering::SeqCst), 2, "All non-failing transformers should be closed");
+}
+
+#[tokio::test]
+async fn test_transform_with_cancel_not_cancelled() {
+    let chain = Chain::new(vec![Box::new(NoopTransformer)]);
+    let cancel = CancellationToken::new();
+
+    let batch = create_test_batch();
+    let result = chain.transform_with_cancel(batch, Some(&cancel)).await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_transform_with_cancel_already_cancelled() {
+    let chain = Chain::new(vec![Box::new(NoopTransformer)]);
+    let cancel = CancellationToken::new();
+    cancel.cancel(); // Cancel before transform
+
+    let batch = create_test_batch();
+    let result = chain.transform_with_cancel(batch, Some(&cancel)).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), TransformError::Cancelled));
+}
+
+#[tokio::test]
+async fn test_transform_with_cancel_stops_between_transformers() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    let transform_count = Arc::new(AtomicUsize::new(0));
+
+    struct CountingTransformer {
+        count: Arc<AtomicUsize>,
+        cancel_after: usize,
+        cancel_token: CancellationToken,
+    }
+
+    impl Transformer for CountingTransformer {
+        fn transform<'a>(
+            &'a self,
+            batch: Batch,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
+        > {
+            let current = self.count.fetch_add(1, Ordering::SeqCst);
+            if current >= self.cancel_after {
+                self.cancel_token.cancel();
+            }
+            Box::pin(async move { Ok(batch) })
+        }
+
+        fn name(&self) -> &'static str {
+            "counting"
+        }
+    }
+
+    let cancel = CancellationToken::new();
+
+    let chain = Chain::new(vec![
+        Box::new(CountingTransformer {
+            count: Arc::clone(&transform_count),
+            cancel_after: 0, // Cancel after first transform
+            cancel_token: cancel.clone(),
+        }) as Box<dyn Transformer>,
+        Box::new(CountingTransformer {
+            count: Arc::clone(&transform_count),
+            cancel_after: 999, // Never cancel
+            cancel_token: cancel.clone(),
+        }),
+        Box::new(CountingTransformer {
+            count: Arc::clone(&transform_count),
+            cancel_after: 999,
+            cancel_token: cancel.clone(),
+        }),
+    ]);
+
+    let batch = create_test_batch();
+    let result = chain.transform_with_cancel(batch, Some(&cancel)).await;
+
+    // Should be cancelled
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), TransformError::Cancelled));
+
+    // Only first transformer should have run
+    assert_eq!(transform_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn test_transform_with_cancel_none_is_same_as_transform() {
+    let chain = Chain::new(vec![Box::new(NoopTransformer)]);
+
+    let batch1 = create_test_batch();
+    let batch2 = create_test_batch();
+
+    let result1 = chain.transform(batch1).await;
+    let result2 = chain.transform_with_cancel(batch2, None).await;
+
+    assert!(result1.is_ok());
+    assert!(result2.is_ok());
+}
+
+#[tokio::test]
+async fn test_transform_empty_chain_ignores_cancel() {
+    let chain = Chain::empty();
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+
+    let batch = create_test_batch();
+    // Empty chain returns immediately without checking cancel
+    let result = chain.transform_with_cancel(batch, Some(&cancel)).await;
+
+    // Empty chain ignores cancel since it does nothing
+    assert!(result.is_ok());
 }

@@ -1,0 +1,52 @@
+[package]
+name = "tell-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "HTTP API for Tell analytics queries"
+
+[dependencies]
+# Internal
+tell-analytics = { workspace = true }
+tell-auth = { workspace = true }
+tell-query = { workspace = true }
+tell-control = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+futures-util = "0.3"
+
+# Web framework
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_urlencoded = "0.7"
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Rate limiting
+governor = "0.8"
+nonzero_ext = "0.3"
+
+# Random
+rand = "0.9"
+
+# Date/time
+chrono = { workspace = true }
+
+# JWT
+jsonwebtoken = "9"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+tower = { workspace = true, features = ["util"] }
+serde_json = { workspace = true }

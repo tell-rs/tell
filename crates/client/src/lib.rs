@@ -1,6 +1,6 @@
-//! CDP Client Library
+//! Tell Client Library
 //!
-//! This crate provides builders for constructing CDP FlatBuffer messages.
+//! This crate provides builders for constructing Tell FlatBuffer messages.
 //! It is primarily used for:
 //!
 //! - **Testing**: Creating valid batches for pipeline benchmarks and integration tests
@@ -11,7 +11,7 @@
 //! The library is organized into domain-specific modules:
 //!
 //! - [`batch`] - Outer FlatBuffer wrapper (Batch)
-//! - [`event`] - CDP analytics events (Track, Identify, Group, etc.)
+//! - [`event`] - Analytics events (Track, Identify, Group, etc.)
 //! - [`log`] - Structured log entries (RFC 5424 levels)
 //!
 //! # Quick Start
@@ -19,8 +19,8 @@
 //! ## Building Events
 //!
 //! ```
-//! use cdp_client::{BatchBuilder, SchemaType};
-//! use cdp_client::event::{EventBuilder, EventDataBuilder, EventType};
+//! use tell_client::{BatchBuilder, SchemaType};
+//! use tell_client::event::{EventBuilder, EventDataBuilder, EventType};
 //!
 //! // Build an event
 //! let event = EventBuilder::new()
@@ -48,8 +48,8 @@
 //! ## Building Logs
 //!
 //! ```
-//! use cdp_client::{BatchBuilder, SchemaType};
-//! use cdp_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
+//! use tell_client::{BatchBuilder, SchemaType};
+//! use tell_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
 //!
 //! // Build a log entry
 //! let log = LogEntryBuilder::new()
@@ -95,4 +95,4 @@ pub use batch::{BatchBuilder, BuiltBatch};
 pub use error::{BuilderError, Result};
 
 // Re-export protocol types
-pub use cdp_protocol::SchemaType;
+pub use tell_protocol::SchemaType;

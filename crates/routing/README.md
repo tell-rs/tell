@@ -1,4 +1,4 @@
-# cdp-routing
+# tell-routing
 
 Zero-copy routing table for O(1) source→sinks lookup.
 
@@ -180,7 +180,7 @@ cache_size = 100000
 ### API Usage
 
 ```rust
-use cdp_routing::{RoutingTable, RoutingTableBuilder, SinkId, SourceId};
+use tell_routing::{RoutingTable, RoutingTableBuilder, SinkId, SourceId};
 
 // Build table at startup
 let mut builder = RoutingTableBuilder::new();
@@ -204,5 +204,5 @@ let sinks: &[SinkId] = table.route(&SourceId::new("tcp_main"));
 ## Tests
 
 ```bash
-cargo test -p cdp-routing
+cargo test -p tell-routing
 ```

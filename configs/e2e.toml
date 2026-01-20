@@ -1,0 +1,138 @@
+# Tell - E2E Test
+# All sources and sinks enabled for end-to-end testing.
+# Use with: tell --config configs/e2e.toml
+#
+# Test with:
+#   tell test                           # Send test events/logs to TCP
+#   tell test --events 5 --logs 5       # More messages
+#   echo "<134>test message" | nc localhost 50514  # Syslog TCP
+#   echo "<134>test message" | nc -u localhost 50515  # Syslog UDP
+#   tell tail                           # Watch live data
+#
+# HTTP endpoints (JSON):
+#   curl -X POST http://localhost:8080/v1/events -H "X-API-Key: 000102030405060708090a0b0c0d0e0f" -d '{"type":"track","event":"test","device_id":"550e8400-e29b-41d4-a716-446655440000","timestamp":1700000000000}'
+#   curl -X POST http://localhost:8080/v1/logs -H "X-API-Key: 000102030405060708090a0b0c0d0e0f" -d '{"level":"info","message":"test log","timestamp":1700000000000}'
+#
+# HTTP endpoint (binary FlatBuffer - high performance):
+#   POST /v1/ingest with Content-Type: application/x-flatbuffers
+#
+# Benchmarks:
+#   tell-bench tcp load -c 5 --events 10000000
+#   tell-bench http-json load -c 5 --events 1000000
+#   tell-bench http-fbs load -c 5 --events 10000000
+
+[global]
+batch_size = 500
+queue_size = 10000
+api_keys_file = "configs/apikeys.conf"
+
+[log]
+level = "info"
+
+[metrics]
+enabled = true
+interval = "1h"
+
+# =============================================================================
+# Sources - All enabled
+# =============================================================================
+
+# TCP FlatBuffer source (for tell test, tell-bench, SDK clients)
+[[sources.tcp]]
+port = 50000
+enabled = true
+queue_size = 10000
+batch_size = 500
+
+# Syslog TCP (reliable delivery)
+[sources.syslog_tcp]
+enabled = true
+port = 50514
+workspace_id = "1"
+max_message_size = 8192
+
+# Syslog UDP (high throughput, best-effort)
+[sources.syslog_udp]
+enabled = true
+port = 50515                           # Different port to avoid conflict with TCP
+workspace_id = "1"
+num_workers = 2
+max_message_size = 8192
+
+# HTTP REST API (JSONL events and logs)
+[sources.http]
+enabled = true
+port = 8080
+max_payload_size = 10485760            # 10 MB
+batch_size = 500
+cors_enabled = false
+
+# =============================================================================
+# Sinks - Local (no external services needed)
+# =============================================================================
+
+# Stdout - Visual inspection
+[sinks.stdout]
+type = "stdout"
+
+# Null - Discard (useful for baseline performance)
+[sinks.null]
+type = "null"
+
+# Disk Plaintext - Human-readable logs
+[sinks.disk_plaintext]
+type = "disk_plaintext"
+path = "data/plaintext/"
+rotation = "hourly"
+
+# Disk Binary - High-performance binary storage
+[sinks.disk_binary]
+type = "disk_binary"
+path = "data/binary/"
+rotation = "hourly"
+compression = "lz4"
+
+# Parquet - Columnar analytics format
+[sinks.parquet]
+type = "parquet"
+path = "data/parquet/"
+rotation = "hourly"
+data_format = "json"
+compression = "snappy"
+
+# Arrow IPC - Fast columnar format
+[sinks.arrow_ipc]
+type = "arrow_ipc"
+path = "data/arrow/"
+rotation = "hourly"
+flush_interval = "5s"
+
+# =============================================================================
+# Sinks - External Services (uncomment when available)
+# =============================================================================
+
+# ClickHouse - Real-time analytics
+[sinks.clickhouse]
+type = "clickhouse"
+host = "localhost:8123"
+database = "testdev"
+username = "testdev_collector"
+password = "collector_password_here"
+batch_size = 1000
+flush_interval = "2s"
+
+# Forwarder - Send to another Tell instance
+# [sinks.forwarder]
+# type = "forwarder"
+# target = "upstream-tell.example.com:8081"
+# api_key = "000102030405060708090a0b0c0d0e0f"
+
+# =============================================================================
+# Routing - All sources to all sinks
+# =============================================================================
+
+[routing]
+# All traffic goes to all enabled sinks
+default = ["stdout", "disk_plaintext", "disk_binary", "parquet", "arrow_ipc", "clickhouse"]
+# Add "null" to the list if you want to include it
+# Add "clickhouse" when enabled above

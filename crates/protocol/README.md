@@ -1,6 +1,6 @@
-# cdp-protocol
+# tell-protocol
 
-Zero-copy FlatBuffer parsing for CDP Collector.
+Zero-copy FlatBuffer parsing for Tell.
 
 ## What it does
 
@@ -11,7 +11,7 @@ Zero-copy FlatBuffer parsing for CDP Collector.
 ## Key Types
 
 ```rust
-use cdp_protocol::{FlatBatch, Batch, SchemaType, SourceId};
+use tell_protocol::{FlatBatch, Batch, SchemaType, SourceId};
 
 // Parse incoming FlatBuffer
 let flat = FlatBatch::parse(&wire_bytes)?;
@@ -33,7 +33,7 @@ let msg = batch.get_message(0);  // Zero-copy slice
 ## Tests
 
 ```bash
-cargo test -p cdp-protocol
+cargo test -p tell-protocol
 ```
 
 143 tests covering batch, schema, source, flatbuf, and error handling.

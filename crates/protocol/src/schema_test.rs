@@ -32,13 +32,8 @@ fn test_schema_type_from_u8_trace() {
 }
 
 #[test]
-fn test_schema_type_from_u8_inventory() {
-    assert_eq!(SchemaType::from_u8(5), SchemaType::Inventory);
-}
-
-#[test]
 fn test_schema_type_from_u8_snapshot() {
-    assert_eq!(SchemaType::from_u8(6), SchemaType::Snapshot);
+    assert_eq!(SchemaType::from_u8(5), SchemaType::Snapshot);
 }
 
 #[test]
@@ -54,7 +49,7 @@ fn test_schema_type_from_u8_invalid_returns_unknown() {
 
 #[test]
 fn test_schema_type_roundtrip_valid_values() {
-    for value in 0..=6u8 {
+    for value in 0..=5u8 {
         let schema_type = SchemaType::from_u8(value);
         assert_eq!(schema_type.as_u8(), value);
     }
@@ -92,11 +87,6 @@ fn test_schema_type_is_supported_trace_false() {
 }
 
 #[test]
-fn test_schema_type_is_supported_inventory_false() {
-    assert!(!SchemaType::Inventory.is_supported());
-}
-
-#[test]
 fn test_schema_type_is_supported_snapshot() {
     assert!(SchemaType::Snapshot.is_supported());
 }
@@ -117,7 +107,6 @@ fn test_schema_type_as_str() {
     assert_eq!(SchemaType::Log.as_str(), "log");
     assert_eq!(SchemaType::Metric.as_str(), "metric");
     assert_eq!(SchemaType::Trace.as_str(), "trace");
-    assert_eq!(SchemaType::Inventory.as_str(), "inventory");
     assert_eq!(SchemaType::Snapshot.as_str(), "snapshot");
 }
 
@@ -132,7 +121,6 @@ fn test_schema_type_display() {
     assert_eq!(format!("{}", SchemaType::Log), "log");
     assert_eq!(format!("{}", SchemaType::Metric), "metric");
     assert_eq!(format!("{}", SchemaType::Trace), "trace");
-    assert_eq!(format!("{}", SchemaType::Inventory), "inventory");
     assert_eq!(format!("{}", SchemaType::Snapshot), "snapshot");
 }
 
@@ -183,11 +171,6 @@ fn test_batch_type_from_schema_type_snapshot() {
 #[test]
 fn test_batch_type_from_schema_type_unknown() {
     assert_eq!(BatchType::from_schema_type(SchemaType::Unknown), None);
-}
-
-#[test]
-fn test_batch_type_from_schema_type_inventory() {
-    assert_eq!(BatchType::from_schema_type(SchemaType::Inventory), None);
 }
 
 // =============================================================================

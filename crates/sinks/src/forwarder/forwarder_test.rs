@@ -1,6 +1,6 @@
 use super::*;
-use cdp_client::BatchBuilder as FlatBufferBuilder;
-use cdp_protocol::{BatchBuilder, BatchType, SchemaType, SourceId};
+use tell_client::BatchBuilder as FlatBufferBuilder;
+use tell_protocol::{BatchBuilder, BatchType, SchemaType, SourceId};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
@@ -604,7 +604,7 @@ fn test_error_display() {
 // Helper functions
 // =============================================================================
 
-/// Create a valid FlatBuffer message using cdp-client::BatchBuilder
+/// Create a valid FlatBuffer message using tell-client::BatchBuilder
 fn create_test_flatbuffer_message() -> Vec<u8> {
     FlatBufferBuilder::new()
         .api_key([0x01; 16])

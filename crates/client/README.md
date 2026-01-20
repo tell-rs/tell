@@ -1,13 +1,13 @@
-# cdp-client
+# tell-client
 
-FlatBuffer builders for CDP events and logs. Used for testing and SDK development.
+FlatBuffer builders for analytics events and logs. Used for testing and SDK development.
 
 ## Modules
 
 | Module | Purpose |
 |--------|---------|
 | `batch` | Outer Batch wrapper (common.fbs) |
-| `event` | CDP analytics events - Track, Identify, Group, etc. (event.fbs) |
+| `event` | Analytics events - Track, Identify, Group, etc. (event.fbs) |
 | `log` | Structured log entries - RFC 5424 levels (log.fbs) |
 
 ## Quick Start
@@ -15,8 +15,8 @@ FlatBuffer builders for CDP events and logs. Used for testing and SDK developmen
 ### Events
 
 ```rust
-use cdp_client::{BatchBuilder, SchemaType};
-use cdp_client::event::{EventBuilder, EventDataBuilder, EventType};
+use tell_client::{BatchBuilder, SchemaType};
+use tell_client::event::{EventBuilder, EventDataBuilder, EventType};
 
 // Build events
 let event = EventBuilder::new()
@@ -38,14 +38,14 @@ let batch = BatchBuilder::new()
     .event_data(event_data)  // Sets schema_type automatically
     .build()?;
 
-// Send batch.as_bytes() to collector
+// Send batch.as_bytes() to tell server
 ```
 
 ### Logs
 
 ```rust
-use cdp_client::{BatchBuilder, SchemaType};
-use cdp_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
+use tell_client::{BatchBuilder, SchemaType};
+use tell_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
 
 // Build log entries
 let log = LogEntryBuilder::new()
@@ -71,7 +71,7 @@ let batch = BatchBuilder::new()
 ### Raw Batch (low-level)
 
 ```rust
-use cdp_client::{BatchBuilder, SchemaType};
+use tell_client::{BatchBuilder, SchemaType};
 
 let batch = BatchBuilder::new()
     .api_key([0x01; 16])
@@ -113,7 +113,7 @@ let batch = BatchBuilder::new()
 Simple async clients for testing and benchmarking:
 
 ```rust
-use cdp_client::test::{TcpTestClient, SyslogTcpTestClient, SyslogUdpTestClient};
+use tell_client::test::{TcpTestClient, SyslogTcpTestClient, SyslogUdpTestClient};
 
 // FlatBuffer over TCP
 let mut tcp = TcpTestClient::connect("127.0.0.1:50000").await?;
@@ -143,7 +143,7 @@ let msg = SyslogTcpTestClient::rfc5424(165, "hostname", "app", "1234", "ID47", "
 ## Tests
 
 ```bash
-cargo test -p cdp-client
+cargo test -p tell-client
 ```
 
 172 tests including roundtrip validation (build -> parse -> verify).

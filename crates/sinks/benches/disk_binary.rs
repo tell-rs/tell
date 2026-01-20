@@ -2,7 +2,7 @@
 //!
 //! Benchmarks for disk binary sink write throughput.
 //!
-//! Run with: `cargo bench -p cdp-sinks --bench disk_binary`
+//! Run with: `cargo bench -p tell-sinks --bench disk_binary`
 //!
 //! # Terminology
 //!
@@ -28,10 +28,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::BytesMut;
-use cdp_bench::{BenchScenario, SCENARIOS};
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
-use sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink, METADATA_SIZE};
-use sinks::util::{AtomicRotationSink, BinaryWriter, BufferPool, RotationConfig};
+use tell_bench::{BenchScenario, SCENARIOS};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink, METADATA_SIZE};
+use tell_sinks::util::{AtomicRotationSink, BinaryWriter, BufferPool, RotationConfig};
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
 };

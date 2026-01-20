@@ -1,13 +1,13 @@
 [package]
-name = "cdp-bench"
-version = "0.1.0"
+name = "tell-bench"
+version = "2.0.0"
 edition = "2024"
-description = "Shared benchmark configuration and load testing for CDP Collector"
+description = "Shared benchmark configuration and load testing for Tell"
 publish = false
 
 [dependencies]
 # For loadtest binary
-cdp-client = { workspace = true }
+tell-client = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "net", "io-util", "time", "sync"] }
 clap = { version = "4", features = ["derive"] }
 hex = "0.4"
@@ -15,21 +15,17 @@ sysinfo = "0.32"
 chrono = "0.4"
 
 [dev-dependencies]
-cdp-protocol = { workspace = true }
-cdp-sources = { workspace = true }
-sinks = { workspace = true }
-pipeline = { workspace = true }
-cdp-auth = { workspace = true }
+tell-protocol = { workspace = true }
+tell-sources = { workspace = true }
+tell-sinks = { workspace = true }
+tell-pipeline = { workspace = true }
+tell-auth = { workspace = true }
 criterion = { workspace = true, features = ["async_tokio"] }
 tempfile = { workspace = true }
 
 [[bin]]
-name = "loadtest"
-path = "src/bin/loadtest.rs"
-
-[[bin]]
-name = "send_test"
-path = "src/bin/send_test.rs"
+name = "tell-bench"
+path = "src/bin/tell_bench/main.rs"
 
 [[bench]]
 name = "e2e"

@@ -1,5 +1,8 @@
-# Collector - Minimal Config
+# Tell - Minimal Config
 # See configs/example.toml for all options
+
+[metrics]
+interval = "1h"
 
 [[sources.tcp]]
 port = 50000

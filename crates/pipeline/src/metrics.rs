@@ -299,9 +299,183 @@ impl MetricsSnapshot {
     }
 }
 
+// ============================================================================
+// Backpressure Tracker - Rate-limited logging for production visibility
+// ============================================================================
+
+/// Rate-limited backpressure logging for production visibility
+///
+/// Aggregates drop events and logs a summary every second instead of
+/// per-event logging. This prevents log spam while ensuring operators
+/// see backpressure issues.
+///
+/// # Thresholds
+///
+/// - >0 drops/sec: WARN level
+/// - >100 drops/sec: ERROR level (critical - sink can't keep up)
+///
+/// # Thread Safety
+///
+/// All operations use atomics and are safe for concurrent access.
+pub struct BackpressureTracker {
+    /// Drops in current interval
+    interval_drops: AtomicU64,
+    /// Messages dropped in current interval
+    interval_messages: AtomicU64,
+    /// Last log time (epoch milliseconds)
+    last_log_ms: AtomicU64,
+}
+
+/// Log interval in milliseconds
+const LOG_INTERVAL_MS: u64 = 1000;
+/// Critical threshold - drops/sec that triggers ERROR level
+const CRITICAL_DROP_THRESHOLD: u64 = 100;
+
+impl BackpressureTracker {
+    /// Create a new tracker
+    pub fn new() -> Self {
+        Self {
+            interval_drops: AtomicU64::new(0),
+            interval_messages: AtomicU64::new(0),
+            last_log_ms: AtomicU64::new(Self::now_ms()),
+        }
+    }
+
+    /// Record a drop event and check if we should log
+    ///
+    /// Call this when a batch is dropped due to backpressure.
+    /// Returns true if a log was emitted.
+    pub fn record_drop(&self, message_count: u64) -> bool {
+        self.interval_drops.fetch_add(1, Ordering::Relaxed);
+        self.interval_messages
+            .fetch_add(message_count, Ordering::Relaxed);
+
+        self.maybe_log()
+    }
+
+    /// Check if we should log and emit if so
+    ///
+    /// Returns true if a log was emitted.
+    fn maybe_log(&self) -> bool {
+        let now = Self::now_ms();
+        let last = self.last_log_ms.load(Ordering::Relaxed);
+
+        if now.saturating_sub(last) < LOG_INTERVAL_MS {
+            return false;
+        }
+
+        // Try to claim the log slot (avoid duplicate logs from concurrent calls)
+        if self
+            .last_log_ms
+            .compare_exchange(last, now, Ordering::SeqCst, Ordering::Relaxed)
+            .is_err()
+        {
+            return false;
+        }
+
+        // Swap out the counters
+        let drops = self.interval_drops.swap(0, Ordering::Relaxed);
+        let messages = self.interval_messages.swap(0, Ordering::Relaxed);
+
+        if drops == 0 {
+            return false;
+        }
+
+        // Log at appropriate level
+        if drops > CRITICAL_DROP_THRESHOLD {
+            tracing::error!(
+                dropped_batches = drops,
+                dropped_messages = messages,
+                threshold = CRITICAL_DROP_THRESHOLD,
+                "CRITICAL: high backpressure - sinks cannot keep up"
+            );
+        } else {
+            tracing::warn!(
+                dropped_batches = drops,
+                dropped_messages = messages,
+                "backpressure: batches dropped in last second"
+            );
+        }
+
+        true
+    }
+
+    /// Get current epoch milliseconds
+    #[inline]
+    fn now_ms() -> u64 {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    /// Get the current drop count (for testing)
+    #[cfg(test)]
+    pub fn current_drops(&self) -> u64 {
+        self.interval_drops.load(Ordering::Relaxed)
+    }
+}
+
+impl Default for BackpressureTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Debug for BackpressureTracker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BackpressureTracker")
+            .field("interval_drops", &self.interval_drops.load(Ordering::Relaxed))
+            .field("interval_messages", &self.interval_messages.load(Ordering::Relaxed))
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ========================================================================
+    // BackpressureTracker Tests
+    // ========================================================================
+
+    #[test]
+    fn test_backpressure_tracker_new() {
+        let tracker = BackpressureTracker::new();
+        assert_eq!(tracker.current_drops(), 0);
+    }
+
+    #[test]
+    fn test_backpressure_tracker_record_drop() {
+        let tracker = BackpressureTracker::new();
+
+        // Record drops (won't log yet - not enough time elapsed)
+        tracker.record_drop(10);
+        tracker.record_drop(20);
+
+        assert_eq!(tracker.current_drops(), 2);
+    }
+
+    #[test]
+    fn test_backpressure_tracker_default() {
+        let tracker = BackpressureTracker::default();
+        assert_eq!(tracker.current_drops(), 0);
+    }
+
+    #[test]
+    fn test_backpressure_tracker_debug() {
+        let tracker = BackpressureTracker::new();
+        tracker.record_drop(5);
+
+        let debug = format!("{:?}", tracker);
+        assert!(debug.contains("BackpressureTracker"));
+        assert!(debug.contains("interval_drops"));
+    }
+
+    // ========================================================================
+    // RouterMetrics Tests
+    // ========================================================================
 
     #[test]
     fn test_metrics_new() {

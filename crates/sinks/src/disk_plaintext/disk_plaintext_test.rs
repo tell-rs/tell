@@ -1,5 +1,5 @@
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tempfile::TempDir;
 
@@ -370,6 +370,7 @@ async fn test_sink_writes_readable_content() {
     let mut builder = BatchBuilder::new(BatchType::Event, source_id);
     builder.set_workspace_id(999);
     builder.set_source_ip(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)));
+    // Raw bytes that are not valid FlatBuffer - will be written as [RAW] to other.log
     builder.add(b"hello world", 1);
     let batch = Arc::new(builder.finish());
 
@@ -395,11 +396,8 @@ async fn test_sink_writes_readable_content() {
             .unwrap_or(false)
         {
             let content = std::fs::read_to_string(entry.path()).expect("failed to read log");
-            assert!(content.contains("[EVENT]"), "should contain batch type");
-            assert!(
-                content.contains("workspace=999"),
-                "should contain workspace"
-            );
+            // Raw bytes go to other.log with [RAW] tag (not valid FlatBuffer)
+            assert!(content.contains("[RAW]"), "should contain RAW tag for non-FlatBuffer data");
             assert!(
                 content.contains("source_ip=10.0.0.1"),
                 "should contain source IP"

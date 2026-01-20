@@ -78,8 +78,10 @@ impl SinksConfig {
 /// - `null` / `null_*` -> Null
 /// - `disk_plaintext` / `disk_plaintext_*` -> DiskPlaintext
 /// - `disk_binary` / `disk_binary_*` -> DiskBinary
-/// - `clickhouse` / `clickhouse_*` -> ClickHouse
-/// - `parquet` / `parquet_*` -> Parquet
+/// - `clickhouse` / `clickhouse_*` -> ClickHouse (Arrow HTTP)
+/// - `clickhouse_native` / `clickhouse_native_*` -> ClickHouse (Native protocol)
+/// - `parquet` / `parquet_*` -> Parquet (cold data, columnar, compressed)
+/// - `arrow_ipc` / `arrow_ipc_*` -> Arrow IPC (hot data, columnar, fast I/O)
 /// - `forwarder` / `forwarder_*` -> Forwarder
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -96,13 +98,21 @@ pub enum SinkConfig {
     /// Plaintext disk sink - human-readable logs
     DiskPlaintext(DiskPlaintextSinkConfig),
 
-    /// ClickHouse sink - real-time analytics database
+    /// ClickHouse sink - Arrow HTTP format (recommended, high throughput)
+    /// Uses HTTP port 8123
     Clickhouse(ClickHouseSinkConfig),
 
-    /// Parquet sink - columnar storage for data warehousing
+    /// ClickHouse sink - Native protocol via clickhouse crate
+    /// Uses native port 9000
+    ClickhouseNative(ClickHouseNativeSinkConfig),
+
+    /// Parquet sink - columnar storage for data warehousing (cold data)
     Parquet(ParquetSinkConfig),
 
-    /// Forwarder sink - collector-to-collector forwarding
+    /// Arrow IPC sink - fast columnar storage (hot data)
+    ArrowIpc(ArrowIpcSinkConfig),
+
+    /// Forwarder sink - Tell-to-Tell forwarding
     Forwarder(ForwarderSinkConfig),
 }
 
@@ -124,7 +134,9 @@ impl SinkConfig {
             Self::DiskBinary(c) => c.enabled,
             Self::DiskPlaintext(c) => c.enabled,
             Self::Clickhouse(c) => c.enabled,
+            Self::ClickhouseNative(c) => c.enabled,
             Self::Parquet(c) => c.enabled,
+            Self::ArrowIpc(c) => c.enabled,
             Self::Forwarder(c) => c.enabled,
         }
     }
@@ -137,7 +149,9 @@ impl SinkConfig {
             Self::DiskBinary(_) => "disk_binary",
             Self::DiskPlaintext(_) => "disk_plaintext",
             Self::Clickhouse(_) => "clickhouse",
+            Self::ClickhouseNative(_) => "clickhouse_native",
             Self::Parquet(_) => "parquet",
+            Self::ArrowIpc(_) => "arrow_ipc",
             Self::Forwarder(_) => "forwarder",
         }
     }
@@ -165,7 +179,15 @@ impl SinkConfig {
                 enabled: c.metrics_enabled,
                 interval: c.metrics_interval,
             },
+            Self::ClickhouseNative(c) => SinkMetricsConfig {
+                enabled: c.metrics_enabled,
+                interval: c.metrics_interval,
+            },
             Self::Parquet(c) => SinkMetricsConfig {
+                enabled: c.metrics_enabled,
+                interval: c.metrics_interval,
+            },
+            Self::ArrowIpc(c) => SinkMetricsConfig {
                 enabled: c.metrics_enabled,
                 interval: c.metrics_interval,
             },
@@ -405,16 +427,18 @@ impl Default for DiskPlaintextSinkConfig {
     }
 }
 
-/// ClickHouse sink configuration
+/// ClickHouse sink configuration (Arrow HTTP format)
 ///
-/// Real-time analytics database sink.
+/// High-performance Arrow-based sink using HTTP protocol.
+/// Recommended for high throughput (65M+ events/sec).
 ///
 /// # Example
 ///
 /// ```toml
 /// [sinks.clickhouse]
-/// host = "localhost:9000"
-/// database = "cdp"
+/// type = "clickhouse"
+/// host = "localhost:8123"  # HTTP port
+/// database = "tell"
 /// username = "default"
 /// batch_size = 50000
 /// flush_interval = "5s"
@@ -426,7 +450,8 @@ pub struct ClickHouseSinkConfig {
     /// Default: true
     pub enabled: bool,
 
-    /// ClickHouse host (host:port)
+    /// ClickHouse HTTP host (host:port)
+    /// Default port is 8123 for HTTP
     /// Required when enabled
     pub host: String,
 
@@ -481,6 +506,85 @@ impl Default for ClickHouseSinkConfig {
     }
 }
 
+/// ClickHouse sink configuration (Native protocol)
+///
+/// Row-based sink using the native ClickHouse protocol via clickhouse crate.
+/// Use this if you need native protocol features or have existing port 9000 setup.
+///
+/// # Example
+///
+/// ```toml
+/// [sinks.clickhouse_native]
+/// type = "clickhouse_native"
+/// host = "localhost:9000"  # Native port
+/// database = "tell"
+/// username = "default"
+/// batch_size = 50000
+/// flush_interval = "5s"
+/// ```
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ClickHouseNativeSinkConfig {
+    /// Whether this sink is enabled
+    /// Default: true
+    pub enabled: bool,
+
+    /// ClickHouse native host (host:port)
+    /// Default port is 9000 for native protocol
+    /// Required when enabled
+    pub host: String,
+
+    /// Database name
+    /// Default: "default"
+    pub database: String,
+
+    /// Username for authentication
+    /// Default: "default"
+    pub username: String,
+
+    /// Password for authentication
+    /// Default: ""
+    pub password: String,
+
+    /// Table prefix for workspace tables
+    pub hostname_prefix: Option<String>,
+
+    /// Batch size (rows per insert)
+    /// Default: 50000
+    pub batch_size: usize,
+
+    /// Flush interval
+    /// Default: 5s
+    #[serde(with = "humantime_serde")]
+    pub flush_interval: Duration,
+
+    /// Enable per-sink metrics
+    /// Default: true
+    pub metrics_enabled: bool,
+
+    /// Metrics reporting interval
+    /// Default: 10s
+    #[serde(with = "humantime_serde")]
+    pub metrics_interval: Duration,
+}
+
+impl Default for ClickHouseNativeSinkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            host: String::new(),
+            database: "default".into(),
+            username: "default".into(),
+            password: String::new(),
+            hostname_prefix: None,
+            batch_size: 50000,
+            flush_interval: Duration::from_secs(5),
+            metrics_enabled: true,
+            metrics_interval: Duration::from_secs(10),
+        }
+    }
+}
+
 /// Parquet data format
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -496,12 +600,12 @@ pub enum ParquetDataFormat {
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ParquetCompression {
-    /// Snappy compression (default, good balance)
-    #[default]
+    /// Snappy compression (fast, moderate ratio - legacy default)
     Snappy,
-    /// Gzip compression (better ratio, slower)
-    Gzip,
-    /// LZ4 compression (faster, lower ratio)
+    /// Zstd compression (best balance of speed and ratio - recommended)
+    #[default]
+    Zstd,
+    /// LZ4 compression (fastest, lowest ratio)
     Lz4,
     /// No compression
     Uncompressed,
@@ -567,15 +671,77 @@ impl Default for ParquetSinkConfig {
     }
 }
 
+/// Arrow IPC sink configuration
+///
+/// Fast columnar storage for hot data. ~10x faster I/O than Parquet
+/// but no compression. Ideal for recent data that needs frequent access.
+///
+/// # Example
+///
+/// ```toml
+/// [sinks.arrow_ipc]
+/// path = "hot_data/"
+/// rotation = "hourly"
+/// buffer_size = 10000
+/// flush_interval = "30s"
+/// ```
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ArrowIpcSinkConfig {
+    /// Whether this sink is enabled
+    /// Default: true
+    pub enabled: bool,
+
+    /// Output directory path
+    /// Required when enabled
+    pub path: String,
+
+    /// File rotation interval
+    /// Default: hourly (hot data rotates more frequently)
+    pub rotation: RotationInterval,
+
+    /// Buffer size (rows to accumulate before writing)
+    /// Default: 10000
+    pub buffer_size: usize,
+
+    /// Flush interval
+    /// Default: 60s
+    #[serde(with = "humantime_serde")]
+    pub flush_interval: Duration,
+
+    /// Enable per-sink metrics
+    /// Default: true
+    pub metrics_enabled: bool,
+
+    /// Metrics reporting interval
+    /// Default: 10s
+    #[serde(with = "humantime_serde")]
+    pub metrics_interval: Duration,
+}
+
+impl Default for ArrowIpcSinkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            path: String::new(),
+            rotation: RotationInterval::Hourly,
+            buffer_size: 10000,
+            flush_interval: Duration::from_secs(60),
+            metrics_enabled: true,
+            metrics_interval: Duration::from_secs(10),
+        }
+    }
+}
+
 /// Forwarder sink configuration
 ///
-/// Collector-to-collector forwarding for edge deployments.
+/// Tell-to-Tell forwarding for edge deployments.
 ///
 /// # Example
 ///
 /// ```toml
 /// [sinks.forwarder]
-/// target = "collector.example.com:8081"
+/// target = "tell.example.com:8081"
 /// api_key = "0123456789abcdef0123456789abcdef"
 /// ```
 #[derive(Debug, Clone, Deserialize)]
@@ -585,7 +751,7 @@ pub struct ForwarderSinkConfig {
     /// Default: true
     pub enabled: bool,
 
-    /// Target collector address (host:port)
+    /// Target Tell server address (host:port)
     /// Required when enabled
     pub target: String,
 
@@ -707,6 +873,15 @@ mod tests {
     }
 
     #[test]
+    fn test_arrow_ipc_sink_defaults() {
+        let config = ArrowIpcSinkConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.rotation, RotationInterval::Hourly);
+        assert_eq!(config.buffer_size, 10000);
+        assert_eq!(config.flush_interval, Duration::from_secs(60));
+    }
+
+    #[test]
     fn test_forwarder_sink_defaults() {
         let config = ForwarderSinkConfig::default();
         assert!(config.enabled);
@@ -795,16 +970,38 @@ rotation = "hourly"
 type = "parquet"
 path = "data/"
 data_format = "binary"
-compression = "gzip"
+compression = "zstd"
 "#;
         let config: SinksConfig = toml::from_str(toml).unwrap();
 
         if let Some(SinkConfig::Parquet(pq)) = config.get("warehouse") {
             assert_eq!(pq.path, "data/");
             assert_eq!(pq.data_format, ParquetDataFormat::Binary);
-            assert_eq!(pq.compression, ParquetCompression::Gzip);
+            assert_eq!(pq.compression, ParquetCompression::Zstd);
         } else {
             panic!("Expected parquet config");
+        }
+    }
+
+    #[test]
+    fn test_deserialize_arrow_ipc() {
+        let toml = r#"
+[hot_data]
+type = "arrow_ipc"
+path = "arrow/"
+rotation = "hourly"
+buffer_size = 5000
+flush_interval = "30s"
+"#;
+        let config: SinksConfig = toml::from_str(toml).unwrap();
+
+        if let Some(SinkConfig::ArrowIpc(arrow)) = config.get("hot_data") {
+            assert_eq!(arrow.path, "arrow/");
+            assert_eq!(arrow.rotation, RotationInterval::Hourly);
+            assert_eq!(arrow.buffer_size, 5000);
+            assert_eq!(arrow.flush_interval, Duration::from_secs(30));
+        } else {
+            panic!("Expected arrow_ipc config");
         }
     }
 
@@ -813,7 +1010,7 @@ compression = "gzip"
         let toml = r#"
 [forwarder]
 type = "forwarder"
-target = "collector.example.com:8081"
+target = "tell.example.com:8081"
 api_key = "0123456789abcdef0123456789abcdef"
 connection_timeout = "30s"
 retry_attempts = 5
@@ -821,7 +1018,7 @@ retry_attempts = 5
         let config: SinksConfig = toml::from_str(toml).unwrap();
 
         if let Some(SinkConfig::Forwarder(fwd)) = config.get("forwarder") {
-            assert_eq!(fwd.target, "collector.example.com:8081");
+            assert_eq!(fwd.target, "tell.example.com:8081");
             assert_eq!(fwd.api_key, "0123456789abcdef0123456789abcdef");
             assert_eq!(fwd.connection_timeout, Duration::from_secs(30));
             assert_eq!(fwd.retry_attempts, 5);

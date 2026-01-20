@@ -1,7 +1,7 @@
 //! Tests for NoopTransformer
 
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 
 fn create_test_batch() -> Batch {
     let source_id = SourceId::new("test");

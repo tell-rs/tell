@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: warp-ubuntu-2404-x64-4x
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
+
+      - name: Validate version matches Cargo.toml
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$CARGO_VERSION" != "$VERSION" ]; then
+            echo "Error: Tag version $VERSION does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,x86_64-unknown-linux-musl,aarch64-apple-darwin
+
+      - name: Install cargo-zigbuild
+        run: cargo install cargo-zigbuild
+
+      - name: Build Linux x86_64
+        run: |
+          cargo zigbuild --release --target x86_64-unknown-linux-gnu -p tell
+          mkdir -p dist/tell-$VERSION-linux-amd64
+          cp target/x86_64-unknown-linux-gnu/release/tell dist/tell-$VERSION-linux-amd64/
+          cp LICENSE README.md dist/tell-$VERSION-linux-amd64/ 2>/dev/null || true
+          cd dist && tar -czf tell-$VERSION-linux-amd64.tgz tell-$VERSION-linux-amd64
+          shasum -a 512 tell-$VERSION-linux-amd64.tgz | cut -d' ' -f1 > tell-$VERSION-linux-amd64.tgz.sha512
+          rm -rf tell-$VERSION-linux-amd64
+
+      - name: Build Linux ARM64
+        run: |
+          cargo zigbuild --release --target aarch64-unknown-linux-gnu -p tell
+          mkdir -p dist/tell-$VERSION-linux-arm64
+          cp target/aarch64-unknown-linux-gnu/release/tell dist/tell-$VERSION-linux-arm64/
+          cp LICENSE README.md dist/tell-$VERSION-linux-arm64/ 2>/dev/null || true
+          cd dist && tar -czf tell-$VERSION-linux-arm64.tgz tell-$VERSION-linux-arm64
+          shasum -a 512 tell-$VERSION-linux-arm64.tgz | cut -d' ' -f1 > tell-$VERSION-linux-arm64.tgz.sha512
+          rm -rf tell-$VERSION-linux-arm64
+
+      - name: Build Linux x86_64 (musl/static)
+        run: |
+          cargo zigbuild --release --target x86_64-unknown-linux-musl -p tell
+          mkdir -p dist/tell-$VERSION-linux-amd64-musl
+          cp target/x86_64-unknown-linux-musl/release/tell dist/tell-$VERSION-linux-amd64-musl/
+          cp LICENSE README.md dist/tell-$VERSION-linux-amd64-musl/ 2>/dev/null || true
+          cd dist && tar -czf tell-$VERSION-linux-amd64-musl.tgz tell-$VERSION-linux-amd64-musl
+          shasum -a 512 tell-$VERSION-linux-amd64-musl.tgz | cut -d' ' -f1 > tell-$VERSION-linux-amd64-musl.tgz.sha512
+          rm -rf tell-$VERSION-linux-amd64-musl
+
+      - name: Build macOS ARM64
+        run: |
+          cargo zigbuild --release --target aarch64-apple-darwin -p tell
+          cp target/aarch64-apple-darwin/release/tell dist/tell-macos-aarch64
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create $GITHUB_REF_NAME \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            dist/*

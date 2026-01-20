@@ -1,6 +1,6 @@
 # DiskBinary Sink Benchmarks
 
-Run: `cargo bench -p cdp-sinks --bench disk_binary`
+Run: `cargo bench -p tell-sinks --bench disk_binary`
 
 Measures:
 - Binary encoding: Batch to on-disk format (CPU-bound)

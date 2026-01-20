@@ -1,6 +1,6 @@
 # TCP Source Benchmarks
 
-Run: `cargo bench -p cdp-sources --bench tcp`
+Run: `cargo bench -p tell-sources --bench tcp`
 
 Measures wire message parsing (frame + FlatBuffer + auth + IP conversion).
 

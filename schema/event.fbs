@@ -1,9 +1,7 @@
 // schema/event.fbs
-// Purpose: Events are used for CDP/product analytics tracking
+// Purpose: Events are used for product analytics tracking
 // Optimized for high-volume event ingestion with flexible payload structure
 // Field IDs ensure schema evolution compatibility
-
-include "common.fbs";
 
 namespace schema.event;
 
@@ -20,7 +18,7 @@ enum EventType:uint8 {
     CONTEXT = 6      // Session/device context updates → context table
 }
 
-/// Single event in the CDP system
+/// Single event in the Tell system
 /// Field ordering optimized for collector processing pipeline:
 /// 1. event_type: Routing selector - determines which handler/table (FIRST for fast routing)
 /// 2. timestamp: Time-series key - primary sort dimension

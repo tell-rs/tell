@@ -11,6 +11,10 @@ pub enum ClickHouseSinkError {
     #[error("insert error: {0}")]
     InsertError(String),
 
+    /// Insert failed (for Arrow sink)
+    #[error("insert failed for table {table}: {message}")]
+    InsertFailed { table: String, message: String },
+
     /// Decode error
     #[error("failed to decode message: {0}")]
     DecodeError(String),
@@ -18,4 +22,8 @@ pub enum ClickHouseSinkError {
     /// Configuration error
     #[error("configuration error: {0}")]
     ConfigError(String),
+
+    /// Arrow error
+    #[error("arrow error: {0}")]
+    ArrowError(String),
 }

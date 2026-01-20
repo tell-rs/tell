@@ -5,7 +5,7 @@
 
 use crate::error::ConnectorError;
 use crate::traits::Connector;
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use std::str::FromStr;

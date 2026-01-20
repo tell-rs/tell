@@ -1,6 +1,6 @@
-//! CDP Tap - Live streaming tap point for the collector
+//! Tell Tap - Live streaming tap point for Tell
 //!
-//! This crate provides the collector-side infrastructure for live data streaming
+//! This crate provides the server-side infrastructure for live data streaming
 //! to CLI clients. It implements a zero-overhead tap point that:
 //!
 //! - Filters on metadata only (workspace_id, source_id, batch_type) - no FlatBuffer decode

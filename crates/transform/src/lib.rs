@@ -1,4 +1,4 @@
-//! CDP Collector - Transform
+//! Tell - Transform
 //!
 //! Transformer chain for batch modification in-flight.
 //!
@@ -89,7 +89,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use cdp_transform::{Chain, PatternTransformer, PatternConfig};
+//! use tell_transform::{Chain, PatternTransformer, PatternConfig};
 //!
 //! // Create transformers
 //! let pattern = PatternTransformer::new(PatternConfig::default())?;
@@ -117,12 +117,15 @@ pub use filter::{
     Condition, FilterAction, FilterConfig, FilterFactory, FilterMetrics, FilterTransformer,
     MatchMode, Operator,
 };
-pub use lazy_batch::{DecodedMessages, IntoLazyBatch, LazyBatch};
+pub use lazy_batch::{DecodedLogs, DecodedMessages, IntoLazyBatch, LazyBatch, OwnedLogEntry};
 pub use noop::NoopTransformer;
 pub use pattern::{
-    CacheStats, ClickHouseConfig, DrainTree, Pattern, PatternCache, PatternConfig, PatternFactory,
-    PatternId, PatternMetrics, PatternPersistence, PatternTransformer, PersistenceConfig,
-    ReloadConfig, StoredPattern,
+    BoxedPatternStorage, CacheStats, ClickHouseConfig, DrainTree, FilePatternStorage,
+    NullPatternStorage, Pattern, PatternCache, PatternConfig, PatternFactory, PatternId,
+    PatternMetrics, PatternPersistence, PatternStorage, PatternTransformer, PatternWorker,
+    PatternWorkerHandle, PersistenceConfig, ReloadConfig, ReloadWorker, ReloadWorkerConfig,
+    ReloadWorkerHandle, StorageError, StorageResult, StoredPattern, WorkerConfig,
+    spawn_pattern_worker, spawn_reload_worker,
 };
 pub use redact::{
     CustomPattern, PatternType, PseudonymHasher, RedactConfig, RedactFactory, RedactMetrics,
@@ -131,7 +134,7 @@ pub use redact::{
 pub use reduce::{ReduceConfig, ReduceFactory, ReduceGroup, ReduceMetrics, ReduceState, ReduceTransformer};
 pub use registry::{default_registry, NoopFactory, TransformerConfig, TransformerFactory, TransformerRegistry};
 
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -188,6 +191,18 @@ pub trait Transformer: Send + Sync {
     /// Disabled transformers are filtered out of chains at construction time.
     fn enabled(&self) -> bool {
         true
+    }
+
+    /// Clean up resources held by this transformer
+    ///
+    /// Called during graceful shutdown. Implementations should:
+    /// - Flush any pending data
+    /// - Close file handles
+    /// - Save state if persistence is enabled
+    ///
+    /// Default implementation is a no-op.
+    fn close(&self) -> TransformResult<()> {
+        Ok(())
     }
 }
 

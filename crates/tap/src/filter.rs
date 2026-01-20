@@ -1,7 +1,7 @@
 //! Metadata filter for tap subscriptions
 //!
 //! `TapFilter` performs O(1) filtering on batch metadata without decoding
-//! the FlatBuffer payload. This keeps the collector at 22M/sec throughput.
+//! the FlatBuffer payload. This keeps Tell at 22M/sec throughput.
 //!
 //! # Filter Logic
 //!
@@ -12,8 +12,8 @@
 //! # Example
 //!
 //! ```
-//! use tap::TapFilter;
-//! use cdp_protocol::BatchType;
+//! use tell_tap::TapFilter;
+//! use tell_protocol::BatchType;
 //!
 //! // Match workspace 42, any event or log type
 //! let filter = TapFilter::new()
@@ -23,7 +23,7 @@
 
 use std::collections::HashSet;
 
-use cdp_protocol::{Batch, BatchType, SourceId};
+use tell_protocol::{Batch, BatchType, SourceId};
 
 use crate::SubscribeRequest;
 

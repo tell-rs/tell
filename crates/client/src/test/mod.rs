@@ -1,4 +1,4 @@
-//! Test clients for CDP sources
+//! Test clients for Tell sources
 //!
 //! Simple, synchronous-style clients for testing and benchmarking.
 //! No batching, no retries - just connect and send.
@@ -12,8 +12,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use cdp_client::test::TcpTestClient;
-//! use cdp_client::{BatchBuilder, SchemaType};
+//! use tell_client::test::TcpTestClient;
+//! use tell_client::{BatchBuilder, SchemaType};
 //!
 //! let batch = BatchBuilder::new()
 //!     .api_key([0x01; 16])

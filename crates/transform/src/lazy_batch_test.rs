@@ -1,7 +1,8 @@
 //! Tests for LazyBatch
 
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SchemaType, SourceId};
+use tell_protocol::{BatchEncoder, EncodedLogEntry, LogEncoder, LogLevelValue};
 
 fn create_test_batch() -> Batch {
     let source_id = SourceId::new("test");
@@ -146,4 +147,149 @@ fn test_batch_reference_access() {
     // Can still access batch properties through reference
     assert_eq!(lazy.batch().batch_type(), batch_type);
     assert_eq!(lazy.batch().workspace_id(), workspace_id);
+}
+
+// =============================================================================
+// Decoded Logs Tests
+// =============================================================================
+
+fn create_flatbuffer_log_batch() -> Batch {
+    // Build a log entry using the encoder
+    let log_entry = EncodedLogEntry {
+        service: Some("test-service".to_string()),
+        source: Some("test-host".to_string()),
+        timestamp: 1700000000000,
+        level: LogLevelValue::Info,
+        payload: br#"{"message": "User logged in", "user_id": 12345}"#.to_vec(),
+        ..Default::default()
+    };
+
+    // Encode log data
+    let log_data = LogEncoder::encode_logs(&[log_entry]);
+
+    // Wrap in batch with schema type
+    let mut batch_encoder = BatchEncoder::new();
+    batch_encoder.set_schema_type(SchemaType::Log);
+    let batch_data = batch_encoder.encode(&log_data);
+
+    // Create batch with FlatBuffer message
+    let source_id = SourceId::new("test");
+    let mut builder = BatchBuilder::new(BatchType::Log, source_id);
+    builder.set_workspace_id(42);
+    builder.add(&batch_data, 1);
+    builder.finish()
+}
+
+#[test]
+fn test_decoded_logs_not_initially_decoded() {
+    let lazy = LazyBatch::new(create_test_batch());
+
+    assert!(!lazy.is_logs_decoded());
+}
+
+#[test]
+fn test_decoded_logs_empty_for_non_flatbuffer() {
+    // Plain text batch (not FlatBuffer encoded)
+    let lazy = LazyBatch::new(create_test_batch());
+
+    let logs = lazy.decoded_logs().unwrap();
+
+    // Should return empty collection for non-FlatBuffer data
+    assert!(logs.is_empty());
+}
+
+#[test]
+fn test_decoded_logs_flatbuffer_parsing() {
+    let lazy = LazyBatch::new(create_flatbuffer_log_batch());
+
+    let logs = lazy.decoded_logs().unwrap();
+
+    assert_eq!(logs.len(), 1);
+    assert!(lazy.is_logs_decoded());
+
+    let entry = logs.get(0).unwrap();
+    assert_eq!(entry.service.as_deref(), Some("test-service"));
+    assert_eq!(entry.source.as_deref(), Some("test-host"));
+    assert_eq!(entry.timestamp, 1700000000000);
+}
+
+#[test]
+fn test_decoded_logs_cached() {
+    let lazy = LazyBatch::new(create_flatbuffer_log_batch());
+
+    // First decode
+    let logs1 = lazy.decoded_logs().unwrap();
+    let ptr1 = logs1 as *const DecodedLogs;
+
+    // Second access - should be cached
+    let logs2 = lazy.decoded_logs().unwrap();
+    let ptr2 = logs2 as *const DecodedLogs;
+
+    assert_eq!(ptr1, ptr2, "Should return cached reference");
+}
+
+#[test]
+fn test_decoded_logs_payload_access() {
+    let lazy = LazyBatch::new(create_flatbuffer_log_batch());
+
+    let logs = lazy.decoded_logs().unwrap();
+    let entry = logs.get(0).unwrap();
+
+    // Should be able to get payload as string
+    let payload = entry.payload_str();
+    assert!(payload.contains("User logged in"));
+    assert!(payload.contains("12345"));
+}
+
+#[test]
+fn test_owned_log_entry_clone() {
+    let entry = OwnedLogEntry {
+        event_type: LogEventType::Log,
+        session_id: Some([0u8; 16]),
+        level: LogLevel::Info,
+        timestamp: 12345,
+        source: Some("host".to_string()),
+        service: Some("svc".to_string()),
+        payload: vec![1, 2, 3],
+    };
+
+    let cloned = entry.clone();
+
+    assert_eq!(cloned.timestamp, entry.timestamp);
+    assert_eq!(cloned.service, entry.service);
+    assert_eq!(cloned.payload, entry.payload);
+}
+
+#[test]
+fn test_decoded_logs_iteration() {
+    let lazy = LazyBatch::new(create_flatbuffer_log_batch());
+
+    let logs = lazy.decoded_logs().unwrap();
+    let services: Vec<_> = logs.iter().filter_map(|e| e.service.as_deref()).collect();
+
+    assert_eq!(services, vec!["test-service"]);
+}
+
+#[test]
+fn test_decoded_logs_empty() {
+    let logs = DecodedLogs::empty();
+
+    assert!(logs.is_empty());
+    assert_eq!(logs.len(), 0);
+    assert!(logs.get(0).is_none());
+}
+
+#[test]
+fn test_both_caches_independent() {
+    let lazy = LazyBatch::new(create_flatbuffer_log_batch());
+
+    // Decode raw messages first
+    let _messages = lazy.decoded_messages().unwrap();
+    assert!(lazy.is_decoded());
+    assert!(!lazy.is_logs_decoded());
+
+    // Then decode structured logs
+    let _logs = lazy.decoded_logs().unwrap();
+    assert!(lazy.is_decoded());
+    assert!(lazy.is_logs_decoded());
 }

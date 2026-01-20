@@ -97,7 +97,7 @@ field = "level"
 operator = "eq"
 value = "debug"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = FilterConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.action, FilterAction::Drop);
@@ -116,7 +116,7 @@ field = "level"
 operator = "eq"
 value = "error"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = FilterConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.action, FilterAction::Keep);
@@ -130,7 +130,7 @@ match = "any"
 field = "level"
 value = "debug"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = FilterConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.match_mode, MatchMode::Any);
@@ -153,7 +153,7 @@ field = "env"
 operator = "eq"
 value = "production"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = FilterConfig::try_from(&instance).unwrap();
 
     assert_eq!(config.conditions.len(), 2);
@@ -169,7 +169,7 @@ field = "path"
 operator = "regex"
 value = "^/api/v[0-9]+/"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = FilterConfig::try_from(&instance).unwrap();
 
     assert!(matches!(config.conditions[0].operator, Operator::Regex(_)));
@@ -182,7 +182,7 @@ type = "filter"
 field = "user_id"
 operator = "exists"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = FilterConfig::try_from(&instance).unwrap();
 
     assert!(matches!(config.conditions[0].operator, Operator::Exists));
@@ -196,7 +196,7 @@ enabled = false
 field = "level"
 value = "debug"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let config = FilterConfig::try_from(&instance).unwrap();
 
     assert!(!config.enabled);
@@ -210,7 +210,7 @@ action = "invalid"
 field = "level"
 value = "debug"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let result = FilterConfig::try_from(&instance);
 
     assert!(result.is_err());
@@ -225,7 +225,7 @@ field = "level"
 operator = "invalid"
 value = "debug"
 "#;
-    let instance: cdp_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
+    let instance: tell_config::TransformerInstanceConfig = toml::from_str(toml).unwrap();
     let result = FilterConfig::try_from(&instance);
 
     assert!(result.is_err());

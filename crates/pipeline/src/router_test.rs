@@ -6,8 +6,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use cdp_protocol::{Batch, BatchBuilder, BatchType, SourceId};
-use cdp_routing::{RoutingTable, SinkId};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_routing::{RoutingTable, SinkId};
 use crossfire::mpsc as cf_mpsc;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
@@ -689,7 +689,7 @@ async fn test_router_without_transformers() {
 
 #[tokio::test]
 async fn test_router_with_noop_transformer() {
-    use cdp_transform::{Chain, NoopTransformer};
+    use tell_transform::{Chain, NoopTransformer};
 
     let (table, sink_id) = create_single_sink_table();
     let mut router = Router::new(table);
@@ -725,7 +725,7 @@ async fn test_router_with_noop_transformer() {
 
 #[tokio::test]
 async fn test_router_empty_chain_not_enabled() {
-    use cdp_transform::Chain;
+    use tell_transform::Chain;
 
     let (table, _) = create_single_sink_table();
     let mut router = Router::new(table);
@@ -739,7 +739,7 @@ async fn test_router_empty_chain_not_enabled() {
 
 #[tokio::test]
 async fn test_transform_metrics_accumulate() {
-    use cdp_transform::{Chain, NoopTransformer};
+    use tell_transform::{Chain, NoopTransformer};
 
     let (table, sink_id) = create_single_sink_table();
     let mut router = Router::new(table);

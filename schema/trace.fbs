@@ -3,8 +3,6 @@
 // Each span represents one operation in a request's journey
 // Spans are linked by trace_id (same trace) and parent_span_id (parent-child)
 
-include "common.fbs";
-
 namespace schema.trace;
 
 /// Span kind - the role of this span in the trace

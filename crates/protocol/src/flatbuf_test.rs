@@ -90,8 +90,8 @@ fn create_test_batch(api_key: &[u8; 16], schema_type: u8, data: &[u8]) -> Vec<u8
     // === Build Table ===
     let table_start = vtable_end;
 
-    // soffset: signed offset from table to vtable (negative because vtable is before table)
-    let soffset: i32 = -((table_start - vtable_start) as i32);
+    // soffset: distance from table to vtable (standard FlatBuffers: vtable = table - soffset)
+    let soffset: i32 = (table_start - vtable_start) as i32;
     buf.extend_from_slice(&soffset.to_le_bytes());
 
     // Placeholder for api_key vector offset (will fill in later)
@@ -238,11 +238,11 @@ fn test_schema_type_trace() {
 }
 
 #[test]
-fn test_schema_type_inventory() {
+fn test_schema_type_snapshot() {
     let api_key = [0u8; 16];
     let buf = create_test_batch(&api_key, 5, b"x");
     let batch = FlatBatch::parse(&buf).unwrap();
-    assert_eq!(batch.schema_type(), SchemaType::Inventory);
+    assert_eq!(batch.schema_type(), SchemaType::Snapshot);
 }
 
 #[test]
@@ -439,4 +439,221 @@ fn test_read_u64_out_of_bounds() {
 fn test_read_u64_empty_buffer() {
     let buf: [u8; 0] = [];
     assert!(read_u64(&buf, 0).is_err());
+}
+
+// =============================================================================
+// Crash/malicious data tests (ported from Go crash_test_client.go)
+// These validate the 5-stage SafeGetRootAsBatch equivalent validation
+// =============================================================================
+
+use crate::flatbuf::is_likely_flatbuffer;
+use crate::MAX_REASONABLE_SIZE;
+
+// Stage 1: Size validation tests
+#[test]
+fn test_crash_empty_buffer() {
+    let buf: [u8; 0] = [];
+    assert!(!is_likely_flatbuffer(&buf));
+    assert!(FlatBatch::parse(&buf).is_err());
+}
+
+#[test]
+fn test_crash_tiny_buffers() {
+    for size in 1..16 {
+        let buf = vec![0xAA; size];
+        assert!(!is_likely_flatbuffer(&buf));
+        assert!(FlatBatch::parse(&buf).is_err());
+    }
+}
+
+#[test]
+fn test_crash_max_reasonable_size_exceeded() {
+    // We can't actually allocate 100MB+ in tests, so we verify the constant
+    // and that the check exists in parse()
+    assert_eq!(MAX_REASONABLE_SIZE, 100 * 1024 * 1024);
+
+    // Test with a buffer that claims to be larger than reasonable
+    // (the TCP layer would reject this, but parse() also checks)
+    // This is really just testing that the constant is correct
+}
+
+// Stage 2: Root offset validation tests
+#[test]
+fn test_crash_massive_root_offset() {
+    // Root offset 0xFFFFFFFF would cause segfault in unsafe code
+    let mut buf = vec![0u8; 32];
+    buf[0..4].copy_from_slice(&0xFFFFFFFFu32.to_le_bytes());
+    assert!(!is_likely_flatbuffer(&buf));
+    assert!(FlatBatch::parse(&buf).is_err());
+}
+
+#[test]
+fn test_crash_root_offset_beyond_buffer() {
+    // offset=100, buffer=32
+    let mut buf = vec![0x41u8; 32];
+    buf[0..4].copy_from_slice(&100u32.to_le_bytes());
+    assert!(!is_likely_flatbuffer(&buf));
+    assert!(FlatBatch::parse(&buf).is_err());
+}
+
+#[test]
+fn test_crash_zero_root_offset() {
+    // Zero offset is invalid (points before actual table data)
+    let mut buf = vec![0x42u8; 32];
+    buf[0..4].copy_from_slice(&0u32.to_le_bytes());
+    assert!(!is_likely_flatbuffer(&buf));
+    assert!(FlatBatch::parse(&buf).is_err());
+}
+
+#[test]
+fn test_crash_root_offset_one() {
+    let mut buf = vec![0u8; 32];
+    buf[0..4].copy_from_slice(&1u32.to_le_bytes());
+    assert!(!is_likely_flatbuffer(&buf));
+}
+
+#[test]
+fn test_crash_root_offset_two() {
+    let mut buf = vec![0u8; 32];
+    buf[0..4].copy_from_slice(&2u32.to_le_bytes());
+    assert!(!is_likely_flatbuffer(&buf));
+}
+
+#[test]
+fn test_crash_root_offset_three() {
+    let mut buf = vec![0u8; 32];
+    buf[0..4].copy_from_slice(&3u32.to_le_bytes());
+    assert!(!is_likely_flatbuffer(&buf));
+}
+
+// Stage 3: VTable corruption tests
+#[test]
+fn test_crash_vtable_beyond_buffer() {
+    // Valid root offset but vtable position would be out of bounds
+    let mut buf = vec![0u8; 30];
+    buf[0..4].copy_from_slice(&20u32.to_le_bytes()); // Root at 20
+    // VTable soffset at position 20 - would point beyond buffer
+    buf[20..24].copy_from_slice(&100i32.to_le_bytes());
+    assert!(FlatBatch::parse(&buf).is_err());
+}
+
+#[test]
+fn test_crash_invalid_vtable_structure() {
+    let mut buf = vec![0u8; 100];
+    buf[0..4].copy_from_slice(&50u32.to_le_bytes()); // Root at 50
+    // Set a reasonable soffset
+    buf[50..54].copy_from_slice(&10i32.to_le_bytes()); // vtable at 40
+    // Corrupt vtable data
+    buf[40] = 0xFF;
+    buf[41] = 0xFF;
+    // This should either error or handle gracefully
+    let _ = FlatBatch::parse(&buf);
+}
+
+// JSON/XML garbage rejection tests (is_likely_flatbuffer heuristic)
+#[test]
+fn test_crash_json_object() {
+    let json = br#"{"message": "hello world"}"#;
+    assert!(!is_likely_flatbuffer(json));
+}
+
+#[test]
+fn test_crash_json_array() {
+    let json = br#"[1, 2, 3, 4, 5]"#;
+    assert!(!is_likely_flatbuffer(json));
+}
+
+#[test]
+fn test_crash_json_api_key() {
+    let json = br#"{"api_key": "test", "data": [1,2,3,4,5]}"#;
+    assert!(!is_likely_flatbuffer(json));
+}
+
+#[test]
+fn test_crash_json_events() {
+    let json = br#"{"events": [{"user_id": "123", "event": "click"}]}"#;
+    assert!(!is_likely_flatbuffer(json));
+}
+
+#[test]
+fn test_crash_xml_data() {
+    let xml = br#"<root><message>hello</message></root>"#;
+    assert!(!is_likely_flatbuffer(xml));
+}
+
+#[test]
+fn test_crash_xml_events() {
+    let xml = br#"<events><event id="123"/></events>"#;
+    assert!(!is_likely_flatbuffer(xml));
+}
+
+// Random garbage tests
+#[test]
+fn test_crash_random_garbage_patterns() {
+    let deadbeef: [u8; 48] = [0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF,
+                              0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF,
+                              0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF,
+                              0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF,
+                              0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF,
+                              0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF];
+    let patterns: &[&[u8]] = &[
+        &[0xFF; 50],
+        &[0x00; 50],
+        &deadbeef,
+        b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n",
+        b"CONNECT localhost:443 HTTP/1.1\r\n",
+        b"\x00\x00\x00\x00AAAA",
+    ];
+
+    for pattern in patterns {
+        // Should not panic, should return error or false
+        let likely = is_likely_flatbuffer(pattern);
+        if likely {
+            // If heuristic passes, parse should handle gracefully
+            let _ = FlatBatch::parse(pattern);
+        }
+    }
+}
+
+#[test]
+fn test_crash_binary_garbage() {
+    // Various binary patterns that might cause issues
+    for i in 0..50 {
+        let mut garbage = vec![0u8; 50 + i * 10];
+        for (j, byte) in garbage.iter_mut().enumerate() {
+            *byte = ((i + j) % 256) as u8;
+        }
+        // Should handle gracefully - no panics
+        let _ = is_likely_flatbuffer(&garbage);
+        let _ = FlatBatch::parse(&garbage);
+    }
+}
+
+// Edge case tests
+#[test]
+fn test_crash_minimum_valid_size() {
+    // Exactly 16 bytes - minimum valid size
+    let buf = vec![0u8; 16];
+    // This is still invalid due to content, but shouldn't crash
+    let _ = FlatBatch::parse(&buf);
+}
+
+#[test]
+fn test_crash_valid_root_invalid_vtable_size() {
+    let mut buf = vec![0u8; 50];
+    buf[0..4].copy_from_slice(&20u32.to_le_bytes()); // Root at 20
+    buf[20..24].copy_from_slice(&10i32.to_le_bytes()); // vtable at 10
+    // Invalid vtable size (0)
+    buf[10..12].copy_from_slice(&0u16.to_le_bytes());
+    assert!(FlatBatch::parse(&buf).is_err());
+}
+
+#[test]
+fn test_crash_vtable_size_too_large() {
+    let mut buf = vec![0u8; 50];
+    buf[0..4].copy_from_slice(&20u32.to_le_bytes()); // Root at 20
+    buf[20..24].copy_from_slice(&10i32.to_le_bytes()); // vtable at 10
+    // Huge vtable size
+    buf[10..12].copy_from_slice(&0xFFFFu16.to_le_bytes());
+    assert!(FlatBatch::parse(&buf).is_err());
 }

@@ -6,7 +6,7 @@
 //! - Placeholder in development
 
 use crate::{TransformResult, Transformer};
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 use std::future::Future;
 use std::pin::Pin;
 

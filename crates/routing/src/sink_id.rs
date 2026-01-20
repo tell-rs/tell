@@ -19,7 +19,7 @@ use std::fmt;
 /// # Example
 ///
 /// ```
-/// use cdp_routing::SinkId;
+/// use tell_routing::SinkId;
 ///
 /// let sink = SinkId::new(0);
 /// let copy = sink;  // Copy, not move

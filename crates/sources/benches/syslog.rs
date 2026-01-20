@@ -2,7 +2,7 @@
 //!
 //! Benchmarks for syslog TCP and UDP source processing.
 //!
-//! Run with: `cargo bench -p cdp-sources --bench syslog`
+//! Run with: `cargo bench -p tell-sources --bench syslog`
 //!
 //! # What we measure
 //!
@@ -14,8 +14,8 @@
 use std::net::{IpAddr, Ipv4Addr};
 
 use bytes::BytesMut;
-use cdp_bench::SCENARIOS;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_bench::SCENARIOS;
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 // =============================================================================

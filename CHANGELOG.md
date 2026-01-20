@@ -10,7 +10,9 @@ New features
  - performance is faster and slower than the golang depending on amount of concurrent connection, the more the lesser benefits on max througput.
  - transformers (experimental) filter, reduce, redact, 
  - new source connectors (experimental) github, shopify
-
+ - clickhouse arrow as new primary clickhouse sink, better performance
+ - sink disk_plaintext now writes protocols to separate .log files (eg. events, logs, snapshots)
+ - arrow sink
 
 --- 
 
@@ -115,7 +117,7 @@ New experimental TCP and UDP Syslog Source Collection Support
 - Sinks: Added syslog decoder support for RFC 3164/5424 format rendering in all output sinks
 - Configuration: New syslog-specific configuration profiles with non-privileged port options for development
 - Testing: Syslog test clients for TCP/UDP with mixed format demonstrations
-- Pipeline: Multi-protocol support expanded to include syslog alongside CDP events and logs in the pipeline
+- Pipeline: Multi-protocol support expanded to include syslog alongside analytics events and logs in the pipeline
 
 ## August 21, 2025
 Source IP Collection & Storage
@@ -125,9 +127,9 @@ Source IP Collection & Storage
 - Display Sinks: Show `real_source_ip` in JSON output to distinguish from client `source`
 
 ## v1.1.5 (August 17, 2025)
-UserCanal CDP Schema & ClickHouse Sink Complete Rewrite
+Tell Schema & ClickHouse Sink Complete Rewrite
 
-- feat: **MAJOR** - Complete ClickHouse sink rewrite for UserCanal CDP v1.1 schema
+- feat: **MAJOR** - Complete ClickHouse sink rewrite for Tell v1.1 schema
 - feat: Event type routing - TRACK→events_v1, IDENTIFY→users_v1, CONTEXT→context_v1, LOGS→logs_v1
 - feat: Zero-copy processing with concurrent per-table batching for optimal performance
 - feat: Single-customer deployment optimization with simplified architecture
@@ -197,7 +199,7 @@ Storage & Reliability Improvements (v1.0.2-v1.0.4)
 
 Domain-Specific Logging & Architecture (v1.0.1)
 - feat: Domain-specific logging implementation with structured output
-- refactor: Single binary collector architecture (moved to usercanal repo)
+- refactor: Single binary collector architecture (moved to tell repo)
 - feat: Configurable sink metrics with profile-based defaults
 - chore: Configuration profile renaming for clarity
 - refactor: All sinks now use structured logging consistently
@@ -231,7 +233,7 @@ Metrics & Configuration Improvements
 
 Schema & Protocol Changes
 - **BREAKING**: Unified TCP sources into single endpoint with schema-type routing
-- feat: Added dual-database ClickHouse support (events→`cdp`, logs→`log`)
+- feat: Added dual-database ClickHouse support (events→`tell`, logs→`log`)
 
 
 ## v0.1.x-beta (May 24, 2024)
@@ -245,5 +247,5 @@ Schema & Protocol Changes
 - docs: Added detailed log protocol documentation
 
 ## May 23, 2025
-- feat: Added new `logpunkd` command-line utility
+- feat: Added new `tell` command-line utility
 - refactor: Updated module path to support remote installation via Go tools

@@ -1,6 +1,6 @@
 //! Metrics reporting configuration
 //!
-//! Controls how the collector reports internal metrics.
+//! Controls how Tell reports internal metrics.
 //!
 //! # Defaults
 //!
@@ -49,7 +49,7 @@ pub struct MetricsConfig {
     pub enabled: bool,
 
     /// Reporting interval
-    /// Default: 10s
+    /// Default: 1h
     #[serde(with = "humantime_serde")]
     pub interval: Duration,
 
@@ -78,7 +78,7 @@ impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            interval: Duration::from_secs(60),
+            interval: Duration::from_secs(3600), // 1 hour
             format: MetricsFormat::Human,
             include_pipeline: true,
             include_sources: true,
@@ -96,7 +96,7 @@ mod tests {
     fn test_default_config() {
         let config = MetricsConfig::default();
         assert!(config.enabled);
-        assert_eq!(config.interval, Duration::from_secs(60));
+        assert_eq!(config.interval, Duration::from_secs(3600)); // 1 hour
         assert_eq!(config.format, MetricsFormat::Human);
         assert!(config.include_pipeline);
         assert!(config.include_sources);
@@ -108,7 +108,7 @@ mod tests {
     fn test_deserialize_empty() {
         let config: MetricsConfig = toml::from_str("").unwrap();
         assert!(config.enabled);
-        assert_eq!(config.interval, Duration::from_secs(60));
+        assert_eq!(config.interval, Duration::from_secs(3600)); // 1 hour
     }
 
     #[test]

@@ -12,7 +12,7 @@ Pass-through transformer for testing and benchmarking.
 ## Usage
 
 ```rust
-use cdp_transform::{NoopTransformer, Chain};
+use tell_transform::{NoopTransformer, Chain};
 
 let chain = Chain::new(vec![Box::new(NoopTransformer)]);
 let result = chain.transform(batch).await?;
@@ -22,7 +22,7 @@ let result = chain.transform(batch).await?;
 ## Tests
 
 ```bash
-cargo test -p cdp-transform noop
+cargo test -p tell-transform noop
 ```
 
 6 tests verifying pass-through behavior.

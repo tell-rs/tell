@@ -1,5 +1,5 @@
-# CDP Collector Test Configuration
-# =================================
+# Tell Test Configuration
+# ========================
 # This config enables syslog sources for testing.
 
 [global]

@@ -1,5 +1,7 @@
 //! Tests for user table row types
 
+use uuid::Uuid;
+
 use super::users::{UserDeviceRow, UserRow, UserTraitRow};
 
 #[test]
@@ -20,12 +22,12 @@ fn test_user_row_creation() {
 fn test_user_device_row_creation() {
     let row = UserDeviceRow {
         user_id: "abc-123".to_string(),
-        device_id: [0x03; 16],
+        device_id: Uuid::from_bytes([0x03; 16]),
         linked_at: 1700000000000,
     };
 
     assert_eq!(row.user_id, "abc-123");
-    assert_eq!(row.device_id, [0x03; 16]);
+    assert_eq!(row.device_id, Uuid::from_bytes([0x03; 16]));
 }
 
 #[test]

@@ -4,8 +4,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use cdp_auth::ApiKeyStore;
-use cdp_protocol::{Batch, SourceId};
+use tell_auth::ApiKeyStore;
+use tell_protocol::{Batch, SourceId};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
@@ -97,8 +97,7 @@ fn test_metrics_new() {
     assert_eq!(snapshot.batches_sent, 0);
     assert_eq!(snapshot.errors, 0);
     assert_eq!(snapshot.auth_failures, 0);
-    assert_eq!(snapshot.parse_errors, 0);
-    assert_eq!(snapshot.oversized_messages, 0);
+    assert_eq!(snapshot.messages_malformed, 0);
 }
 
 #[test]
@@ -114,25 +113,15 @@ fn test_metrics_auth_failure() {
 }
 
 #[test]
-fn test_metrics_parse_error() {
+fn test_metrics_message_malformed() {
     let metrics = TcpSourceMetrics::new();
 
-    metrics.parse_error();
+    metrics.message_malformed();
+    metrics.message_malformed();
 
     let snapshot = metrics.snapshot();
-    assert_eq!(snapshot.parse_errors, 1);
-    assert_eq!(snapshot.errors, 1);
-}
-
-#[test]
-fn test_metrics_oversized_message() {
-    let metrics = TcpSourceMetrics::new();
-
-    metrics.oversized_message();
-
-    let snapshot = metrics.snapshot();
-    assert_eq!(snapshot.oversized_messages, 1);
-    assert_eq!(snapshot.errors, 1);
+    assert_eq!(snapshot.messages_malformed, 2);
+    assert_eq!(snapshot.errors, 2);
 }
 
 #[test]

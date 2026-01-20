@@ -1,6 +1,6 @@
-//! CDP Collector - Sinks
+//! Tell - Sinks
 //!
-//! High-performance output sinks for CDP Collector with 40M+ events/sec throughput.
+//! High-performance output sinks for Tell with 40M+ events/sec throughput.
 //!
 //! # Architecture
 //!
@@ -21,8 +21,9 @@
 //! | `disk_binary` | Binary storage with metadata | Yes |
 //! | `disk_plaintext` | Human-readable logs | Yes |
 //! | `clickhouse` | Analytics database | No |
-//! | `parquet` | Columnar storage | Yes |
-//! | `forwarder` | Collector-to-collector | No |
+//! | `parquet` | Columnar storage (cold data) | Yes |
+//! | `arrow_ipc` | Fast columnar (hot data) | Yes |
+//! | `forwarder` | Tell-to-Tell | No |
 //!
 //! # Example
 //!
@@ -64,7 +65,10 @@ pub mod clickhouse;
 /// Parquet sink - columnar storage for data warehousing
 pub mod parquet;
 
-/// Forwarder sink - collector-to-collector forwarding
+/// Arrow IPC sink - fast columnar storage for hot data
+pub mod arrow_ipc;
+
+/// Forwarder sink - Tell-to-Tell forwarding
 pub mod forwarder;
 
 // =============================================================================
@@ -90,6 +94,7 @@ pub use disk_plaintext::{DiskPlaintextSink, DiskPlaintextSinkMetricsHandle};
 pub use forwarder::{ForwarderSink, ForwarderSinkMetricsHandle};
 pub use null::{NullSink, NullSinkConfig, NullSinkMetricsHandle};
 pub use parquet::{ParquetSink, ParquetSinkMetricsHandle};
+pub use arrow_ipc::{ArrowIpcSink, ArrowIpcSinkMetricsHandle};
 pub use stdout::{StdoutSink, StdoutSinkMetricsHandle};
 
 // Tests are registered in their respective modules via #[cfg(test)]

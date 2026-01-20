@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use clickhouse::Client;
+use clickhouse::{Client, Compression};
 
 // =============================================================================
 // Constants (matching Go implementation)
@@ -21,6 +21,9 @@ pub const DEFAULT_RETRY_ATTEMPTS: usize = 3;
 
 /// Default connection timeout
 pub const DEFAULT_CONNECTION_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Default max execution time (seconds) - matches Go implementation
+pub const DEFAULT_MAX_EXECUTION_TIME: u64 = 60;
 
 // =============================================================================
 // Configuration
@@ -41,7 +44,7 @@ pub struct ClickHouseConfig {
     /// Password for authentication (optional)
     pub password: Option<String>,
 
-    /// Table names (CDP v1.1 schema)
+    /// Table names (Tell v1.1 schema)
     pub tables: TableNames,
 
     /// Batch size per table (rows before flush)
@@ -61,9 +64,15 @@ pub struct ClickHouseConfig {
 
     /// Maximum retry delay
     pub retry_max_delay: Duration,
+
+    /// Enable LZ4 compression (matches Go implementation)
+    pub compression_enabled: bool,
+
+    /// Max execution time in seconds (matches Go implementation)
+    pub max_execution_time: u64,
 }
 
-/// Table names for CDP schema
+/// Table names for Tell analytics schema
 #[derive(Debug, Clone)]
 pub struct TableNames {
     /// TRACK events table
@@ -110,6 +119,8 @@ impl Default for ClickHouseConfig {
             retry_attempts: DEFAULT_RETRY_ATTEMPTS,
             retry_base_delay: Duration::from_millis(100),
             retry_max_delay: Duration::from_secs(10),
+            compression_enabled: true, // LZ4 compression by default (matches Go)
+            max_execution_time: DEFAULT_MAX_EXECUTION_TIME,
         }
     }
 }
@@ -163,6 +174,11 @@ impl ClickHouseConfig {
     }
 
     /// Build the ClickHouse client from this config
+    ///
+    /// Applies all settings to match Go implementation:
+    /// - LZ4 compression
+    /// - max_execution_time setting
+    /// - Authentication credentials
     pub fn build_client(&self) -> Client {
         let mut client = Client::default()
             .with_url(&self.url)
@@ -175,6 +191,14 @@ impl ClickHouseConfig {
         if let Some(ref password) = self.password {
             client = client.with_password(password);
         }
+
+        // Apply LZ4 compression (matches Go implementation)
+        if self.compression_enabled {
+            client = client.with_compression(Compression::Lz4);
+        }
+
+        // Apply max_execution_time setting (matches Go implementation)
+        client = client.with_option("max_execution_time", self.max_execution_time.to_string());
 
         client
     }

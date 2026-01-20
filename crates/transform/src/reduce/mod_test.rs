@@ -1,7 +1,7 @@
 //! Tests for reduce transformer
 
 use super::*;
-use cdp_protocol::{BatchBuilder, BatchType, SourceId};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 
 fn make_test_batch(messages: &[&[u8]]) -> Batch {
     let mut builder = BatchBuilder::new(BatchType::Log, SourceId::new("test"));

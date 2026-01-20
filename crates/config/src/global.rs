@@ -34,6 +34,11 @@ pub struct GlobalConfig {
     /// Default: None (auto = number of CPU cores)
     /// Set to 1 for single-threaded router (simpler debugging)
     pub router_workers: Option<usize>,
+
+    /// Shutdown timeout per component phase (seconds)
+    /// Default: 2
+    /// During graceful shutdown, each phase (sources, router, sinks) gets this timeout.
+    pub shutdown_timeout_secs: u64,
 }
 
 impl Default for GlobalConfig {
@@ -45,6 +50,7 @@ impl Default for GlobalConfig {
             queue_size: 1000,
             api_keys_file: "configs/apikeys.conf".into(),
             router_workers: None, // Auto = num_cpus
+            shutdown_timeout_secs: 2,
         }
     }
 }
@@ -77,6 +83,7 @@ mod tests {
         assert_eq!(config.batch_size, 500);
         assert_eq!(config.queue_size, 1000);
         assert_eq!(config.api_keys_file, "configs/apikeys.conf");
+        assert_eq!(config.shutdown_timeout_secs, 2);
     }
 
     #[test]
@@ -106,13 +113,15 @@ num_processors = 16
 buffer_size = 1048576
 batch_size = 2000
 queue_size = 5000
-api_keys_file = "/etc/cdp/keys.conf"
+api_keys_file = "/etc/tell/keys.conf"
+shutdown_timeout_secs = 5
 "#;
         let config: GlobalConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.num_processors, 16);
         assert_eq!(config.buffer_size, 1048576);
         assert_eq!(config.batch_size, 2000);
         assert_eq!(config.queue_size, 5000);
-        assert_eq!(config.api_keys_file, "/etc/cdp/keys.conf");
+        assert_eq!(config.api_keys_file, "/etc/tell/keys.conf");
+        assert_eq!(config.shutdown_timeout_secs, 5);
     }
 }

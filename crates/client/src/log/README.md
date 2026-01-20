@@ -5,7 +5,7 @@ Builds structured log entries (`log.fbs`).
 ## TL;DR
 
 ```rust
-use cdp_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
+use tell_client::log::{LogEntryBuilder, LogDataBuilder, LogLevel};
 
 // Single log entry
 let log = LogEntryBuilder::new()

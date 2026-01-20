@@ -4,11 +4,12 @@
 
 use std::sync::Arc;
 
-use cdp_protocol::{
+use tell_protocol::{
     Batch, BatchType, EventType, FlatBatch, SchemaType, decode_event_data, decode_log_data,
 };
-use clickhouse::Client;
+use clickhouse::{Client, insert::Insert};
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 use crate::util::json::{extract_json_object, extract_json_string};
 
@@ -17,7 +18,7 @@ use super::error::ClickHouseSinkError;
 use super::helpers::{extract_source_ip, generate_user_id_from_email, normalize_locale};
 use super::metrics::{ClickHouseMetrics, ClickHouseSinkMetricsHandle, MetricsSnapshot};
 use super::tables::{
-    ContextRow, EventRow, LogRow, SnapshotRow, UserDeviceRow, UserRow, UserTraitRow,
+    ContextRow, EventRow, LogLevelEnum, LogRow, SnapshotRow, UserDeviceRow, UserRow, UserTraitRow,
 };
 
 // =============================================================================
@@ -80,7 +81,7 @@ impl TableBatches {
 // ClickHouse Sink
 // =============================================================================
 
-/// ClickHouse sink for CDP analytics
+/// ClickHouse sink for Tell analytics
 ///
 /// Routes events to appropriate tables based on EventType:
 /// - TRACK → events_v1
@@ -162,7 +163,7 @@ impl ClickHouseSink {
         tracing::info!(
             url = %self.config.url,
             database = %self.config.database,
-            "clickhouse sink starting (CDP v1.1 schema)"
+            "clickhouse sink starting (Tell v1.1 schema)"
         );
 
         let mut flush_interval = tokio::time::interval(self.config.flush_interval);
@@ -300,7 +301,7 @@ impl ClickHouseSink {
     }
 
     /// Route a single event to the appropriate batch based on EventType
-    fn route_event(&mut self, event: &cdp_protocol::DecodedEvent<'_>, source_ip: [u8; 16]) {
+    fn route_event(&mut self, event: &tell_protocol::DecodedEvent<'_>, source_ip: [u8; 16]) {
         match event.event_type {
             EventType::Track => {
                 self.add_track_event(event, source_ip);
@@ -321,15 +322,24 @@ impl ClickHouseSink {
     }
 
     /// Add TRACK event to events batch
-    fn add_track_event(&mut self, event: &cdp_protocol::DecodedEvent<'_>, source_ip: [u8; 16]) {
+    fn add_track_event(&mut self, event: &tell_protocol::DecodedEvent<'_>, source_ip: [u8; 16]) {
+        let device_id = event
+            .device_id
+            .map(|b| Uuid::from_bytes(*b))
+            .unwrap_or(Uuid::nil());
+        let session_id = event
+            .session_id
+            .map(|b| Uuid::from_bytes(*b))
+            .unwrap_or(Uuid::nil());
+
         let row = EventRow {
             timestamp: event.timestamp as i64,
             event_name: event.event_name.map(|s| s.to_string()).unwrap_or_default(),
-            device_id: event.device_id.copied().unwrap_or([0u8; 16]),
-            session_id: event.session_id.copied().unwrap_or([0u8; 16]),
+            device_id,
+            session_id,
+            source_ip,
             properties: String::from_utf8_lossy(event.payload).into_owned(),
             raw: String::from_utf8_lossy(event.payload).into_owned(),
-            source_ip,
         };
         self.batches.track.push(row);
     }
@@ -337,7 +347,7 @@ impl ClickHouseSink {
     /// Add IDENTIFY event to users, user_devices, and user_traits batches
     fn add_identify_event(
         &mut self,
-        event: &cdp_protocol::DecodedEvent<'_>,
+        event: &tell_protocol::DecodedEvent<'_>,
         _source_ip: [u8; 16],
     ) {
         let payload = event.payload;
@@ -365,7 +375,7 @@ impl ClickHouseSink {
         if let Some(device_id) = event.device_id {
             self.batches.user_devices.push(UserDeviceRow {
                 user_id: user_id.clone(),
-                device_id: *device_id,
+                device_id: Uuid::from_bytes(*device_id),
                 linked_at: timestamp,
             });
         }
@@ -383,8 +393,17 @@ impl ClickHouseSink {
     }
 
     /// Add CONTEXT event to context batch
-    fn add_context_event(&mut self, event: &cdp_protocol::DecodedEvent<'_>, source_ip: [u8; 16]) {
+    fn add_context_event(&mut self, event: &tell_protocol::DecodedEvent<'_>, source_ip: [u8; 16]) {
         let payload = event.payload;
+
+        let device_id = event
+            .device_id
+            .map(|b| Uuid::from_bytes(*b))
+            .unwrap_or(Uuid::nil());
+        let session_id = event
+            .session_id
+            .map(|b| Uuid::from_bytes(*b))
+            .unwrap_or(Uuid::nil());
 
         // Extract device/location fields from payload
         let device_type = extract_json_string(payload, "device_type");
@@ -404,8 +423,9 @@ impl ClickHouseSink {
 
         let row = ContextRow {
             timestamp: event.timestamp as i64,
-            device_id: event.device_id.copied().unwrap_or([0u8; 16]),
-            session_id: event.session_id.copied().unwrap_or([0u8; 16]),
+            device_id,
+            session_id,
+            source_ip,
             device_type,
             device_model,
             operating_system,
@@ -418,7 +438,6 @@ impl ClickHouseSink {
             region,
             city,
             properties: String::from_utf8_lossy(payload).into_owned(),
-            source_ip,
         };
         self.batches.context.push(row);
     }
@@ -474,12 +493,17 @@ impl ClickHouseSink {
                     .and_then(|ids| ids.get(pattern_offset + log_idx).copied())
                     .filter(|&id| id != 0);
 
+                let session_id = log
+                    .session_id
+                    .map(|b| Uuid::from_bytes(*b))
+                    .unwrap_or(Uuid::nil());
+
                 let row = LogRow {
                     timestamp: log.timestamp as i64,
-                    level: log.level.as_str().to_string(),
+                    level: LogLevelEnum::from_protocol_level(log.level),
                     source: log.source.map(|s| s.to_string()).unwrap_or_default(),
                     service: log.service.map(|s| s.to_string()).unwrap_or_default(),
-                    session_id: log.session_id.copied().unwrap_or([0u8; 16]),
+                    session_id,
                     source_ip,
                     pattern_id,
                     message: String::from_utf8_lossy(log.payload).into_owned(),
@@ -514,10 +538,10 @@ impl ClickHouseSink {
 
             let row = LogRow {
                 timestamp,
-                level: "info".to_string(),
+                level: LogLevelEnum::Info,
                 source: String::new(),
                 service: String::new(),
-                session_id: [0u8; 16],
+                session_id: Uuid::nil(),
                 source_ip,
                 pattern_id: None,
                 message: payload.clone(),
@@ -812,11 +836,11 @@ impl ClickHouseSink {
     }
 
     /// Insert rows with retry logic
-    async fn insert_with_retry<T: clickhouse::Row + serde::Serialize + Send + Sync>(
-        &self,
-        table: &str,
-        rows: &[T],
-    ) -> Result<(), ClickHouseSinkError> {
+    async fn insert_with_retry<T>(&self, table: &str, rows: &[T]) -> Result<(), ClickHouseSinkError>
+    where
+        T: clickhouse::Row + serde::Serialize + Send + Sync + 'static,
+        for<'a> T: clickhouse::Row<Value<'a> = T>,
+    {
         let mut delay = self.config.retry_base_delay;
 
         for attempt in 0..=self.config.retry_attempts {
@@ -849,12 +873,12 @@ impl ClickHouseSink {
     }
 
     /// Perform the actual insert
-    async fn do_insert<T: clickhouse::Row + serde::Serialize + Send + Sync>(
-        &self,
-        table: &str,
-        rows: &[T],
-    ) -> Result<(), ClickHouseSinkError> {
-        let mut insert = self.client.insert(table)?;
+    async fn do_insert<T>(&self, table: &str, rows: &[T]) -> Result<(), ClickHouseSinkError>
+    where
+        T: clickhouse::Row + serde::Serialize + Send + Sync + 'static,
+        for<'a> T: clickhouse::Row<Value<'a> = T>,
+    {
+        let mut insert: Insert<T> = self.client.insert(table).await?;
 
         for row in rows {
             insert.write(row).await?;

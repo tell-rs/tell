@@ -13,7 +13,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use cdp_protocol::Batch;
+use tell_protocol::Batch;
 use crossfire::{MAsyncTx, TrySendError};
 
 /// Sharded sender that distributes batches across multiple channels

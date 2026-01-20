@@ -19,7 +19,7 @@ schedule = "0 0 */6 * * *"  # every 6 hours
 
 1. Go to **Shopify Admin** → **Settings** → **Apps and sales channels**
 2. Click **Develop apps** → **Create an app**
-3. Name it anything (e.g., "CDP Metrics")
+3. Name it anything (e.g., "Tell Analytics")
 
 ### 2. Configure API Scopes
 

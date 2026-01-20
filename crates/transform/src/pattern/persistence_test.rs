@@ -1,23 +1,33 @@
 //! Tests for pattern persistence
 
 use super::*;
+use super::super::drain::generate_canonical_name;
 use tempfile::TempDir;
 
 fn create_test_pattern(id: PatternId, template: &str) -> Pattern {
+    let tokens: Vec<Option<String>> = template
+        .split_whitespace()
+        .map(|t| {
+            if t == "<*>" {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        })
+        .collect();
+    let canonical_name = generate_canonical_name(&tokens);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     Pattern {
         id,
         template: template.to_string(),
-        tokens: template
-            .split_whitespace()
-            .map(|t| {
-                if t == "<*>" {
-                    None
-                } else {
-                    Some(t.to_string())
-                }
-            })
-            .collect(),
+        canonical_name,
+        tokens,
         count: 1,
+        first_seen: now,
+        last_seen: now,
     }
 }
 
@@ -164,23 +174,34 @@ fn test_save_all() {
 
 #[test]
 fn test_stored_pattern_from_pattern() {
+    let tokens = vec![
+        Some("User".to_string()),
+        None,
+        Some("logged".to_string()),
+        Some("in".to_string()),
+    ];
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     let pattern = Pattern {
         id: 42,
         template: "User <*> logged in".to_string(),
-        tokens: vec![
-            Some("User".to_string()),
-            None,
-            Some("logged".to_string()),
-            Some("in".to_string()),
-        ],
+        canonical_name: generate_canonical_name(&tokens),
+        tokens,
         count: 100,
+        first_seen: now,
+        last_seen: now,
     };
 
     let stored = StoredPattern::from(&pattern);
 
     assert_eq!(stored.id, 42);
     assert_eq!(stored.template, "User <*> logged in");
+    assert_eq!(stored.canonical_name, "User logged in");
     assert_eq!(stored.count, 100);
+    assert_eq!(stored.first_seen, now);
+    assert_eq!(stored.last_seen, now);
     assert_eq!(stored.tokens.len(), 4);
 }
 
@@ -189,17 +210,24 @@ fn test_stored_pattern_serialization() {
     let stored = StoredPattern {
         id: 1,
         template: "Test <*>".to_string(),
+        canonical_name: "Test".to_string(),
         count: 5,
+        first_seen: 1700000000,
+        last_seen: 1700000100,
         tokens: vec![Some("Test".to_string()), None],
     };
 
     let json = serde_json::to_string(&stored).unwrap();
     assert!(json.contains("\"id\":1"));
     assert!(json.contains("\"template\":\"Test <*>\""));
+    assert!(json.contains("\"first_seen\":1700000000"));
+    assert!(json.contains("\"last_seen\":1700000100"));
 
     let deserialized: StoredPattern = serde_json::from_str(&json).unwrap();
     assert_eq!(deserialized.id, stored.id);
     assert_eq!(deserialized.template, stored.template);
+    assert_eq!(deserialized.first_seen, stored.first_seen);
+    assert_eq!(deserialized.last_seen, stored.last_seen);
 }
 
 #[test]
@@ -240,7 +268,10 @@ fn test_empty_tokens_not_serialized() {
     let stored = StoredPattern {
         id: 1,
         template: "Test".to_string(),
+        canonical_name: "Test".to_string(),
         count: 1,
+        first_seen: 0,
+        last_seen: 0,
         tokens: vec![], // Empty
     };
 
