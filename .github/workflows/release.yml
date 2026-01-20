@@ -11,7 +11,7 @@ permissions:
 jobs:
   release:
     name: Build and Release
-    runs-on: warp-ubuntu-2404-x64-4x
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - name: Checkout
         uses: actions/checkout@v4
