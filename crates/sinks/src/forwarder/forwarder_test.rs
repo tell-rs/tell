@@ -1,7 +1,7 @@
 use super::*;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use tell_client::BatchBuilder as FlatBufferBuilder;
 use tell_protocol::{BatchBuilder, BatchType, SchemaType, SourceId};
-use std::net::{Ipv4Addr, Ipv6Addr};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 

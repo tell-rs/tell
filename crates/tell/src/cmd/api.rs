@@ -24,7 +24,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 
 use tell_analytics::MetricsEngine;
-use tell_api::{build_router, AppState};
+use tell_api::{AppState, build_router};
 use tell_query::{QueryBackend, QueryBackendType, QueryEngine, ResolvedQueryConfig};
 
 /// API server command arguments
@@ -65,13 +65,10 @@ pub async fn run(args: ApiArgs) -> Result<()> {
     let resolved = build_query_config(&args)?;
 
     // Create query engine
-    let query_engine = QueryEngine::from_resolved_config(&resolved)
-        .context("failed to create query engine")?;
+    let query_engine =
+        QueryEngine::from_resolved_config(&resolved).context("failed to create query engine")?;
 
-    info!(
-        backend = query_engine.name(),
-        "Query backend initialized"
-    );
+    info!(backend = query_engine.name(), "Query backend initialized");
 
     // Create metrics engine
     let metrics = MetricsEngine::new(Box::new(query_engine));
@@ -109,9 +106,7 @@ pub async fn run(args: ApiArgs) -> Result<()> {
         "Tell API server starting"
     );
 
-    axum::serve(listener, app)
-        .await
-        .context("server error")?;
+    axum::serve(listener, app).await.context("server error")?;
 
     Ok(())
 }

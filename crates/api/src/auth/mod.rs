@@ -24,12 +24,12 @@ pub mod middleware;
 
 // Re-export core types from tell-auth
 pub use tell_auth::{
-    extract_jwt, is_api_token_format, AuthProvider, LocalJwtProvider, Permission, Role,
-    TokenClaims, UserInfo, TOKEN_PREFIX,
+    AuthProvider, LocalJwtProvider, Permission, Role, TOKEN_PREFIX, TokenClaims, UserInfo,
+    extract_jwt, is_api_token_format,
 };
 
 // HTTP-specific types
-pub use extractors::{require_permission, RequirePermissionLayer, RouterExt};
+pub use extractors::{RequirePermissionLayer, RouterExt, require_permission};
 pub use middleware::{
-    is_public_path, AuthError, AuthUser, HasAuthProvider, OptionalAuthUser, WorkspaceId,
+    AuthError, AuthUser, HasAuthProvider, OptionalAuthUser, WorkspaceId, is_public_path,
 };

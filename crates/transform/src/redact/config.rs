@@ -299,14 +299,19 @@ fn parse_targeted_field(value: &toml::Value) -> Result<TargetedField, String> {
         .ok_or("field requires 'pattern'")?
         .to_string();
 
-    let strategy = table.get("strategy").and_then(|v| v.as_str()).map(|s| {
-        match s {
+    let strategy = table
+        .get("strategy")
+        .and_then(|v| v.as_str())
+        .map(|s| match s {
             "hash" => RedactStrategy::Hash,
             _ => RedactStrategy::Redact,
-        }
-    });
+        });
 
-    Ok(TargetedField { path, pattern, strategy })
+    Ok(TargetedField {
+        path,
+        pattern,
+        strategy,
+    })
 }
 
 /// Parse a custom pattern from TOML
@@ -333,5 +338,9 @@ fn parse_custom_pattern(value: &toml::Value) -> Result<CustomPattern, String> {
         .unwrap_or("cst_")
         .to_string();
 
-    Ok(CustomPattern { name, regex, prefix })
+    Ok(CustomPattern {
+        name,
+        regex,
+        prefix,
+    })
 }

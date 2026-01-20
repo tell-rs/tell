@@ -257,7 +257,10 @@ impl<'a> WorkspaceRepo<'a> {
             .await?;
 
         if affected == 0 {
-            return Err(ControlError::not_found("membership", format!("{}:{}", workspace_id, user_id)));
+            return Err(ControlError::not_found(
+                "membership",
+                format!("{}:{}", workspace_id, user_id),
+            ));
         }
 
         Ok(())
@@ -275,7 +278,10 @@ impl<'a> WorkspaceRepo<'a> {
             .await?;
 
         if affected == 0 {
-            return Err(ControlError::not_found("membership", format!("{}:{}", workspace_id, user_id)));
+            return Err(ControlError::not_found(
+                "membership",
+                format!("{}:{}", workspace_id, user_id),
+            ));
         }
 
         Ok(())
@@ -286,14 +292,46 @@ impl<'a> WorkspaceRepo<'a> {
     // =========================================================================
 
     fn row_to_workspace(row: &turso::Row) -> Result<Workspace> {
-        let id = row.get_value(0)?.as_text().unwrap_or(&String::new()).clone();
-        let name = row.get_value(1)?.as_text().unwrap_or(&String::new()).clone();
-        let slug = row.get_value(2)?.as_text().unwrap_or(&String::new()).clone();
-        let clickhouse_database = row.get_value(3)?.as_text().unwrap_or(&String::new()).clone();
-        let settings_json = row.get_value(4)?.as_text().unwrap_or(&String::from("{}")).clone();
-        let status_str = row.get_value(5)?.as_text().unwrap_or(&String::from("active")).clone();
-        let created_at_str = row.get_value(6)?.as_text().unwrap_or(&String::new()).clone();
-        let updated_at_str = row.get_value(7)?.as_text().unwrap_or(&String::new()).clone();
+        let id = row
+            .get_value(0)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let name = row
+            .get_value(1)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let slug = row
+            .get_value(2)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let clickhouse_database = row
+            .get_value(3)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let settings_json = row
+            .get_value(4)?
+            .as_text()
+            .unwrap_or(&String::from("{}"))
+            .clone();
+        let status_str = row
+            .get_value(5)?
+            .as_text()
+            .unwrap_or(&String::from("active"))
+            .clone();
+        let created_at_str = row
+            .get_value(6)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let updated_at_str = row
+            .get_value(7)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
 
         let settings: WorkspaceSettings = serde_json::from_str(&settings_json).unwrap_or_default();
         let status = WorkspaceStatus::from_str(&status_str);
@@ -317,11 +355,31 @@ impl<'a> WorkspaceRepo<'a> {
     }
 
     fn row_to_membership(row: &turso::Row) -> Result<WorkspaceMembership> {
-        let user_id = row.get_value(0)?.as_text().unwrap_or(&String::new()).clone();
-        let workspace_id = row.get_value(1)?.as_text().unwrap_or(&String::new()).clone();
-        let role_str = row.get_value(2)?.as_text().unwrap_or(&String::from("viewer")).clone();
-        let status_str = row.get_value(3)?.as_text().unwrap_or(&String::from("active")).clone();
-        let created_at_str = row.get_value(4)?.as_text().unwrap_or(&String::new()).clone();
+        let user_id = row
+            .get_value(0)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let workspace_id = row
+            .get_value(1)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let role_str = row
+            .get_value(2)?
+            .as_text()
+            .unwrap_or(&String::from("viewer"))
+            .clone();
+        let status_str = row
+            .get_value(3)?
+            .as_text()
+            .unwrap_or(&String::from("active"))
+            .clone();
+        let created_at_str = row
+            .get_value(4)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
 
         let role = MemberRole::from_str(&role_str).unwrap_or(MemberRole::Viewer);
         let status = MemberStatus::from_str(&status_str);

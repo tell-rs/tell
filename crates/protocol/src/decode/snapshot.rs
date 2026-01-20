@@ -14,8 +14,8 @@
 //! table SnapshotData { snapshots:[Snapshot] (required); }
 //! ```
 
-use crate::{ProtocolError, Result};
 use super::table::{FlatTable, read_u32};
+use crate::{ProtocolError, Result};
 
 // =============================================================================
 // Decoded Snapshot

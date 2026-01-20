@@ -97,9 +97,13 @@ impl HttpSourceMetrics {
     /// Record items processed
     #[inline]
     pub fn items_processed(&self, accepted: usize, rejected: usize) {
-        self.items_accepted.fetch_add(accepted as u64, Ordering::Relaxed);
-        self.items_rejected.fetch_add(rejected as u64, Ordering::Relaxed);
-        self.base.messages_received.fetch_add(accepted as u64, Ordering::Relaxed);
+        self.items_accepted
+            .fetch_add(accepted as u64, Ordering::Relaxed);
+        self.items_rejected
+            .fetch_add(rejected as u64, Ordering::Relaxed);
+        self.base
+            .messages_received
+            .fetch_add(accepted as u64, Ordering::Relaxed);
     }
 
     /// Record bytes received

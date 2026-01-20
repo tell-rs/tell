@@ -44,17 +44,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use crossfire::TrySendError;
 use socket2::{Domain, Protocol, Socket, Type};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use tokio::net::UdpSocket;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 
 use tell_metrics::{SourceMetricsProvider, SourceMetricsSnapshot};
 
-use crate::common::SourceMetrics;
 use crate::ShardedSender;
+use crate::common::SourceMetrics;
 
 // =============================================================================
 // Constants
@@ -405,9 +405,8 @@ impl SyslogUdpSource {
     /// Run the source (main entry point)
     pub async fn run(&self, cancel: CancellationToken) -> Result<(), SyslogUdpSourceError> {
         let bind_addr = self.config.bind_address();
-        let socket_addr: SocketAddr = bind_addr
-            .parse()
-            .map_err(|_| SyslogUdpSourceError::Bind {
+        let socket_addr: SocketAddr =
+            bind_addr.parse().map_err(|_| SyslogUdpSourceError::Bind {
                 address: bind_addr.clone(),
                 source: std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
@@ -431,12 +430,12 @@ impl SyslogUdpSource {
 
         for worker_id in 0..self.config.num_workers {
             // Create socket with SO_REUSEPORT for kernel-level load balancing
-            let socket = self
-                .create_reuseport_socket(socket_addr)
-                .map_err(|e| SyslogUdpSourceError::WorkerCreation {
+            let socket = self.create_reuseport_socket(socket_addr).map_err(|e| {
+                SyslogUdpSourceError::WorkerCreation {
                     worker_id,
                     source: e,
-                })?;
+                }
+            })?;
 
             // Each worker gets a stable connection_id for sharding
             let connection_id = self.batch_sender.allocate_connection_id();

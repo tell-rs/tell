@@ -13,7 +13,7 @@ use anyhow::Result;
 use clap::Args;
 use owo_colors::OwoColorize;
 
-use super::client::{SchemaClient, DEFAULT_URL};
+use super::client::{DEFAULT_URL, SchemaClient};
 use super::schema;
 
 #[derive(Args, Debug)]

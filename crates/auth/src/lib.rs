@@ -55,7 +55,7 @@ pub use store::{ApiKey, ApiKeyStore, SharedApiKeyStore};
 pub use workspace::WorkspaceId;
 
 // RBAC types
-pub use claims::{extract_jwt, is_api_token_format, TokenClaims, TOKEN_PREFIX};
+pub use claims::{TOKEN_PREFIX, TokenClaims, extract_jwt, is_api_token_format};
 pub use roles::{Permission, Role};
 pub use user::UserInfo;
 

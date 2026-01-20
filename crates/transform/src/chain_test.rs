@@ -1,8 +1,8 @@
 //! Tests for transformer chain
 
 use super::*;
-use crate::noop::NoopTransformer;
 use crate::TransformError;
+use crate::noop::NoopTransformer;
 use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use tokio_util::sync::CancellationToken;
 
@@ -61,9 +61,8 @@ async fn test_chain_filters_disabled() {
         fn transform<'a>(
             &'a self,
             batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             Box::pin(async move { Ok(batch) })
         }
 
@@ -100,8 +99,8 @@ fn test_get_transformer_by_name() {
 
 #[tokio::test]
 async fn test_chain_sequential_execution() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     // Track execution order
     let counter = Arc::new(AtomicUsize::new(0));
@@ -116,9 +115,8 @@ async fn test_chain_sequential_execution() {
         fn transform<'a>(
             &'a self,
             batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             let current = self.counter.fetch_add(1, Ordering::SeqCst);
             assert_eq!(
                 current, self.expected_order,
@@ -159,8 +157,8 @@ async fn test_chain_sequential_execution() {
 
 #[tokio::test]
 async fn test_chain_error_stops_execution() {
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     let second_called = Arc::new(AtomicBool::new(false));
 
@@ -170,9 +168,8 @@ async fn test_chain_error_stops_execution() {
         fn transform<'a>(
             &'a self,
             _batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             Box::pin(async move { Err(TransformError::failed("intentional failure")) })
         }
 
@@ -189,9 +186,8 @@ async fn test_chain_error_stops_execution() {
         fn transform<'a>(
             &'a self,
             batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             self.called.store(true, Ordering::SeqCst);
             Box::pin(async move { Ok(batch) })
         }
@@ -212,7 +208,10 @@ async fn test_chain_error_stops_execution() {
     let result = chain.transform(batch).await;
 
     assert!(result.is_err());
-    assert!(!second_called.load(Ordering::SeqCst), "Second transformer should not be called after error");
+    assert!(
+        !second_called.load(Ordering::SeqCst),
+        "Second transformer should not be called after error"
+    );
 }
 
 #[test]
@@ -231,8 +230,8 @@ fn test_chain_close_with_noop() {
 
 #[test]
 fn test_chain_close_calls_all_transformers() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     let close_count = Arc::new(AtomicUsize::new(0));
 
@@ -245,9 +244,8 @@ fn test_chain_close_calls_all_transformers() {
         fn transform<'a>(
             &'a self,
             batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             Box::pin(async move { Ok(batch) })
         }
 
@@ -283,8 +281,8 @@ fn test_chain_close_calls_all_transformers() {
 
 #[test]
 fn test_chain_close_continues_after_error() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     let close_count = Arc::new(AtomicUsize::new(0));
 
@@ -294,9 +292,8 @@ fn test_chain_close_continues_after_error() {
         fn transform<'a>(
             &'a self,
             batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             Box::pin(async move { Ok(batch) })
         }
 
@@ -317,9 +314,8 @@ fn test_chain_close_continues_after_error() {
         fn transform<'a>(
             &'a self,
             batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             Box::pin(async move { Ok(batch) })
         }
 
@@ -349,7 +345,11 @@ fn test_chain_close_continues_after_error() {
     assert!(result.is_err());
 
     // But all transformers should have been closed
-    assert_eq!(close_count.load(Ordering::SeqCst), 2, "All non-failing transformers should be closed");
+    assert_eq!(
+        close_count.load(Ordering::SeqCst),
+        2,
+        "All non-failing transformers should be closed"
+    );
 }
 
 #[tokio::test]
@@ -378,8 +378,8 @@ async fn test_transform_with_cancel_already_cancelled() {
 
 #[tokio::test]
 async fn test_transform_with_cancel_stops_between_transformers() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     let transform_count = Arc::new(AtomicUsize::new(0));
 
@@ -393,9 +393,8 @@ async fn test_transform_with_cancel_stops_between_transformers() {
         fn transform<'a>(
             &'a self,
             batch: Batch,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = TransformResult<Batch>> + Send + 'a>>
+        {
             let current = self.count.fetch_add(1, Ordering::SeqCst);
             if current >= self.cancel_after {
                 self.cancel_token.cancel();

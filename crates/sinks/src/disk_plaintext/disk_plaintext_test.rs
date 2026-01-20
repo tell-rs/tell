@@ -1,6 +1,6 @@
 use super::*;
-use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use tempfile::TempDir;
 
 // =============================================================================
@@ -397,7 +397,10 @@ async fn test_sink_writes_readable_content() {
         {
             let content = std::fs::read_to_string(entry.path()).expect("failed to read log");
             // Raw bytes go to other.log with [RAW] tag (not valid FlatBuffer)
-            assert!(content.contains("[RAW]"), "should contain RAW tag for non-FlatBuffer data");
+            assert!(
+                content.contains("[RAW]"),
+                "should contain RAW tag for non-FlatBuffer data"
+            );
             assert!(
                 content.contains("source_ip=10.0.0.1"),
                 "should contain source IP"

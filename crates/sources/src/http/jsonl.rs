@@ -31,7 +31,10 @@ pub fn parse_jsonl_events(body: &[u8]) -> (Vec<JsonEvent>, Vec<LineError>) {
         if line_count > MAX_LINES_PER_REQUEST {
             errors.push(LineError {
                 line: line_num,
-                error: format!("exceeded maximum {} lines per request", MAX_LINES_PER_REQUEST),
+                error: format!(
+                    "exceeded maximum {} lines per request",
+                    MAX_LINES_PER_REQUEST
+                ),
             });
             break;
         }
@@ -68,7 +71,10 @@ pub fn parse_jsonl_logs(body: &[u8]) -> (Vec<JsonLogEntry>, Vec<LineError>) {
         if line_count > MAX_LINES_PER_REQUEST {
             errors.push(LineError {
                 line: line_num,
-                error: format!("exceeded maximum {} lines per request", MAX_LINES_PER_REQUEST),
+                error: format!(
+                    "exceeded maximum {} lines per request",
+                    MAX_LINES_PER_REQUEST
+                ),
             });
             break;
         }
@@ -90,7 +96,10 @@ pub fn parse_jsonl_logs(body: &[u8]) -> (Vec<JsonLogEntry>, Vec<LineError>) {
 fn parse_json_with_depth_check<T: serde::de::DeserializeOwned>(data: &[u8]) -> Result<T, String> {
     // First, check the depth using a lightweight pass
     if exceeds_json_depth(data, MAX_JSON_DEPTH) {
-        return Err(format!("JSON nesting exceeds maximum depth of {}", MAX_JSON_DEPTH));
+        return Err(format!(
+            "JSON nesting exceeds maximum depth of {}",
+            MAX_JSON_DEPTH
+        ));
     }
 
     // Then parse normally

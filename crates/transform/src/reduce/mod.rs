@@ -26,13 +26,13 @@ mod state;
 pub use config::ReduceConfig;
 pub use state::{ReduceGroup, ReduceState, compute_group_key};
 
-use crate::{TransformError, TransformResult, Transformer};
 use crate::registry::{TransformerConfig, TransformerFactory};
-use tell_protocol::{Batch, BatchBuilder};
+use crate::{TransformError, TransformResult, Transformer};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+use tell_protocol::{Batch, BatchBuilder};
 use tokio::sync::Mutex;
 
 #[cfg(test)]
@@ -82,9 +82,7 @@ pub struct ReduceTransformer {
 impl ReduceTransformer {
     /// Create a new reduce transformer
     pub fn new(config: ReduceConfig) -> TransformResult<Self> {
-        config
-            .validate()
-            .map_err(TransformError::config)?;
+        config.validate().map_err(TransformError::config)?;
 
         Ok(Self {
             config,
@@ -107,7 +105,9 @@ impl ReduceTransformer {
     pub async fn flush_all(&self) -> Vec<ReduceGroup> {
         let mut state = self.state.lock().await;
         let groups = state.flush_all();
-        self.metrics.groups_flushed.fetch_add(groups.len() as u64, Ordering::Relaxed);
+        self.metrics
+            .groups_flushed
+            .fetch_add(groups.len() as u64, Ordering::Relaxed);
         groups
     }
 
@@ -115,8 +115,12 @@ impl ReduceTransformer {
     async fn process_batch(&self, batch: Batch) -> TransformResult<Batch> {
         let mut state = self.state.lock().await;
 
-        self.metrics.batches_processed.fetch_add(1, Ordering::Relaxed);
-        self.metrics.messages_received.fetch_add(batch.message_count() as u64, Ordering::Relaxed);
+        self.metrics
+            .batches_processed
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .messages_received
+            .fetch_add(batch.message_count() as u64, Ordering::Relaxed);
 
         // Track messages to output
         let mut output_messages: Vec<OutputMessage> = Vec::new();
@@ -159,10 +163,16 @@ impl ReduceTransformer {
         // Build output batch
         let output_batch = self.build_output_batch(&batch, output_messages);
 
-        self.metrics.messages_output.fetch_add(output_batch.message_count() as u64, Ordering::Relaxed);
+        self.metrics
+            .messages_output
+            .fetch_add(output_batch.message_count() as u64, Ordering::Relaxed);
 
-        let reduced = batch.message_count().saturating_sub(output_batch.message_count());
-        self.metrics.events_reduced.fetch_add(reduced as u64, Ordering::Relaxed);
+        let reduced = batch
+            .message_count()
+            .saturating_sub(output_batch.message_count());
+        self.metrics
+            .events_reduced
+            .fetch_add(reduced as u64, Ordering::Relaxed);
 
         Ok(output_batch)
     }
@@ -198,7 +208,12 @@ impl ReduceTransformer {
                 OutputMessage::Passthrough(data) => {
                     builder.add_raw(&data);
                 }
-                OutputMessage::Reduced { original, count, first_ts, last_ts } => {
+                OutputMessage::Reduced {
+                    original,
+                    count,
+                    first_ts,
+                    last_ts,
+                } => {
                     // Inject metadata into JSON message
                     let enriched = self.enrich_message(&original, count, first_ts, last_ts);
                     builder.add_raw(&enriched);
@@ -224,7 +239,10 @@ impl ReduceTransformer {
             obj.insert("_reduced_count".to_string(), serde_json::json!(count));
             // Store duration in milliseconds (Instant doesn't give wall time)
             let duration_ms = last_ts.duration_since(first_ts).as_millis() as u64;
-            obj.insert("_reduced_span_ms".to_string(), serde_json::json!(duration_ms));
+            obj.insert(
+                "_reduced_span_ms".to_string(),
+                serde_json::json!(duration_ms),
+            );
 
             if let Ok(serialized) = serde_json::to_vec(&json) {
                 return serialized;

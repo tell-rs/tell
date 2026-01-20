@@ -139,15 +139,15 @@ mod patterns;
 
 pub use config::{CustomPattern, PatternType, RedactConfig, RedactStrategy, TargetedField};
 pub use hasher::PseudonymHasher;
-pub use patterns::{find_all_matches, get_pattern, matches_pattern, PATTERNS};
+pub use patterns::{PATTERNS, find_all_matches, get_pattern, matches_pattern};
 
 use crate::registry::{TransformerConfig, TransformerFactory};
 use crate::{TransformError, TransformResult, Transformer};
-use tell_protocol::{Batch, BatchBuilder};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+use tell_protocol::{Batch, BatchBuilder};
 
 #[cfg(test)]
 #[path = "mod_test.rs"]
@@ -200,10 +200,14 @@ impl RedactTransformer {
 
     /// Process a batch, redacting PII
     fn process_batch(&self, batch: Batch) -> Batch {
-        self.metrics.batches_processed.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .batches_processed
+            .fetch_add(1, Ordering::Relaxed);
 
         let msg_count = batch.message_count();
-        self.metrics.messages_processed.fetch_add(msg_count as u64, Ordering::Relaxed);
+        self.metrics
+            .messages_processed
+            .fetch_add(msg_count as u64, Ordering::Relaxed);
 
         let mut builder = BatchBuilder::new(batch.batch_type(), batch.source_id().clone());
 
@@ -286,13 +290,20 @@ impl RedactTransformer {
     }
 
     /// Redact a JSON value based on pattern
-    fn redact_value(&self, value: &mut serde_json::Value, pattern_name: &str, strategy: RedactStrategy) {
+    fn redact_value(
+        &self,
+        value: &mut serde_json::Value,
+        pattern_name: &str,
+        strategy: RedactStrategy,
+    ) {
         if let serde_json::Value::String(s) = value {
             // Check if it matches the expected pattern
             let (matches, prefix) = self.check_pattern_match(s, pattern_name);
 
             if matches {
-                self.metrics.patterns_matched.fetch_add(1, Ordering::Relaxed);
+                self.metrics
+                    .patterns_matched
+                    .fetch_add(1, Ordering::Relaxed);
                 self.metrics.fields_redacted.fetch_add(1, Ordering::Relaxed);
 
                 *value = serde_json::Value::String(self.apply_redaction(s, &prefix, strategy));
@@ -356,7 +367,9 @@ impl RedactTransformer {
                     let matched = m.as_str();
                     let replacement = self.apply_redaction(matched, prefix, self.config.strategy);
 
-                    self.metrics.patterns_matched.fetch_add(1, Ordering::Relaxed);
+                    self.metrics
+                        .patterns_matched
+                        .fetch_add(1, Ordering::Relaxed);
                     self.metrics.fields_redacted.fetch_add(1, Ordering::Relaxed);
 
                     result = result.replace(matched, &replacement);
@@ -370,7 +383,9 @@ impl RedactTransformer {
                 let matched = m.as_str();
                 let replacement = self.apply_redaction(matched, &cp.prefix, self.config.strategy);
 
-                self.metrics.patterns_matched.fetch_add(1, Ordering::Relaxed);
+                self.metrics
+                    .patterns_matched
+                    .fetch_add(1, Ordering::Relaxed);
                 self.metrics.fields_redacted.fetch_add(1, Ordering::Relaxed);
 
                 result = result.replace(matched, &replacement);
@@ -448,7 +463,10 @@ impl TransformerFactory for RedactFactory {
 
     fn default_config(&self) -> Option<TransformerConfig> {
         let mut config = HashMap::new();
-        config.insert("strategy".to_string(), toml::Value::String("redact".to_string()));
+        config.insert(
+            "strategy".to_string(),
+            toml::Value::String("redact".to_string()),
+        );
         Some(config)
     }
 }

@@ -1,8 +1,8 @@
 //! TCP FlatBuffer source benchmarks
 
 use std::io::{self, Write};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use tell_client::test::TcpTestClient;
@@ -10,7 +10,7 @@ use tell_client::{BatchBuilder, SchemaType};
 use tokio::io::AsyncWriteExt;
 use tokio::task::JoinSet;
 
-use crate::common::{format_number, print_header, print_summary, TimedProgressReporter};
+use crate::common::{TimedProgressReporter, format_number, print_header, print_summary};
 
 /// TCP benchmark mode
 #[derive(clap::Subcommand)]
@@ -171,8 +171,7 @@ async fn flatbuffer_client(
     events_sent: &AtomicU64,
     bytes_sent: &AtomicU64,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let api_key_bytes =
-        hex::decode(api_key).map_err(|e| format!("Invalid API key hex: {}", e))?;
+    let api_key_bytes = hex::decode(api_key).map_err(|e| format!("Invalid API key hex: {}", e))?;
     if api_key_bytes.len() != 16 {
         return Err("API key must be 32 hex characters".into());
     }
@@ -294,8 +293,7 @@ async fn sized_client(
     events_sent: &AtomicU64,
     bytes_sent: &AtomicU64,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let api_key_bytes =
-        hex::decode(api_key).map_err(|e| format!("Invalid API key hex: {}", e))?;
+    let api_key_bytes = hex::decode(api_key).map_err(|e| format!("Invalid API key hex: {}", e))?;
     if api_key_bytes.len() != 16 {
         return Err("API key must be 32 hex characters".into());
     }

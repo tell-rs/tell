@@ -8,7 +8,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use serde::Deserialize;
 
-use crate::backend::{validate_sql, QueryBackend};
+use crate::backend::{QueryBackend, validate_sql};
 use crate::error::QueryError;
 use crate::result::{Column, DataType, QueryResult, TableInfo};
 
@@ -133,9 +133,10 @@ impl ClickHouseBackend {
             request = request.basic_auth(user, Some(pass));
         }
 
-        let response = request.send().await.map_err(|e| {
-            QueryError::Connection(format!("ClickHouse connection failed: {}", e))
-        })?;
+        let response = request
+            .send()
+            .await
+            .map_err(|e| QueryError::Connection(format!("ClickHouse connection failed: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -146,9 +147,10 @@ impl ClickHouseBackend {
             )));
         }
 
-        response.text().await.map_err(|e| {
-            QueryError::Execution(format!("failed to read response: {}", e))
-        })
+        response
+            .text()
+            .await
+            .map_err(|e| QueryError::Execution(format!("failed to read response: {}", e)))
     }
 }
 

@@ -1,8 +1,8 @@
 //! Tests for the null sink
 
 use super::{MetricsSnapshot, NullSink, NullSinkMetrics};
-use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use std::sync::Arc;
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tokio::sync::mpsc;
 
 /// Helper to create a test batch with the given message count

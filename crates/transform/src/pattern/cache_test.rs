@@ -214,7 +214,10 @@ fn test_hash_message_service_matters() {
     let hash1 = hash_message("service-a", "same message");
     let hash2 = hash_message("service-b", "same message");
 
-    assert_ne!(hash1, hash2, "Same message with different service should have different hash");
+    assert_ne!(
+        hash1, hash2,
+        "Same message with different service should have different hash"
+    );
 }
 
 #[test]
@@ -222,7 +225,10 @@ fn test_hash_template_normalizes_numbers() {
     let hash1 = hash_template("svc", "User 12345 logged in");
     let hash2 = hash_template("svc", "User 67890 logged in");
 
-    assert_eq!(hash1, hash2, "Numbers should be normalized to same template");
+    assert_eq!(
+        hash1, hash2,
+        "Numbers should be normalized to same template"
+    );
 }
 
 #[test]
@@ -238,7 +244,10 @@ fn test_hash_template_service_matters() {
     let hash1 = hash_template("service-a", "User 123 logged in");
     let hash2 = hash_template("service-b", "User 123 logged in");
 
-    assert_ne!(hash1, hash2, "Same template with different service should have different hash");
+    assert_ne!(
+        hash1, hash2,
+        "Same template with different service should have different hash"
+    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
 //! Tests for EventBuilder and EventDataBuilder
 
-use crate::event::{EventBuilder, EventDataBuilder, EventType};
 use crate::BuilderError;
+use crate::event::{EventBuilder, EventDataBuilder, EventType};
 
 // =============================================================================
 // EventBuilder basic tests
@@ -143,7 +143,10 @@ fn test_device_id_slice_too_short() {
 
     assert!(matches!(
         result,
-        Err(BuilderError::InvalidUuidLength { field: "device_id", len: 10 })
+        Err(BuilderError::InvalidUuidLength {
+            field: "device_id",
+            len: 10
+        })
     ));
 }
 
@@ -153,7 +156,10 @@ fn test_device_id_slice_too_long() {
 
     assert!(matches!(
         result,
-        Err(BuilderError::InvalidUuidLength { field: "device_id", len: 20 })
+        Err(BuilderError::InvalidUuidLength {
+            field: "device_id",
+            len: 20
+        })
     ));
 }
 
@@ -175,7 +181,10 @@ fn test_session_id_slice_too_short() {
 
     assert!(matches!(
         result,
-        Err(BuilderError::InvalidUuidLength { field: "session_id", len: 8 })
+        Err(BuilderError::InvalidUuidLength {
+            field: "session_id",
+            len: 8
+        })
     ));
 }
 
@@ -246,10 +255,7 @@ fn test_event_name_too_long() {
 
 #[test]
 fn test_event_name_unicode() {
-    let event = EventBuilder::new()
-        .event_name("購入完了")
-        .build()
-        .unwrap();
+    let event = EventBuilder::new().event_name("購入完了").build().unwrap();
 
     assert!(!event.is_empty());
 }
@@ -518,10 +524,14 @@ fn test_event_data_roundtrip_single_event() {
 
     let event = EventBuilder::new()
         .track("page_view")
-        .device_id([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                    0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10])
-        .session_id([0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-                     0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20])
+        .device_id([
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10,
+        ])
+        .session_id([
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+            0x1f, 0x20,
+        ])
         .timestamp(1700000000000)
         .payload_json(r#"{"page": "/home", "referrer": "google"}"#)
         .build()
@@ -537,11 +547,24 @@ fn test_event_data_roundtrip_single_event() {
     assert_eq!(ev.event_type, tell_protocol::EventType::Track);
     assert_eq!(ev.event_name, Some("page_view"));
     assert_eq!(ev.timestamp, 1700000000000);
-    assert_eq!(ev.device_id, Some(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                                      0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10]));
-    assert_eq!(ev.session_id, Some(&[0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-                                       0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20]));
-    assert_eq!(std::str::from_utf8(ev.payload).unwrap(), r#"{"page": "/home", "referrer": "google"}"#);
+    assert_eq!(
+        ev.device_id,
+        Some(&[
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10
+        ])
+    );
+    assert_eq!(
+        ev.session_id,
+        Some(&[
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+            0x1f, 0x20
+        ])
+    );
+    assert_eq!(
+        std::str::from_utf8(ev.payload).unwrap(),
+        r#"{"page": "/home", "referrer": "google"}"#
+    );
 }
 
 #[test]
@@ -594,8 +617,8 @@ fn test_event_data_roundtrip_multiple_events() {
 
 #[test]
 fn test_full_batch_roundtrip() {
-    use tell_protocol::{FlatBatch, SchemaType, decode_event_data};
     use crate::BatchBuilder;
+    use tell_protocol::{FlatBatch, SchemaType, decode_event_data};
 
     let event = EventBuilder::new()
         .track("checkout")

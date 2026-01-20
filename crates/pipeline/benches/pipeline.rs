@@ -6,11 +6,11 @@
 
 use std::sync::Arc;
 
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use tell_pipeline::{Router, SinkHandle};
 use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tell_routing::RoutingTable;
 use tell_tap::{SubscribeRequest, TapPoint};
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 

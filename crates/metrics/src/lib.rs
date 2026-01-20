@@ -73,7 +73,7 @@ pub use collected::{
 };
 pub use format::{HumanFormatter, JsonFormatter, MetricsFormatter};
 pub use reporter::{PipelineMetricsProvider, UnifiedReporter, UnifiedReporterBuilder};
-pub use sink_reporter::{spawn_sink_reporters, SinkReporter};
+pub use sink_reporter::{SinkReporter, spawn_sink_reporters};
 pub use traits::{
     SinkMetrics, SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot, SourceMetrics,
     SourceMetricsProvider, SourceMetricsSnapshot, TransformerMetrics, TransformerMetricsProvider,

@@ -8,11 +8,11 @@ use tell_protocol::BatchType;
 use tokio::net::UdpSocket;
 use tokio_util::sync::CancellationToken;
 
-use crate::syslog::udp::{
-    trim_trailing_newline, SyslogUdpSource, SyslogUdpSourceConfig, SyslogUdpSourceError,
-    SyslogUdpSourceMetrics,
-};
 use crate::ShardedSender;
+use crate::syslog::udp::{
+    SyslogUdpSource, SyslogUdpSourceConfig, SyslogUdpSourceError, SyslogUdpSourceMetrics,
+    trim_trailing_newline,
+};
 
 #[test]
 fn test_config_defaults() {
@@ -169,7 +169,10 @@ async fn test_source_receives_packets() {
     let config = SyslogUdpSourceConfig { port, ..config };
 
     let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-    let source = Arc::new(SyslogUdpSource::new(config.clone(), ShardedSender::new(vec![tx])));
+    let source = Arc::new(SyslogUdpSource::new(
+        config.clone(),
+        ShardedSender::new(vec![tx]),
+    ));
 
     // Start source in background
     let source_clone = Arc::clone(&source);
@@ -221,7 +224,10 @@ async fn test_multiple_packets() {
     let config = SyslogUdpSourceConfig { port, ..config };
 
     let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-    let source = Arc::new(SyslogUdpSource::new(config.clone(), ShardedSender::new(vec![tx])));
+    let source = Arc::new(SyslogUdpSource::new(
+        config.clone(),
+        ShardedSender::new(vec![tx]),
+    ));
 
     let source_clone = Arc::clone(&source);
     let handle = tokio::spawn(async move {
@@ -273,7 +279,10 @@ async fn test_workspace_id_propagation() {
     let config = SyslogUdpSourceConfig { port, ..config };
 
     let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-    let source = Arc::new(SyslogUdpSource::new(config.clone(), ShardedSender::new(vec![tx])));
+    let source = Arc::new(SyslogUdpSource::new(
+        config.clone(),
+        ShardedSender::new(vec![tx]),
+    ));
 
     let source_clone = Arc::clone(&source);
     let handle = tokio::spawn(async move {
@@ -318,7 +327,10 @@ async fn test_rfc3164_format() {
     let config = SyslogUdpSourceConfig { port, ..config };
 
     let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-    let source = Arc::new(SyslogUdpSource::new(config.clone(), ShardedSender::new(vec![tx])));
+    let source = Arc::new(SyslogUdpSource::new(
+        config.clone(),
+        ShardedSender::new(vec![tx]),
+    ));
 
     let source_clone = Arc::clone(&source);
     let handle = tokio::spawn(async move {
@@ -368,7 +380,10 @@ async fn test_rfc5424_format() {
     let config = SyslogUdpSourceConfig { port, ..config };
 
     let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-    let source = Arc::new(SyslogUdpSource::new(config.clone(), ShardedSender::new(vec![tx])));
+    let source = Arc::new(SyslogUdpSource::new(
+        config.clone(),
+        ShardedSender::new(vec![tx]),
+    ));
 
     let source_clone = Arc::clone(&source);
     let handle = tokio::spawn(async move {
@@ -379,7 +394,8 @@ async fn test_rfc5424_format() {
 
     let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
     // RFC 5424 format
-    let msg = "<165>1 2023-12-20T12:36:15.003Z server1.example.com myapp 1234 ID47 - Application started";
+    let msg =
+        "<165>1 2023-12-20T12:36:15.003Z server1.example.com myapp 1234 ID47 - Application started";
     client
         .send_to(msg.as_bytes(), format!("127.0.0.1:{}", port))
         .await
@@ -418,7 +434,10 @@ async fn test_packet_with_newline() {
     let config = SyslogUdpSourceConfig { port, ..config };
 
     let (tx, mut rx) = crossfire::mpsc::bounded_async(100);
-    let source = Arc::new(SyslogUdpSource::new(config.clone(), ShardedSender::new(vec![tx])));
+    let source = Arc::new(SyslogUdpSource::new(
+        config.clone(),
+        ShardedSender::new(vec![tx]),
+    ));
 
     let source_clone = Arc::clone(&source);
     let handle = tokio::spawn(async move {

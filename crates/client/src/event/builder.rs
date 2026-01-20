@@ -405,8 +405,16 @@ fn build_event_flatbuffer(
     let table_size: u16 = 4 + 28; // soffset + inline data
 
     // Estimate buffer size
-    let device_id_size = if device_id.is_some() { 4 + UUID_LENGTH } else { 0 };
-    let session_id_size = if session_id.is_some() { 4 + UUID_LENGTH } else { 0 };
+    let device_id_size = if device_id.is_some() {
+        4 + UUID_LENGTH
+    } else {
+        0
+    };
+    let session_id_size = if session_id.is_some() {
+        4 + UUID_LENGTH
+    } else {
+        0
+    };
     let event_name_size = event_name.map(|s| 4 + s.len() + 1).unwrap_or(0); // +1 for null terminator
     let payload_size = payload.map(|p| 4 + p.len()).unwrap_or(0);
 
@@ -656,8 +664,12 @@ fn build_event_data_flatbuffer(events: &[BuiltEvent]) -> Vec<u8> {
 
         // Read the root offset from the event (first 4 bytes, little-endian u32)
         let root_offset = if event_bytes.len() >= 4 {
-            u32::from_le_bytes([event_bytes[0], event_bytes[1], event_bytes[2], event_bytes[3]])
-                as usize
+            u32::from_le_bytes([
+                event_bytes[0],
+                event_bytes[1],
+                event_bytes[2],
+                event_bytes[3],
+            ]) as usize
         } else {
             0
         };

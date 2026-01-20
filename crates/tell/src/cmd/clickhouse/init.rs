@@ -10,12 +10,12 @@
 //! tell clickhouse init acme --dry-run
 //! ```
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Args;
 use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
-use super::client::{SchemaClient, DEFAULT_URL};
+use super::client::{DEFAULT_URL, SchemaClient};
 use super::config::generate_config;
 use super::password::generate_password;
 use super::schema;
@@ -90,7 +90,10 @@ pub async fn run(args: InitArgs) -> Result<()> {
         workspace.cyan(),
         workspace.cyan()
     );
-    println!("Config        {}", config_path.display().to_string().dimmed());
+    println!(
+        "Config        {}",
+        config_path.display().to_string().dimmed()
+    );
     println!("{}", "─".repeat(50));
     println!();
 
@@ -165,15 +168,17 @@ pub async fn run(args: InitArgs) -> Result<()> {
     println!("{}", "Setup complete!".green().bold());
     println!();
     println!("Credentials (save these):");
-    println!("  Collector: {}_collector / {}", workspace, collector_password);
-    println!("  Dashboard: {}_dashboard / {}", workspace, dashboard_password);
+    println!(
+        "  Collector: {}_collector / {}",
+        workspace, collector_password
+    );
+    println!(
+        "  Dashboard: {}_dashboard / {}",
+        workspace, dashboard_password
+    );
     println!();
     println!("Next steps:");
-    println!(
-        "  {} {}",
-        "tell --config".dimmed(),
-        config_path.display()
-    );
+    println!("  {} {}", "tell --config".dimmed(), config_path.display());
     println!("  {}", "tell tail".dimmed());
     println!();
 
@@ -183,9 +188,7 @@ pub async fn run(args: InitArgs) -> Result<()> {
 fn is_valid_workspace_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 64
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         && !name.starts_with('_')
         && !name.chars().next().map_or(true, |c| c.is_ascii_digit())
 }
@@ -213,7 +216,9 @@ fn print_dry_run(workspace: &str, collector_password: &str, dashboard_password: 
     println!("-- Create users");
     for sql in schema::create_users(workspace, collector_password, dashboard_password) {
         // Mask password in output
-        let masked = sql.replace(collector_password, "***").replace(dashboard_password, "***");
+        let masked = sql
+            .replace(collector_password, "***")
+            .replace(dashboard_password, "***");
         println!("{};", masked);
     }
     println!();

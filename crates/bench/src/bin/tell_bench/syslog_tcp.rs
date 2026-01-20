@@ -1,8 +1,8 @@
 //! Syslog TCP source benchmarks
 
 use std::io::{self, Write};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use tokio::io::AsyncWriteExt;
@@ -10,7 +10,7 @@ use tokio::net::TcpStream;
 use tokio::task::JoinSet;
 
 use crate::common::{
-    format_bytes, format_number, generate_syslog_message, SyslogFormat, TokioProgressReporter,
+    SyslogFormat, TokioProgressReporter, format_bytes, format_number, generate_syslog_message,
 };
 
 /// Syslog TCP benchmark mode
@@ -140,9 +140,15 @@ async fn load_test(
         let bytes_sent = Arc::clone(&bytes_sent);
 
         tasks.spawn(async move {
-            if let Err(e) =
-                tcp_client(&server, client_id, events_per_client, format, &events_sent, &bytes_sent)
-                    .await
+            if let Err(e) = tcp_client(
+                &server,
+                client_id,
+                events_per_client,
+                format,
+                &events_sent,
+                &bytes_sent,
+            )
+            .await
             {
                 eprintln!("Client {} error: {}", client_id, e);
             }
@@ -194,8 +200,11 @@ async fn tcp_client(
         buffer.clear();
 
         for i in 0..batch_size {
-            let msg =
-                generate_syslog_message(format, client_id, batch_num * batch_size as u64 + i as u64);
+            let msg = generate_syslog_message(
+                format,
+                client_id,
+                batch_num * batch_size as u64 + i as u64,
+            );
             buffer.extend_from_slice(msg.as_bytes());
             buffer.push(b'\n');
         }
@@ -290,7 +299,9 @@ async fn sized_client(
     let mut stream = TcpStream::connect(server).await?;
     stream.set_nodelay(true)?;
 
-    let payload: String = (0..msg_size).map(|i| ((i % 26) as u8 + b'a') as char).collect();
+    let payload: String = (0..msg_size)
+        .map(|i| ((i % 26) as u8 + b'a') as char)
+        .collect();
     let msg = format!("<134>Jan 15 12:00:00 host app: {}\n", payload);
 
     let mut buffer = Vec::with_capacity(batch_size * msg.len());
@@ -316,9 +327,18 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
     let tests: Vec<(&str, Box<dyn Fn() -> Vec<u8> + Send + Sync>)> = vec![
         ("Empty line", Box::new(|| b"\n".to_vec())),
         ("Only whitespace", Box::new(|| b"   \t\t  \n".to_vec())),
-        ("No priority", Box::new(|| b"This is not valid syslog\n".to_vec())),
-        ("Invalid priority", Box::new(|| b"<999>Invalid priority\n".to_vec())),
-        ("Unclosed priority", Box::new(|| b"<134 missing close\n".to_vec())),
+        (
+            "No priority",
+            Box::new(|| b"This is not valid syslog\n".to_vec()),
+        ),
+        (
+            "Invalid priority",
+            Box::new(|| b"<999>Invalid priority\n".to_vec()),
+        ),
+        (
+            "Unclosed priority",
+            Box::new(|| b"<134 missing close\n".to_vec()),
+        ),
         (
             "Binary garbage",
             Box::new(|| vec![0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF, b'\n']),
@@ -327,35 +347,54 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
             "Null bytes",
             Box::new(|| b"<134>Jan 1 00:00:00 host \x00\x00\x00\n".to_vec()),
         ),
-        ("Very long line (16KB)", Box::new(|| {
-            let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
-            v.extend(std::iter::repeat(b'X').take(16 * 1024));
-            v.push(b'\n');
-            v
-        })),
-        ("Very long line (64KB)", Box::new(|| {
-            let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
-            v.extend(std::iter::repeat(b'Y').take(64 * 1024));
-            v.push(b'\n');
-            v
-        })),
+        (
+            "Very long line (16KB)",
+            Box::new(|| {
+                let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
+                v.extend(std::iter::repeat(b'X').take(16 * 1024));
+                v.push(b'\n');
+                v
+            }),
+        ),
+        (
+            "Very long line (64KB)",
+            Box::new(|| {
+                let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
+                v.extend(std::iter::repeat(b'Y').take(64 * 1024));
+                v.push(b'\n');
+                v
+            }),
+        ),
         (
             "UTF-8 valid",
-            Box::new(|| "<134>Jan 1 00:00:00 host app: 你好世界 \n".as_bytes().to_vec()),
+            Box::new(|| {
+                "<134>Jan 1 00:00:00 host app: 你好世界 \n"
+                    .as_bytes()
+                    .to_vec()
+            }),
         ),
-        ("Invalid UTF-8", Box::new(|| vec![b'<', b'1', b'3', b'4', b'>', 0xFF, 0xFE, b'\n'])),
-        ("CRLF endings", Box::new(|| b"<134>Jan 1 00:00:00 host app: CRLF\r\n".to_vec())),
+        (
+            "Invalid UTF-8",
+            Box::new(|| vec![b'<', b'1', b'3', b'4', b'>', 0xFF, 0xFE, b'\n']),
+        ),
+        (
+            "CRLF endings",
+            Box::new(|| b"<134>Jan 1 00:00:00 host app: CRLF\r\n".to_vec()),
+        ),
         (
             "Mixed line endings",
             Box::new(|| b"<134>line1\n<134>line2\r\n<134>line3\n".to_vec()),
         ),
-        ("Rapid small messages", Box::new(|| {
-            let mut v = Vec::new();
-            for _ in 0..1000 {
-                v.extend_from_slice(b"<134>x\n");
-            }
-            v
-        })),
+        (
+            "Rapid small messages",
+            Box::new(|| {
+                let mut v = Vec::new();
+                for _ in 0..1000 {
+                    v.extend_from_slice(b"<134>x\n");
+                }
+                v
+            }),
+        ),
     ];
 
     for (name, generator) in &tests {
@@ -552,7 +591,8 @@ async fn oversized_client(
                 }
             }
             Err(e) => {
-                if e.kind() == io::ErrorKind::BrokenPipe || e.kind() == io::ErrorKind::ConnectionReset
+                if e.kind() == io::ErrorKind::BrokenPipe
+                    || e.kind() == io::ErrorKind::ConnectionReset
                 {
                     tokio::time::sleep(Duration::from_millis(10)).await;
                     stream = TcpStream::connect(server).await?;

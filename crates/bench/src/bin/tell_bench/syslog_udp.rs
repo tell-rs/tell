@@ -2,15 +2,15 @@
 
 use std::io::{self, Write};
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use tokio::net::UdpSocket;
 use tokio::task::JoinSet;
 
 use crate::common::{
-    format_bytes, format_number, generate_syslog_message, SyslogFormat, TokioProgressReporter,
+    SyslogFormat, TokioProgressReporter, format_bytes, format_number, generate_syslog_message,
 };
 
 /// Syslog UDP benchmark mode
@@ -141,9 +141,15 @@ async fn load_test(
         let bytes_sent = Arc::clone(&bytes_sent);
 
         tasks.spawn(async move {
-            if let Err(e) =
-                udp_client(server_addr, client_id, events_per_client, format, &events_sent, &bytes_sent)
-                    .await
+            if let Err(e) = udp_client(
+                server_addr,
+                client_id,
+                events_per_client,
+                format,
+                &events_sent,
+                &bytes_sent,
+            )
+            .await
             {
                 eprintln!("Client {} error: {}", client_id, e);
             }
@@ -236,8 +242,14 @@ async fn benchmark(
             let bytes_sent = Arc::clone(&bytes_sent);
 
             tasks.spawn(async move {
-                let _ = sized_client(server_addr, events_per_client, size, &events_sent, &bytes_sent)
-                    .await;
+                let _ = sized_client(
+                    server_addr,
+                    events_per_client,
+                    size,
+                    &events_sent,
+                    &bytes_sent,
+                )
+                .await;
             });
         }
 
@@ -303,7 +315,10 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
         ("Invalid priority", b"<999>Invalid priority".to_vec()),
         ("Unclosed priority", b"<134 missing close".to_vec()),
         ("Binary garbage", vec![0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF]),
-        ("Null bytes", b"<134>Jan 1 00:00:00 host \x00\x00\x00".to_vec()),
+        (
+            "Null bytes",
+            b"<134>Jan 1 00:00:00 host \x00\x00\x00".to_vec(),
+        ),
         ("Max UDP size (64KB)", {
             let mut v = b"<134>Jan 1 00:00:00 host app: ".to_vec();
             v.extend(std::iter::repeat(b'X').take(65000));
@@ -311,10 +326,18 @@ async fn crash_test(server: &str) -> Result<(), Box<dyn std::error::Error>> {
         }),
         (
             "UTF-8 valid",
-            "<134>Jan 1 00:00:00 host app: 你好世界 ".as_bytes().to_vec(),
+            "<134>Jan 1 00:00:00 host app: 你好世界 "
+                .as_bytes()
+                .to_vec(),
         ),
-        ("Invalid UTF-8", vec![b'<', b'1', b'3', b'4', b'>', 0xFF, 0xFE]),
-        ("Trailing newline", b"<134>Jan 1 00:00:00 host app: msg\n".to_vec()),
+        (
+            "Invalid UTF-8",
+            vec![b'<', b'1', b'3', b'4', b'>', 0xFF, 0xFE],
+        ),
+        (
+            "Trailing newline",
+            b"<134>Jan 1 00:00:00 host app: msg\n".to_vec(),
+        ),
         ("CRLF", b"<134>Jan 1 00:00:00 host app: msg\r\n".to_vec()),
     ];
 

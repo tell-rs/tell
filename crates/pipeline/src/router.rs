@@ -8,12 +8,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crossfire::AsyncRx;
 use tell_metrics::{PipelineMetricsProvider, PipelineSnapshot};
 use tell_protocol::{Batch, SourceId};
 use tell_routing::{RoutingTable, SinkId};
 use tell_tap::TapPoint;
 use tell_transform::Chain;
-use crossfire::AsyncRx;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -342,8 +342,7 @@ impl Router {
                     self.metrics.record_sink_send_failed();
 
                     // Rate-limited logging (aggregates to 1 log/sec)
-                    self.backpressure_tracker
-                        .record_drop(batch.count() as u64);
+                    self.backpressure_tracker.record_drop(batch.count() as u64);
 
                     tracing::debug!(
                         sink_id = %sink_id,

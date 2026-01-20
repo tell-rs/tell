@@ -5,8 +5,8 @@ use std::sync::atomic::Ordering;
 
 use tell_auth::ApiKeyStore;
 
-use crate::tcp_debug::{TcpDebugSource, TcpDebugSourceConfig, TcpDebugSourceMetrics};
 use crate::ShardedSender;
+use crate::tcp_debug::{TcpDebugSource, TcpDebugSourceConfig, TcpDebugSourceMetrics};
 
 #[test]
 fn test_config_defaults() {

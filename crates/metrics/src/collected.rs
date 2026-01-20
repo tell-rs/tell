@@ -108,9 +108,17 @@ impl CollectedMetrics {
         // Pipeline rates
         let pipeline_rates = match (&self.pipeline, &previous.pipeline) {
             (Some(current), Some(prev)) => Some(PipelineRates {
-                messages_per_sec: rate(current.messages_processed, prev.messages_processed, elapsed_secs),
+                messages_per_sec: rate(
+                    current.messages_processed,
+                    prev.messages_processed,
+                    elapsed_secs,
+                ),
                 bytes_per_sec: rate(current.bytes_processed, prev.bytes_processed, elapsed_secs),
-                batches_per_sec: rate(current.batches_received, prev.batches_received, elapsed_secs),
+                batches_per_sec: rate(
+                    current.batches_received,
+                    prev.batches_received,
+                    elapsed_secs,
+                ),
             }),
             _ => None,
         };
@@ -159,7 +167,10 @@ impl CollectedMetrics {
                         prev.snapshot.bytes_written,
                         elapsed_secs,
                     ),
-                    errors: current.snapshot.write_errors.saturating_sub(prev.snapshot.write_errors),
+                    errors: current
+                        .snapshot
+                        .write_errors
+                        .saturating_sub(prev.snapshot.write_errors),
                 })
             })
             .collect();

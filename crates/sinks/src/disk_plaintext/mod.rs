@@ -45,17 +45,16 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use tell_protocol::{
-    Batch, FlatBatch, SchemaType,
-    decode_event_data, decode_log_data, DecodedEvent, DecodedLogEntry,
-};
 use chrono::Utc;
 use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use tell_protocol::{
+    Batch, DecodedEvent, DecodedLogEntry, FlatBatch, SchemaType, decode_event_data, decode_log_data,
+};
 use tokio::sync::mpsc;
 
 use crate::util::{
-    AtomicRotationSink, ChainWriter, Lz4Writer, PlainTextWriter, RotationConfig, RotationInterval,
-    RateLimitedLogger,
+    AtomicRotationSink, ChainWriter, Lz4Writer, PlainTextWriter, RateLimitedLogger, RotationConfig,
+    RotationInterval,
 };
 
 /// Configuration for disk plaintext sink
@@ -495,52 +494,66 @@ impl DiskPlaintextSink {
             };
 
             match schema_type {
-                SchemaType::Event => {
-                    match decode_event_data(data) {
-                        Ok(events) => {
-                            for event in events {
-                                self.format_event(&timestamp_str, &source_ip, &event, &mut line_buf);
-                                events_buffer.extend_from_slice(line_buf.as_bytes());
-                                events_count += 1;
-                            }
-                        }
-                        Err(e) => {
-                            self.error_logger.error("Event decode failed", &e);
-                            self.format_raw_message(&timestamp_str, &source_ip, msg, &mut line_buf);
-                            raw_buffer.extend_from_slice(line_buf.as_bytes());
-                            raw_count += 1;
+                SchemaType::Event => match decode_event_data(data) {
+                    Ok(events) => {
+                        for event in events {
+                            self.format_event(&timestamp_str, &source_ip, &event, &mut line_buf);
+                            events_buffer.extend_from_slice(line_buf.as_bytes());
+                            events_count += 1;
                         }
                     }
-                }
-                SchemaType::Log => {
-                    match decode_log_data(data) {
-                        Ok(logs) => {
-                            for log_entry in logs {
-                                self.format_log(&timestamp_str, &source_ip, &log_entry, &mut line_buf);
-                                logs_buffer.extend_from_slice(line_buf.as_bytes());
-                                logs_count += 1;
-                            }
-                        }
-                        Err(e) => {
-                            self.error_logger.error("Log decode failed", &e);
-                            self.format_raw_message(&timestamp_str, &source_ip, msg, &mut line_buf);
-                            raw_buffer.extend_from_slice(line_buf.as_bytes());
-                            raw_count += 1;
+                    Err(e) => {
+                        self.error_logger.error("Event decode failed", &e);
+                        self.format_raw_message(&timestamp_str, &source_ip, msg, &mut line_buf);
+                        raw_buffer.extend_from_slice(line_buf.as_bytes());
+                        raw_count += 1;
+                    }
+                },
+                SchemaType::Log => match decode_log_data(data) {
+                    Ok(logs) => {
+                        for log_entry in logs {
+                            self.format_log(&timestamp_str, &source_ip, &log_entry, &mut line_buf);
+                            logs_buffer.extend_from_slice(line_buf.as_bytes());
+                            logs_count += 1;
                         }
                     }
-                }
+                    Err(e) => {
+                        self.error_logger.error("Log decode failed", &e);
+                        self.format_raw_message(&timestamp_str, &source_ip, msg, &mut line_buf);
+                        raw_buffer.extend_from_slice(line_buf.as_bytes());
+                        raw_count += 1;
+                    }
+                },
                 SchemaType::Snapshot => {
-                    self.format_schema_message(&timestamp_str, &source_ip, "SNAPSHOT", data, &mut line_buf);
+                    self.format_schema_message(
+                        &timestamp_str,
+                        &source_ip,
+                        "SNAPSHOT",
+                        data,
+                        &mut line_buf,
+                    );
                     snapshots_buffer.extend_from_slice(line_buf.as_bytes());
                     snapshots_count += 1;
                 }
                 SchemaType::Metric => {
-                    self.format_schema_message(&timestamp_str, &source_ip, "METRIC", data, &mut line_buf);
+                    self.format_schema_message(
+                        &timestamp_str,
+                        &source_ip,
+                        "METRIC",
+                        data,
+                        &mut line_buf,
+                    );
                     metrics_buffer.extend_from_slice(line_buf.as_bytes());
                     metrics_count += 1;
                 }
                 SchemaType::Trace => {
-                    self.format_schema_message(&timestamp_str, &source_ip, "TRACE", data, &mut line_buf);
+                    self.format_schema_message(
+                        &timestamp_str,
+                        &source_ip,
+                        "TRACE",
+                        data,
+                        &mut line_buf,
+                    );
                     traces_buffer.extend_from_slice(line_buf.as_bytes());
                     traces_count += 1;
                 }
@@ -581,12 +594,54 @@ impl DiskPlaintextSink {
             }
         };
 
-        submit_buffer(&self.events_rotation, events_buffer, events_count, &mut total_lines, &mut total_bytes, &self.metrics);
-        submit_buffer(&self.logs_rotation, logs_buffer, logs_count, &mut total_lines, &mut total_bytes, &self.metrics);
-        submit_buffer(&self.snapshots_rotation, snapshots_buffer, snapshots_count, &mut total_lines, &mut total_bytes, &self.metrics);
-        submit_buffer(&self.metrics_rotation, metrics_buffer, metrics_count, &mut total_lines, &mut total_bytes, &self.metrics);
-        submit_buffer(&self.traces_rotation, traces_buffer, traces_count, &mut total_lines, &mut total_bytes, &self.metrics);
-        submit_buffer(&self.raw_rotation, raw_buffer, raw_count, &mut total_lines, &mut total_bytes, &self.metrics);
+        submit_buffer(
+            &self.events_rotation,
+            events_buffer,
+            events_count,
+            &mut total_lines,
+            &mut total_bytes,
+            &self.metrics,
+        );
+        submit_buffer(
+            &self.logs_rotation,
+            logs_buffer,
+            logs_count,
+            &mut total_lines,
+            &mut total_bytes,
+            &self.metrics,
+        );
+        submit_buffer(
+            &self.snapshots_rotation,
+            snapshots_buffer,
+            snapshots_count,
+            &mut total_lines,
+            &mut total_bytes,
+            &self.metrics,
+        );
+        submit_buffer(
+            &self.metrics_rotation,
+            metrics_buffer,
+            metrics_count,
+            &mut total_lines,
+            &mut total_bytes,
+            &self.metrics,
+        );
+        submit_buffer(
+            &self.traces_rotation,
+            traces_buffer,
+            traces_count,
+            &mut total_lines,
+            &mut total_bytes,
+            &self.metrics,
+        );
+        submit_buffer(
+            &self.raw_rotation,
+            raw_buffer,
+            raw_count,
+            &mut total_lines,
+            &mut total_bytes,
+            &self.metrics,
+        );
 
         if total_lines > 0 {
             self.metrics.record_batch(total_lines, total_bytes);
@@ -594,7 +649,13 @@ impl DiskPlaintextSink {
     }
 
     /// Format a decoded event to the line buffer
-    fn format_event(&self, timestamp: &str, source_ip: &str, event: &DecodedEvent<'_>, buf: &mut String) {
+    fn format_event(
+        &self,
+        timestamp: &str,
+        source_ip: &str,
+        event: &DecodedEvent<'_>,
+        buf: &mut String,
+    ) {
         buf.clear();
 
         // Format: [timestamp] [EVENT_TYPE] device_id=X session_id=Y event_name=Z source_ip=W payload=...
@@ -616,7 +677,13 @@ impl DiskPlaintextSink {
     }
 
     /// Format a decoded log entry to the line buffer
-    fn format_log(&self, timestamp: &str, source_ip: &str, log: &DecodedLogEntry<'_>, buf: &mut String) {
+    fn format_log(
+        &self,
+        timestamp: &str,
+        source_ip: &str,
+        log: &DecodedLogEntry<'_>,
+        buf: &mut String,
+    ) {
         buf.clear();
 
         // Format: [timestamp] [LEVEL] session_id=X source=Y service=Z timestamp=T source_ip=W payload=...
@@ -638,7 +705,14 @@ impl DiskPlaintextSink {
     }
 
     /// Format a schema message (snapshots, metrics, traces)
-    fn format_schema_message(&self, timestamp: &str, source_ip: &str, type_name: &str, data: &[u8], buf: &mut String) {
+    fn format_schema_message(
+        &self,
+        timestamp: &str,
+        source_ip: &str,
+        type_name: &str,
+        data: &[u8],
+        buf: &mut String,
+    ) {
         buf.clear();
 
         let _ = write!(
@@ -693,11 +767,22 @@ fn format_uuid(uuid: Option<&[u8; 16]>) -> String {
             // Format as standard UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
             format!(
                 "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-                bytes[0], bytes[1], bytes[2], bytes[3],
-                bytes[4], bytes[5],
-                bytes[6], bytes[7],
-                bytes[8], bytes[9],
-                bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+                bytes[0],
+                bytes[1],
+                bytes[2],
+                bytes[3],
+                bytes[4],
+                bytes[5],
+                bytes[6],
+                bytes[7],
+                bytes[8],
+                bytes[9],
+                bytes[10],
+                bytes[11],
+                bytes[12],
+                bytes[13],
+                bytes[14],
+                bytes[15]
             )
         }
         None => "-".to_string(),
@@ -726,7 +811,11 @@ fn append_escaped_payload(buf: &mut String, payload: &[u8]) {
         // Binary data - use hex encoding (truncate if too long)
         const MAX_HEX_BYTES: usize = 256;
         let truncated = payload.len() > MAX_HEX_BYTES;
-        let display_bytes = if truncated { MAX_HEX_BYTES } else { payload.len() };
+        let display_bytes = if truncated {
+            MAX_HEX_BYTES
+        } else {
+            payload.len()
+        };
 
         buf.push_str("0x");
         for byte in &payload[..display_bytes] {

@@ -106,11 +106,11 @@ pub use config::{Condition, FilterAction, FilterConfig, MatchMode, Operator};
 
 use crate::registry::{TransformerConfig, TransformerFactory};
 use crate::{TransformError, TransformResult, Transformer};
-use tell_protocol::{Batch, BatchBuilder};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+use tell_protocol::{Batch, BatchBuilder};
 
 #[cfg(test)]
 #[path = "mod_test.rs"]
@@ -178,8 +178,16 @@ impl FilterTransformer {
         };
 
         match self.config.match_mode {
-            MatchMode::All => self.config.conditions.iter().all(|c| self.eval_condition(c, &json)),
-            MatchMode::Any => self.config.conditions.iter().any(|c| self.eval_condition(c, &json)),
+            MatchMode::All => self
+                .config
+                .conditions
+                .iter()
+                .all(|c| self.eval_condition(c, &json)),
+            MatchMode::Any => self
+                .config
+                .conditions
+                .iter()
+                .any(|c| self.eval_condition(c, &json)),
         }
     }
 
@@ -256,10 +264,14 @@ impl FilterTransformer {
 
     /// Process a batch, filtering events
     fn process_batch(&self, batch: Batch) -> Batch {
-        self.metrics.batches_processed.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .batches_processed
+            .fetch_add(1, Ordering::Relaxed);
 
         let msg_count = batch.message_count();
-        self.metrics.messages_received.fetch_add(msg_count as u64, Ordering::Relaxed);
+        self.metrics
+            .messages_received
+            .fetch_add(msg_count as u64, Ordering::Relaxed);
 
         let mut builder = BatchBuilder::new(batch.batch_type(), batch.source_id().clone());
         let mut passed = 0u64;
@@ -275,8 +287,8 @@ impl FilterTransformer {
 
             // Determine if we should keep or drop
             let keep = match self.config.action {
-                FilterAction::Drop => !matches,  // Drop matches, keep non-matches
-                FilterAction::Keep => matches,   // Keep matches, drop non-matches
+                FilterAction::Drop => !matches, // Drop matches, keep non-matches
+                FilterAction::Keep => matches,  // Keep matches, drop non-matches
             };
 
             if keep {
@@ -287,8 +299,12 @@ impl FilterTransformer {
             }
         }
 
-        self.metrics.messages_passed.fetch_add(passed, Ordering::Relaxed);
-        self.metrics.messages_dropped.fetch_add(dropped, Ordering::Relaxed);
+        self.metrics
+            .messages_passed
+            .fetch_add(passed, Ordering::Relaxed);
+        self.metrics
+            .messages_dropped
+            .fetch_add(dropped, Ordering::Relaxed);
 
         builder.finish()
     }
@@ -336,7 +352,10 @@ impl TransformerFactory for FilterFactory {
 
     fn default_config(&self) -> Option<TransformerConfig> {
         let mut config = HashMap::new();
-        config.insert("action".to_string(), toml::Value::String("drop".to_string()));
+        config.insert(
+            "action".to_string(),
+            toml::Value::String("drop".to_string()),
+        );
         config.insert("match".to_string(), toml::Value::String("all".to_string()));
         Some(config)
     }
@@ -382,9 +401,7 @@ fn json_value_equals(value: &serde_json::Value, expected: &str) -> bool {
     match value {
         serde_json::Value::String(s) => s == expected,
         serde_json::Value::Number(n) => n.to_string() == expected,
-        serde_json::Value::Bool(b) => {
-            (expected == "true" && *b) || (expected == "false" && !*b)
-        }
+        serde_json::Value::Bool(b) => (expected == "true" && *b) || (expected == "false" && !*b),
         serde_json::Value::Null => expected == "null",
         _ => false,
     }
@@ -405,12 +422,10 @@ fn numeric_compare<F>(field: Option<&serde_json::Value>, expected: &Option<Strin
 where
     F: Fn(f64, f64) -> bool,
 {
-    let field_num = field.and_then(|v| {
-        match v {
-            serde_json::Value::Number(n) => n.as_f64(),
-            serde_json::Value::String(s) => s.parse::<f64>().ok(),
-            _ => None,
-        }
+    let field_num = field.and_then(|v| match v {
+        serde_json::Value::Number(n) => n.as_f64(),
+        serde_json::Value::String(s) => s.parse::<f64>().ok(),
+        _ => None,
     });
 
     let expected_num = expected.as_ref().and_then(|s| s.parse::<f64>().ok());

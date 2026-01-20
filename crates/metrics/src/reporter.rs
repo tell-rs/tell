@@ -14,13 +14,13 @@
 //! and outputting formatted metrics via tracing.
 
 use crate::{
-    format::MetricsFormatter, CollectedMetrics, CollectedSink, CollectedSource,
-    CollectedTransformer, HumanFormatter, JsonFormatter, PipelineSnapshot, SinkMetricsProvider,
-    SourceMetricsProvider, TransformerMetricsProvider,
+    CollectedMetrics, CollectedSink, CollectedSource, CollectedTransformer, HumanFormatter,
+    JsonFormatter, PipelineSnapshot, SinkMetricsProvider, SourceMetricsProvider,
+    TransformerMetricsProvider, format::MetricsFormatter,
 };
-use tell_config::{MetricsConfig, MetricsFormat};
 use std::sync::Arc;
 use std::time::Instant;
+use tell_config::{MetricsConfig, MetricsFormat};
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::info;

@@ -16,8 +16,8 @@ mod cmd;
 mod transformer_builder;
 
 use anyhow::Result;
-use tell_config::Config;
 use clap::{Parser, Subcommand};
+use tell_config::Config;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 /// Tell - High-performance data streaming engine
@@ -128,9 +128,7 @@ async fn main() -> Result<()> {
         None => {
             let log_level = resolve_log_level(cli.log_level.as_deref(), cli.config.as_deref());
             init_logging(&log_level)?;
-            let args = cmd::serve::ServeArgs {
-                config: cli.config,
-            };
+            let args = cmd::serve::ServeArgs { config: cli.config };
             cmd::serve::run(args).await
         }
     }

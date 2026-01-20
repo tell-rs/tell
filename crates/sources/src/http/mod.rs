@@ -66,11 +66,11 @@ mod response;
 mod http_test;
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use tell_auth::ApiKeyStore;
 use tell_protocol::SourceId;
 use tokio::net::TcpListener;
@@ -164,10 +164,12 @@ impl HttpSource {
         let app = build_router(state).into_make_service_with_connect_info::<SocketAddr>();
 
         // Run server with graceful shutdown
-        let server = axum::serve(listener, app)
-            .with_graceful_shutdown(shutdown_signal(cancel.clone()));
+        let server =
+            axum::serve(listener, app).with_graceful_shutdown(shutdown_signal(cancel.clone()));
 
-        let result = server.await.map_err(|e| HttpSourceError::Http(e.to_string()));
+        let result = server
+            .await
+            .map_err(|e| HttpSourceError::Http(e.to_string()));
 
         self.running.store(false, Ordering::Relaxed);
 

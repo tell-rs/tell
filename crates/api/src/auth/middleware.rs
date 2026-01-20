@@ -30,10 +30,10 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::FromRequestParts,
-    http::{header::AUTHORIZATION, request::Parts, StatusCode},
-    response::{IntoResponse, Response},
     Json,
+    extract::FromRequestParts,
+    http::{StatusCode, header::AUTHORIZATION, request::Parts},
+    response::{IntoResponse, Response},
 };
 use serde::Deserialize;
 
@@ -175,7 +175,9 @@ fn extract_from_query(parts: &Parts) -> Option<String> {
     }
 
     let params: TokenQuery = serde_urlencoded::from_str(query).ok()?;
-    params.token.filter(|t| !t.is_empty() && t.len() <= MAX_TOKEN_SIZE)
+    params
+        .token
+        .filter(|t| !t.is_empty() && t.len() <= MAX_TOKEN_SIZE)
 }
 
 fn extract_from_cookie(parts: &Parts) -> Option<String> {
@@ -225,7 +227,9 @@ fn url_decode_simple(s: &str) -> String {
         if c == '%' {
             // Try to decode %XX
             let hex: String = chars.by_ref().take(2).collect();
-            if hex.len() == 2 && let Ok(byte) = u8::from_str_radix(&hex, 16) {
+            if hex.len() == 2
+                && let Ok(byte) = u8::from_str_radix(&hex, 16)
+            {
                 result.push(byte as char);
                 continue;
             }
@@ -388,9 +392,9 @@ pub fn is_public_path(path: &str) -> bool {
         "/api/v1/auth/login",
         "/api/v1/auth/setup",
         "/api/v1/auth/refresh",
-        "/s/",               // Shared links
+        "/s/", // Shared links
         "/api/v1/auth/setup/status",
-        "/api/v1/invites/",  // Invite verification and acceptance
+        "/api/v1/invites/", // Invite verification and acceptance
     ];
 
     PUBLIC_PATHS.iter().any(|p| path.starts_with(p))

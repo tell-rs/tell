@@ -72,12 +72,7 @@ impl WorkspaceInvite {
     /// Create a new workspace invite
     ///
     /// Generates a unique token and sets expiry to 7 days.
-    pub fn new(
-        email: &str,
-        workspace_id: &str,
-        role: MemberRole,
-        created_by: &str,
-    ) -> Self {
+    pub fn new(email: &str, workspace_id: &str, role: MemberRole, created_by: &str) -> Self {
         Self {
             id: generate_id(),
             email: email.to_string(),
@@ -210,9 +205,15 @@ mod tests {
     #[test]
     fn test_status_parsing() {
         assert_eq!(InviteStatus::parse("pending"), Some(InviteStatus::Pending));
-        assert_eq!(InviteStatus::parse("ACCEPTED"), Some(InviteStatus::Accepted));
+        assert_eq!(
+            InviteStatus::parse("ACCEPTED"),
+            Some(InviteStatus::Accepted)
+        );
         assert_eq!(InviteStatus::parse("Expired"), Some(InviteStatus::Expired));
-        assert_eq!(InviteStatus::parse("cancelled"), Some(InviteStatus::Cancelled));
+        assert_eq!(
+            InviteStatus::parse("cancelled"),
+            Some(InviteStatus::Cancelled)
+        );
         assert_eq!(InviteStatus::parse("invalid"), None);
     }
 }

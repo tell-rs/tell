@@ -83,8 +83,8 @@ impl BatchEncoder {
     /// - Vectors (api_key, data, source_ip) after table
     pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
         // Estimate capacity: root(4) + vtable(16) + table(~28) + vectors
-        let capacity = 64 + self.api_key.len() + data.len() +
-            self.source_ip.as_ref().map_or(0, |_| 20);
+        let capacity =
+            64 + self.api_key.len() + data.len() + self.source_ip.as_ref().map_or(0, |_| 20);
         let mut buf = Vec::with_capacity(capacity);
 
         // === Build VTable ===
@@ -206,13 +206,11 @@ impl BatchEncoder {
 
         // api_key offset: relative from field position to vector
         let api_key_rel = (api_key_vec_start - api_key_offset_pos) as u32;
-        buf[api_key_offset_pos..api_key_offset_pos + 4]
-            .copy_from_slice(&api_key_rel.to_le_bytes());
+        buf[api_key_offset_pos..api_key_offset_pos + 4].copy_from_slice(&api_key_rel.to_le_bytes());
 
         // data offset: relative from field position to vector
         let data_rel = (data_vec_start - data_offset_pos) as u32;
-        buf[data_offset_pos..data_offset_pos + 4]
-            .copy_from_slice(&data_rel.to_le_bytes());
+        buf[data_offset_pos..data_offset_pos + 4].copy_from_slice(&data_rel.to_le_bytes());
 
         // source_ip offset (if present)
         if let (Some(pos), Some(vec_start)) = (source_ip_offset_pos, source_ip_vec_start) {
@@ -240,8 +238,8 @@ fn ip_to_bytes(ip: IpAddr) -> [u8; 16] {
         IpAddr::V4(v4) => {
             let octets = v4.octets();
             [
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff,
-                octets[0], octets[1], octets[2], octets[3],
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, octets[0], octets[1], octets[2],
+                octets[3],
             ]
         }
         IpAddr::V6(v6) => v6.octets(),

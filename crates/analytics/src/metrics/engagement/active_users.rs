@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use crate::builder::QueryBuilder;
 use crate::error::Result;
 use crate::filter::Filter;
-use crate::metrics::{parse_timeseries, table_name, Metric};
+use crate::metrics::{Metric, parse_timeseries, table_name};
 use crate::timeseries::TimeSeriesData;
 use tell_query::QueryBackend;
 

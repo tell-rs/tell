@@ -158,7 +158,10 @@ async fn test_cache_effectiveness() {
     let misses = metrics.cache_misses.load(Ordering::Relaxed);
 
     assert!(hits >= 2, "Should have at least 2 cache hits");
-    assert!(misses >= 1, "Should have at least 1 cache miss (first lookup)");
+    assert!(
+        misses >= 1,
+        "Should have at least 1 cache miss (first lookup)"
+    );
 }
 
 #[tokio::test]

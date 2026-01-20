@@ -169,16 +169,16 @@ async fn run_status(config_path: Option<&PathBuf>) -> Result<()> {
     let client = reqwest::Client::new();
     let response = client
         .get(format!("{}/api/v1/user/me", credentials.api_url))
-        .header("Authorization", format!("Bearer {}", credentials.access_token))
+        .header(
+            "Authorization",
+            format!("Bearer {}", credentials.access_token),
+        )
         .send()
         .await;
 
     match response {
         Ok(resp) if resp.status().is_success() => {
-            let user: UserResponse = resp
-                .json()
-                .await
-                .context("failed to parse user response")?;
+            let user: UserResponse = resp.json().await.context("failed to parse user response")?;
 
             println!("Logged in as: {}", user.email);
             if let Some(name) = user.name {
@@ -287,8 +287,8 @@ fn save_credentials(credentials: &AuthCredentials) -> Result<()> {
 pub fn load_credentials() -> Result<AuthCredentials> {
     let auth_file = auth_file_path()?;
     let content = fs::read_to_string(&auth_file).context("not logged in")?;
-    let credentials: AuthCredentials = serde_json::from_str(&content)
-        .context("invalid auth file format")?;
+    let credentials: AuthCredentials =
+        serde_json::from_str(&content).context("invalid auth file format")?;
     Ok(credentials)
 }
 

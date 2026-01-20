@@ -171,10 +171,7 @@ async fn get_top_events(
 ) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
     let filter = params.to_filter()?;
     let metric = TopEventsMetric::new(params.limit);
-    let data = state
-        .metrics
-        .execute(&metric, &filter, workspace.0)
-        .await?;
+    let data = state.metrics.execute(&metric, &filter, workspace.0).await?;
     Ok(Json(ApiResponse::new(data)))
 }
 
@@ -221,10 +218,7 @@ async fn get_top_logs(
 ) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
     let filter = params.to_filter()?;
     let metric = TopLogsMetric::by_level(params.limit);
-    let data = state
-        .metrics
-        .execute(&metric, &filter, workspace.0)
-        .await?;
+    let data = state.metrics.execute(&metric, &filter, workspace.0).await?;
     Ok(Json(ApiResponse::new(data)))
 }
 

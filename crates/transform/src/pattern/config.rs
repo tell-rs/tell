@@ -2,9 +2,9 @@
 //!
 //! Configuration types for the pattern transformer.
 
-use tell_config::TransformerInstanceConfig;
 use std::path::PathBuf;
 use std::time::Duration;
+use tell_config::TransformerInstanceConfig;
 
 #[cfg(test)]
 #[path = "config_test.rs"]

@@ -14,9 +14,9 @@
 //!
 //! This enables multiple Tell instances to share learned patterns.
 
+use super::cache::PatternCache;
 use super::drain::DrainTree;
 use super::persistence::PatternPersistence;
-use super::cache::PatternCache;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -134,7 +134,9 @@ impl ReloadWorker {
             cancel,
         };
 
-        let handle = ReloadWorkerHandle { trigger: trigger_tx };
+        let handle = ReloadWorkerHandle {
+            trigger: trigger_tx,
+        };
 
         (worker, handle)
     }
@@ -194,10 +196,7 @@ impl ReloadWorker {
                     self.cache.put_l2(template_hash, pattern.id);
                 }
 
-                tracing::debug!(
-                    patterns_loaded = count,
-                    "Reloaded patterns from storage"
-                );
+                tracing::debug!(patterns_loaded = count, "Reloaded patterns from storage");
             }
             Err(e) => {
                 tracing::warn!(

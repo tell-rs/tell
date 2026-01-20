@@ -65,7 +65,10 @@ impl ConnectorsConfig {
     }
 
     /// Get connectors filtered by type
-    pub fn by_type(&self, connector_type: &str) -> impl Iterator<Item = (&String, &RawConnectorConfig)> {
+    pub fn by_type(
+        &self,
+        connector_type: &str,
+    ) -> impl Iterator<Item = (&String, &RawConnectorConfig)> {
         self.connectors
             .iter()
             .filter(move |(_, c)| c.connector_type == connector_type)

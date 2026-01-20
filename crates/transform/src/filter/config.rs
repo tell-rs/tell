@@ -103,7 +103,11 @@ impl Condition {
     pub fn regex(field: impl Into<String>, pattern: &str) -> Result<Self, String> {
         let re = regex::Regex::new(pattern)
             .map_err(|e| format!("invalid regex '{}': {}", pattern, e))?;
-        Ok(Self::new(field, Operator::Regex(re), Some(pattern.to_string())))
+        Ok(Self::new(
+            field,
+            Operator::Regex(re),
+            Some(pattern.to_string()),
+        ))
     }
 }
 
@@ -285,7 +289,10 @@ fn parse_condition_from_toml(value: &toml::Value) -> Result<Condition, String> {
         .and_then(|v| v.as_str())
         .unwrap_or("eq");
 
-    let value_str = table.get("value").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let value_str = table
+        .get("value")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
     let operator = parse_operator(operator_str, value_str.as_deref())?;
 

@@ -1,7 +1,7 @@
 //! Tests for pattern storage trait and implementations
 
-use super::*;
 use super::super::PatternPersistence;
+use super::*;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -9,7 +9,11 @@ fn create_test_stored_pattern(id: u64, template: &str) -> StoredPattern {
     StoredPattern {
         id,
         template: template.to_string(),
-        canonical_name: template.split_whitespace().take(3).collect::<Vec<_>>().join(" "),
+        canonical_name: template
+            .split_whitespace()
+            .take(3)
+            .collect::<Vec<_>>()
+            .join(" "),
         count: 1,
         first_seen: 1700000000,
         last_seen: 1700000000,

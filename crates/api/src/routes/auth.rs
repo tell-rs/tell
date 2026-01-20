@@ -3,17 +3,17 @@
 //! Endpoints for login, setup, and token management.
 
 use axum::{
+    Json, Router,
     extract::State,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
 
-use tell_auth::{Role, TokenClaims, TOKEN_PREFIX};
+use tell_auth::{Role, TOKEN_PREFIX, TokenClaims};
 
 use crate::ratelimit::RateLimitLayer;
 use crate::state::AppState;
@@ -249,11 +249,7 @@ impl IntoResponse for AuthApiError {
                 "PASSWORD_TOO_SHORT",
                 "Password must be at least 8 characters".to_string(),
             ),
-            Self::Internal(msg) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "INTERNAL_ERROR",
-                msg,
-            ),
+            Self::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", msg),
         };
 
         let body = serde_json::json!({

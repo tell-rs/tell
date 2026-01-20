@@ -23,8 +23,10 @@
 //! ```
 
 use crate::TransformResult;
-use tell_protocol::{Batch, BatchType, FlatBatch, LogEventType, LogLevel, SchemaType, decode_log_data};
 use std::sync::OnceLock;
+use tell_protocol::{
+    Batch, BatchType, FlatBatch, LogEventType, LogLevel, SchemaType, decode_log_data,
+};
 
 #[cfg(test)]
 #[path = "lazy_batch_test.rs"]

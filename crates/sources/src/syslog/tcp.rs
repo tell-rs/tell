@@ -43,9 +43,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use crossfire::TrySendError;
 use socket2::{Socket, TcpKeepalive};
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::interval;
@@ -53,8 +53,8 @@ use tokio_util::sync::CancellationToken;
 
 use tell_metrics::{SourceMetricsProvider, SourceMetricsSnapshot};
 
-use crate::common::SourceMetrics;
 use crate::ShardedSender;
+use crate::common::SourceMetrics;
 
 // =============================================================================
 // Constants
@@ -387,7 +387,9 @@ impl SyslogTcpSource {
         let socket = unsafe { Socket::from_raw_fd(fd) };
 
         // TCP_NODELAY - disable Nagle's algorithm
-        if self.config.nodelay && let Err(e) = socket.set_tcp_nodelay(true) {
+        if self.config.nodelay
+            && let Err(e) = socket.set_tcp_nodelay(true)
+        {
             tracing::warn!(error = %e, "Failed to set TCP_NODELAY");
         }
 
@@ -435,7 +437,11 @@ impl SyslogTcpSource {
     }
 
     /// Accept loop - handles incoming connections
-    async fn accept_loop(&self, listener: TcpListener, cancel: CancellationToken) -> Result<(), SyslogTcpSourceError> {
+    async fn accept_loop(
+        &self,
+        listener: TcpListener,
+        cancel: CancellationToken,
+    ) -> Result<(), SyslogTcpSourceError> {
         loop {
             tokio::select! {
                 // Check for cancellation
@@ -674,8 +680,11 @@ impl ConnectionHandler {
             }
             Err(TrySendError::Full(batch)) => {
                 // Queue full - try blocking send with small timeout
-                match tokio::time::timeout(Duration::from_millis(10), self.batch_sender.send(batch, self.connection_id))
-                    .await
+                match tokio::time::timeout(
+                    Duration::from_millis(10),
+                    self.batch_sender.send(batch, self.connection_id),
+                )
+                .await
                 {
                     Ok(Ok(())) => {
                         self.metrics.base.batch_sent();
@@ -811,7 +820,6 @@ fn is_connection_reset(e: &io::Error) -> bool {
             | io::ErrorKind::BrokenPipe
     )
 }
-
 
 #[cfg(test)]
 #[path = "tcp_test.rs"]

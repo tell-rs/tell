@@ -41,10 +41,10 @@
 //! ```
 
 pub mod http;
+mod sharded_sender;
 pub mod syslog;
 pub mod tcp;
 pub mod tcp_debug;
-mod sharded_sender;
 
 // Common types for sources
 mod common;

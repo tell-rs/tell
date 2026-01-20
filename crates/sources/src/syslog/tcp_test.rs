@@ -9,11 +9,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::sync::CancellationToken;
 
-use crate::syslog::tcp::{
-    is_connection_reset, SyslogTcpSource, SyslogTcpSourceConfig, SyslogTcpSourceError,
-    SyslogTcpSourceMetrics,
-};
 use crate::ShardedSender;
+use crate::syslog::tcp::{
+    SyslogTcpSource, SyslogTcpSourceConfig, SyslogTcpSourceError, SyslogTcpSourceMetrics,
+    is_connection_reset,
+};
 
 #[test]
 fn test_config_defaults() {

@@ -106,7 +106,9 @@ impl<'a> FlatTable<'a> {
         };
 
         if field_offset + 4 > self.buf.len() {
-            return Err(ProtocolError::invalid_flatbuffer("table offset out of bounds"));
+            return Err(ProtocolError::invalid_flatbuffer(
+                "table offset out of bounds",
+            ));
         }
 
         // Read relative offset to nested table
@@ -127,7 +129,10 @@ impl<'a> FlatTable<'a> {
     }
 
     /// Read fixed-size bytes (e.g., UUID)
-    pub fn read_fixed_bytes<const N: usize>(&self, field_index: usize) -> Result<Option<&'a [u8; N]>> {
+    pub fn read_fixed_bytes<const N: usize>(
+        &self,
+        field_index: usize,
+    ) -> Result<Option<&'a [u8; N]>> {
         let Some(bytes) = self.read_bytes(field_index)? else {
             return Ok(None);
         };

@@ -24,11 +24,13 @@ use tokio::time::interval;
 
 use super::builders::{
     ContextBuilder, EventsBuilder, LogsBuilder, SnapshotsBuilder, UserDevicesBuilder,
-    UsersBuilder, UserTraitsBuilder,
+    UserTraitsBuilder, UsersBuilder,
 };
 use crate::clickhouse::config::ClickHouseConfig;
 use crate::clickhouse::error::ClickHouseSinkError;
-use crate::clickhouse::helpers::{extract_source_ip, generate_user_id_from_email, normalize_locale};
+use crate::clickhouse::helpers::{
+    extract_source_ip, generate_user_id_from_email, normalize_locale,
+};
 use crate::clickhouse::metrics::{ClickHouseMetrics, ClickHouseSinkMetricsHandle, MetricsSnapshot};
 use crate::util::json::{extract_json_object, extract_json_string};
 
@@ -470,7 +472,15 @@ impl ArrowClickHouseSink {
         };
 
         // Send all batches in parallel (async)
-        let (events_result, logs_result, context_result, users_result, devices_result, traits_result, snapshots_result) = tokio::join!(
+        let (
+            events_result,
+            logs_result,
+            context_result,
+            users_result,
+            devices_result,
+            traits_result,
+            snapshots_result,
+        ) = tokio::join!(
             async {
                 if let Some((batch, count, table)) = events_batch {
                     let result = self.send_arrow_batch(&table, batch).await;

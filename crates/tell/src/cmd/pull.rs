@@ -54,8 +54,7 @@ async fn run_github(args: PullArgs) -> Result<()> {
         ..Default::default()
     };
 
-    let github = GitHub::new(config)
-        .context("failed to create GitHub connector")?;
+    let github = GitHub::new(config).context("failed to create GitHub connector")?;
 
     tracing::info!(
         connector = "github",
@@ -77,8 +76,8 @@ async fn run_github(args: PullArgs) -> Result<()> {
             }
             _ => {
                 // Pretty print JSON
-                let value: serde_json::Value = serde_json::from_slice(msg)
-                    .context("failed to parse snapshot as JSON")?;
+                let value: serde_json::Value =
+                    serde_json::from_slice(msg).context("failed to parse snapshot as JSON")?;
                 println!("{}", serde_json::to_string_pretty(&value)?);
             }
         }

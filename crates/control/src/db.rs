@@ -247,8 +247,7 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 const INDEX_MEMBERSHIPS_USER: &str =
     "CREATE INDEX IF NOT EXISTS idx_memberships_user ON workspace_memberships(user_id)";
 
-const INDEX_SHARED_LINKS_RESOURCE: &str =
-    "CREATE INDEX IF NOT EXISTS idx_shared_links_resource ON shared_links(resource_type, resource_id)";
+const INDEX_SHARED_LINKS_RESOURCE: &str = "CREATE INDEX IF NOT EXISTS idx_shared_links_resource ON shared_links(resource_type, resource_id)";
 
 const INDEX_API_KEYS_USER: &str =
     "CREATE INDEX IF NOT EXISTS idx_api_keys_user ON user_api_keys(user_id)";

@@ -10,9 +10,9 @@
 //! - `GET /api/v1/data/sources/{source}/values/{field}` - Get distinct values for a field
 
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,11 +23,15 @@ use crate::types::ApiResponse;
 
 /// Build the data query router
 pub fn routes() -> Router<AppState> {
+    use crate::ratelimit::{RateLimitConfig, RateLimitLayer};
+
     Router::new()
         .route("/query", post(execute_query))
         .route("/sources", get(list_sources))
         .route("/sources/{source}/fields", get(get_source_fields))
         .route("/sources/{source}/values/{field}", get(get_field_values))
+        // Rate limit data queries (expensive operations) - 30 req/min
+        .layer(RateLimitLayer::new(RateLimitConfig::new(30, 60)))
 }
 
 // ============================================================================
@@ -400,15 +404,32 @@ async fn get_field_values(
 
     // Whitelist valid field names per table to prevent SQL injection
     let valid_fields = match source.as_str() {
-        "events" => &["timestamp", "event_name", "device_id", "session_id", "properties"][..],
+        "events" => &[
+            "timestamp",
+            "event_name",
+            "device_id",
+            "session_id",
+            "properties",
+        ][..],
         "logs" => &["timestamp", "level", "message", "source"][..],
-        "context" => &["timestamp", "device_id", "session_id", "user_id", "device_type", "os", "country"][..],
+        "context" => &[
+            "timestamp",
+            "device_id",
+            "session_id",
+            "user_id",
+            "device_type",
+            "os",
+            "country",
+        ][..],
         "user_traits" => &["user_id", "trait_name", "trait_value", "updated_at"][..],
         _ => &[][..],
     };
 
     if !valid_fields.contains(&field.as_str()) {
-        return Err(ApiError::validation("field", "invalid field name for this source"));
+        return Err(ApiError::validation(
+            "field",
+            "invalid field name for this source",
+        ));
     }
 
     let limit = params.limit.min(1000);
@@ -419,11 +440,20 @@ async fn get_field_values(
     let query = if let Some(search) = &params.search {
         // Validate search string length and content
         if search.len() > 100 {
-            return Err(ApiError::validation("search", "search term too long (max 100 chars)"));
+            return Err(ApiError::validation(
+                "search",
+                "search term too long (max 100 chars)",
+            ));
         }
         // Allow only safe characters in search
-        if !search.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' || c == '.') {
-            return Err(ApiError::validation("search", "search contains invalid characters"));
+        if !search
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' || c == '.')
+        {
+            return Err(ApiError::validation(
+                "search",
+                "search contains invalid characters",
+            ));
         }
         format!(
             "SELECT DISTINCT {} FROM {}.{} WHERE {} LIKE '%{}%' LIMIT {}",
@@ -542,7 +572,8 @@ mod tests {
 
     #[test]
     fn test_scope_query_with_join() {
-        let query = "SELECT * FROM events_v1 JOIN context_v1 ON events_v1.device_id = context_v1.device_id";
+        let query =
+            "SELECT * FROM events_v1 JOIN context_v1 ON events_v1.device_id = context_v1.device_id";
         let scoped = scope_query_to_workspace(query, 456, 50);
         assert!(scoped.contains("FROM 456.events_v1"));
         assert!(scoped.contains("JOIN 456.context_v1"));

@@ -5,13 +5,13 @@
 
 use crate::config::ShopifyConnectorConfig;
 use crate::error::ConnectorError;
-use crate::resilience::{CircuitBreaker, ResilienceConfig, execute_with_retry, RetryError};
+use crate::resilience::{CircuitBreaker, ResilienceConfig, RetryError, execute_with_retry};
 use crate::traits::Connector;
-use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tracing::{debug, warn};
 
 /// Shopify connector configuration (simple version for CLI)
@@ -129,18 +129,16 @@ impl Shopify {
     /// Handle common HTTP response errors
     fn handle_error_status(&self, response: reqwest::Response, context: &str) -> ConnectorError {
         match response.status() {
-            reqwest::StatusCode::NOT_FOUND => {
-                ConnectorError::NotFound(context.to_string())
-            }
+            reqwest::StatusCode::NOT_FOUND => ConnectorError::NotFound(context.to_string()),
             reqwest::StatusCode::UNAUTHORIZED => {
                 ConnectorError::AuthFailed("Invalid or missing access token".into())
             }
             reqwest::StatusCode::FORBIDDEN => {
                 ConnectorError::AuthFailed("Access denied - check API permissions".into())
             }
-            reqwest::StatusCode::TOO_MANY_REQUESTS => {
-                ConnectorError::RateLimited { retry_after_secs: 60 }
-            }
+            reqwest::StatusCode::TOO_MANY_REQUESTS => ConnectorError::RateLimited {
+                retry_after_secs: 60,
+            },
             _ => ConnectorError::Http(response.error_for_status().unwrap_err()),
         }
     }
@@ -176,10 +174,13 @@ impl Shopify {
 
         match result {
             Ok(value) => Ok(value),
-            Err(RetryError::CircuitOpen) => {
-                Err(ConnectorError::ConfigError("circuit breaker open".to_string()))
-            }
-            Err(RetryError::Exhausted { attempts, last_error }) => {
+            Err(RetryError::CircuitOpen) => Err(ConnectorError::ConfigError(
+                "circuit breaker open".to_string(),
+            )),
+            Err(RetryError::Exhausted {
+                attempts,
+                last_error,
+            }) => {
                 warn!(
                     connector = "shopify",
                     entity = %entity,
@@ -235,11 +236,16 @@ impl Shopify {
         let data: OrdersResponse = response.json().await?;
 
         let count = data.orders.len() as u64;
-        let revenue: f64 = data.orders
+        let revenue: f64 = data
+            .orders
             .iter()
             .filter_map(|o| o.total_price.parse::<f64>().ok())
             .sum();
-        let avg_order_value = if count > 0 { revenue / count as f64 } else { 0.0 };
+        let avg_order_value = if count > 0 {
+            revenue / count as f64
+        } else {
+            0.0
+        };
 
         Ok(OrderStats {
             count,
@@ -264,7 +270,8 @@ impl Shopify {
         let data: OrdersResponse = response.json().await?;
 
         let count = data.orders.len() as u64;
-        let revenue: f64 = data.orders
+        let revenue: f64 = data
+            .orders
             .iter()
             .filter_map(|o| o.total_price.parse::<f64>().ok())
             .sum();
@@ -272,7 +279,11 @@ impl Shopify {
         Ok(OrderStats {
             count,
             revenue,
-            avg_order_value: if count > 0 { revenue / count as f64 } else { 0.0 },
+            avg_order_value: if count > 0 {
+                revenue / count as f64
+            } else {
+                0.0
+            },
         })
     }
 
@@ -504,7 +515,10 @@ impl Shopify {
         Ok(CustomerMetrics { total, last_30d })
     }
 
-    async fn fetch_operations_metrics(&self, store: &str) -> Result<OperationsMetrics, ConnectorError> {
+    async fn fetch_operations_metrics(
+        &self,
+        store: &str,
+    ) -> Result<OperationsMetrics, ConnectorError> {
         let entity = format!("{}/operations", store);
 
         let unfulfilled = self

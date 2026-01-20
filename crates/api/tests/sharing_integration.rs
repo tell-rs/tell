@@ -5,15 +5,15 @@
 use std::sync::Arc;
 
 use axum::{
-    body::Body,
-    http::{header, Method, Request, StatusCode},
     Router,
+    body::Body,
+    http::{Method, Request, StatusCode, header},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use tell_api::{routes::build_router, state::AppState};
-use tell_auth::{test_utils, LocalJwtProvider};
+use tell_auth::{LocalJwtProvider, test_utils};
 use tell_control::ControlPlane;
 
 /// Create a test app with in-memory control plane
@@ -48,9 +48,7 @@ fn auth_request(method: Method, uri: &str, token: &str, body: Option<Value>) -> 
         .header(header::CONTENT_TYPE, "application/json");
 
     if let Some(json_body) = body {
-        builder
-            .body(Body::from(json_body.to_string()))
-            .unwrap()
+        builder.body(Body::from(json_body.to_string())).unwrap()
     } else {
         builder.body(Body::empty()).unwrap()
     }
@@ -134,7 +132,10 @@ async fn test_share_board() {
     // Share the board
     let share_request = auth_request(
         Method::POST,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -159,7 +160,10 @@ async fn test_share_board_idempotent() {
     // Share the board
     let share_request1 = auth_request(
         Method::POST,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -172,7 +176,10 @@ async fn test_share_board_idempotent() {
     // Share again - should return existing link (OK, not CREATED)
     let share_request2 = auth_request(
         Method::POST,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -208,7 +215,10 @@ async fn test_share_board_requires_ownership() {
 
     let share_request = auth_request(
         Method::POST,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &user2_token,
         None,
     );
@@ -228,7 +238,10 @@ async fn test_get_share_link() {
     // Share the board
     let share_request = auth_request(
         Method::POST,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -237,7 +250,10 @@ async fn test_get_share_link() {
     // Get the share link
     let get_request = auth_request(
         Method::GET,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -260,7 +276,10 @@ async fn test_get_share_link_not_shared() {
     // Try to get share link for unshared board
     let get_request = auth_request(
         Method::GET,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -280,7 +299,10 @@ async fn test_unshare_board() {
     // Share the board
     let share_request = auth_request(
         Method::POST,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -291,7 +313,10 @@ async fn test_unshare_board() {
     // Unshare the board
     let unshare_request = auth_request(
         Method::DELETE,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );
@@ -316,7 +341,10 @@ async fn test_view_shared_board_public() {
     // Share the board
     let share_request = auth_request(
         Method::POST,
-        &format!("/api/v1/boards/{}/share?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/share?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         None,
     );

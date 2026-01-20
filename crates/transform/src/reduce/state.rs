@@ -111,11 +111,7 @@ impl ReduceState {
     /// Get all groups that should be flushed
     ///
     /// Returns key hashes of groups that exceed time window or max events.
-    pub fn groups_to_flush(
-        &self,
-        window: std::time::Duration,
-        max_events: usize,
-    ) -> Vec<u64> {
+    pub fn groups_to_flush(&self, window: std::time::Duration, max_events: usize) -> Vec<u64> {
         self.groups
             .iter()
             .filter(|(_, group)| {

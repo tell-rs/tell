@@ -19,7 +19,7 @@ use chrono::{TimeZone, Utc};
 use clap::Args;
 use tell_sinks::disk_binary::{BinaryMessage, BinaryReader};
 
-use tell_protocol::{decode_event_data, decode_log_data, FlatBatch, SchemaType};
+use tell_protocol::{FlatBatch, SchemaType, decode_event_data, decode_log_data};
 
 /// Read command arguments
 #[derive(Args, Debug)]
@@ -44,8 +44,8 @@ pub async fn run(args: ReadArgs) -> Result<()> {
 
 /// Read a single binary file and output to stdout or file
 fn read_file(input: &Path, output: Option<&Path>) -> Result<()> {
-    let reader = BinaryReader::open(input)
-        .with_context(|| format!("failed to open {}", input.display()))?;
+    let reader =
+        BinaryReader::open(input).with_context(|| format!("failed to open {}", input.display()))?;
 
     let mut writer: Box<dyn Write> = match output {
         Some(path) => {
@@ -57,7 +57,8 @@ fn read_file(input: &Path, output: Option<&Path>) -> Result<()> {
     };
 
     for result in reader.messages() {
-        let msg = result.with_context(|| format!("failed to read message from {}", input.display()))?;
+        let msg =
+            result.with_context(|| format!("failed to read message from {}", input.display()))?;
         let line = format_message(&msg);
         writeln!(writer, "{}", line)?;
     }
@@ -67,9 +68,8 @@ fn read_file(input: &Path, output: Option<&Path>) -> Result<()> {
 
 /// Read all binary files in a directory and output to another directory
 fn read_directory(input: &Path, output: Option<&PathBuf>) -> Result<()> {
-    let output = output.ok_or_else(|| {
-        anyhow::anyhow!("output directory required when input is directory")
-    })?;
+    let output = output
+        .ok_or_else(|| anyhow::anyhow!("output directory required when input is directory"))?;
 
     fs::create_dir_all(output)
         .with_context(|| format!("failed to create output directory {}", output.display()))?;
@@ -100,11 +100,7 @@ fn walk_directory(base: &Path, current: &Path, output: &Path) -> Result<()> {
                 fs::create_dir_all(parent)?;
             }
 
-            eprintln!(
-                "Converting: {} -> {}",
-                path.display(),
-                out_path.display()
-            );
+            eprintln!("Converting: {} -> {}", path.display(), out_path.display());
 
             read_file(&path, Some(&out_path))?;
         }

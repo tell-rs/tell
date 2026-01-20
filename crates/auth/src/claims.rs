@@ -116,7 +116,9 @@ mod tests {
 
     #[test]
     fn test_is_api_token_format() {
-        assert!(is_api_token_format("tell_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
+        assert!(is_api_token_format(
+            "tell_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+        ));
         assert!(!is_api_token_format("bearer_something"));
         assert!(!is_api_token_format("tell_")); // Too short
     }

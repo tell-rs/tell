@@ -6,9 +6,9 @@
 //! - Placeholder in development
 
 use crate::{TransformResult, Transformer};
-use tell_protocol::Batch;
 use std::future::Future;
 use std::pin::Pin;
+use tell_protocol::Batch;
 
 #[cfg(test)]
 mod noop_test;

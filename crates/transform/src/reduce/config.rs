@@ -1,7 +1,7 @@
 //! Reduce transformer configuration
 
-use tell_config::TransformerInstanceConfig;
 use std::time::Duration;
+use tell_config::TransformerInstanceConfig;
 
 #[cfg(test)]
 #[path = "config_test.rs"]

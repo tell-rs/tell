@@ -184,8 +184,8 @@ pub async fn run(args: MetricsArgs) -> Result<()> {
     let resolved = build_resolved_config(args.config.as_ref())?;
 
     // Create query engine
-    let query_engine = QueryEngine::from_resolved_config(&resolved)
-        .context("failed to create query engine")?;
+    let query_engine =
+        QueryEngine::from_resolved_config(&resolved).context("failed to create query engine")?;
 
     // Create metrics engine
     let engine = MetricsEngine::new(Box::new(query_engine));
@@ -210,34 +210,46 @@ pub async fn run(args: MetricsArgs) -> Result<()> {
         MetricsCommand::Sessions(ts_args) => {
             let filter = build_filter(&ts_args)?;
             let metric = tell_analytics::SessionsMetric::volume();
-            let result = engine.execute_with_comparison(&metric, &filter, args.workspace).await?;
+            let result = engine
+                .execute_with_comparison(&metric, &filter, args.workspace)
+                .await?;
             output_result(&result, &ts_args.format)?;
         }
         MetricsCommand::SessionsUnique(ts_args) => {
             let filter = build_filter(&ts_args)?;
             let metric = tell_analytics::SessionsMetric::unique();
-            let result = engine.execute_with_comparison(&metric, &filter, args.workspace).await?;
+            let result = engine
+                .execute_with_comparison(&metric, &filter, args.workspace)
+                .await?;
             output_result(&result, &ts_args.format)?;
         }
         MetricsCommand::StickinessDaily(ts_args) => {
             let filter = build_filter(&ts_args)?;
             let metric = StickinessMetric::daily();
-            let result = engine.execute_with_comparison(&metric, &filter, args.workspace).await?;
+            let result = engine
+                .execute_with_comparison(&metric, &filter, args.workspace)
+                .await?;
             output_result(&result, &ts_args.format)?;
         }
         MetricsCommand::StickinessWeekly(ts_args) => {
             let filter = build_filter(&ts_args)?;
             let metric = StickinessMetric::weekly();
-            let result = engine.execute_with_comparison(&metric, &filter, args.workspace).await?;
+            let result = engine
+                .execute_with_comparison(&metric, &filter, args.workspace)
+                .await?;
             output_result(&result, &ts_args.format)?;
         }
         MetricsCommand::Events(events_args) => {
             let filter = build_filter(&events_args.common)?;
             let result = if let Some(name) = &events_args.name {
                 let metric = tell_analytics::EventCountMetric::for_event(name);
-                engine.execute_with_comparison(&metric, &filter, args.workspace).await?
+                engine
+                    .execute_with_comparison(&metric, &filter, args.workspace)
+                    .await?
             } else {
-                engine.event_count_with_comparison(&filter, args.workspace).await?
+                engine
+                    .event_count_with_comparison(&filter, args.workspace)
+                    .await?
             };
             output_result(&result, &events_args.common.format)?;
         }
@@ -251,7 +263,9 @@ pub async fn run(args: MetricsArgs) -> Result<()> {
         MetricsCommand::Logs(logs_args) => {
             let filter = build_filter(&logs_args.common)?;
             let metric = LogVolumeMetric::new(logs_args.level.clone());
-            let result = engine.execute_with_comparison(&metric, &filter, args.workspace).await?;
+            let result = engine
+                .execute_with_comparison(&metric, &filter, args.workspace)
+                .await?;
             output_result(&result, &logs_args.common.format)?;
         }
         MetricsCommand::LogsTop(top_args) => {
@@ -266,14 +280,32 @@ pub async fn run(args: MetricsArgs) -> Result<()> {
             let filter = Filter::new(range);
 
             let result = match drill_args.data_type.to_lowercase().as_str() {
-                "users" => engine.drill_down_users(&filter, args.workspace, drill_args.limit).await?,
-                "events" => engine.drill_down_events(&filter, args.workspace, drill_args.limit).await?,
-                "logs" => engine.drill_down_logs(&filter, args.workspace, drill_args.limit).await?,
-                "sessions" => engine.drill_down_sessions(&filter, args.workspace, drill_args.limit).await?,
-                _ => return Err(anyhow::anyhow!(
-                    "unknown drill-down type: {}. Use one of: users, events, logs, sessions",
-                    drill_args.data_type
-                )),
+                "users" => {
+                    engine
+                        .drill_down_users(&filter, args.workspace, drill_args.limit)
+                        .await?
+                }
+                "events" => {
+                    engine
+                        .drill_down_events(&filter, args.workspace, drill_args.limit)
+                        .await?
+                }
+                "logs" => {
+                    engine
+                        .drill_down_logs(&filter, args.workspace, drill_args.limit)
+                        .await?
+                }
+                "sessions" => {
+                    engine
+                        .drill_down_sessions(&filter, args.workspace, drill_args.limit)
+                        .await?
+                }
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "unknown drill-down type: {}. Use one of: users, events, logs, sessions",
+                        drill_args.data_type
+                    ));
+                }
             };
 
             output_raw_result(&result, &drill_args.format)?;
@@ -285,8 +317,8 @@ pub async fn run(args: MetricsArgs) -> Result<()> {
 }
 
 fn build_filter(args: &TimeSeriesArgs) -> Result<Filter> {
-    let range = TimeRange::parse(&args.range)
-        .map_err(|e| anyhow::anyhow!("invalid time range: {}", e))?;
+    let range =
+        TimeRange::parse(&args.range).map_err(|e| anyhow::anyhow!("invalid time range: {}", e))?;
 
     let granularity = Granularity::parse(&args.granularity)
         .map_err(|e| anyhow::anyhow!("invalid granularity: {}", e))?;
@@ -386,7 +418,11 @@ fn output_raw_result(result: &tell_query::QueryResult, format: &str) -> Result<(
             for row in &result.rows {
                 let values: Vec<String> = row
                     .iter()
-                    .map(|v| v.as_str().map(|s| s.to_string()).unwrap_or_else(|| v.to_string()))
+                    .map(|v| {
+                        v.as_str()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| v.to_string())
+                    })
                     .collect();
                 println!("{}", values.join(","));
             }
@@ -418,7 +454,10 @@ fn output_raw_result(result: &tell_query::QueryResult, format: &str) -> Result<(
                 .map(|(i, h)| format!("{:width$}", h, width = widths[i]))
                 .collect();
             println!("{}", header_line.join("  "));
-            println!("{}", "-".repeat(widths.iter().sum::<usize>() + widths.len() * 2));
+            println!(
+                "{}",
+                "-".repeat(widths.iter().sum::<usize>() + widths.len() * 2)
+            );
 
             // Print rows
             for row in &result.rows {
@@ -426,7 +465,10 @@ fn output_raw_result(result: &tell_query::QueryResult, format: &str) -> Result<(
                     .iter()
                     .enumerate()
                     .map(|(i, v)| {
-                        let s = v.as_str().map(|s| s.to_string()).unwrap_or_else(|| v.to_string());
+                        let s = v
+                            .as_str()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| v.to_string());
                         let width = widths.get(i).copied().unwrap_or(10);
                         if s.len() > width {
                             format!("{}...", &s[..width.saturating_sub(3)])
@@ -439,7 +481,10 @@ fn output_raw_result(result: &tell_query::QueryResult, format: &str) -> Result<(
             }
 
             // Summary
-            println!("{}", "-".repeat(widths.iter().sum::<usize>() + widths.len() * 2));
+            println!(
+                "{}",
+                "-".repeat(widths.iter().sum::<usize>() + widths.len() * 2)
+            );
             println!("{} rows", result.row_count);
         }
     }

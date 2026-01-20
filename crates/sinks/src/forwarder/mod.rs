@@ -40,10 +40,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use tell_client::BatchBuilder;
-use tell_protocol::{Batch, FlatBatch};
-use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
 use socket2::{SockRef, TcpKeepalive};
+use tell_client::BatchBuilder;
+use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use tell_protocol::{Batch, FlatBatch};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, mpsc};

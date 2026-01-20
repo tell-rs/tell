@@ -131,8 +131,7 @@ async fn test_reduce_metrics() {
 
 #[tokio::test]
 async fn test_reduce_flush_all() {
-    let config = ReduceConfig::default()
-        .with_max_events(100); // High so nothing auto-flushes
+    let config = ReduceConfig::default().with_max_events(100); // High so nothing auto-flushes
     let transformer = ReduceTransformer::new(config).unwrap();
 
     let batch = make_test_batch(&[b"a", b"b", b"c"]);
@@ -178,10 +177,7 @@ async fn test_reduce_json_enrichment() {
         .with_min_events(1);
     let transformer = ReduceTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"msg": "test"}"#,
-        r#"{"msg": "test"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"msg": "test"}"#, r#"{"msg": "test"}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     assert_eq!(result.message_count(), 1);
@@ -220,10 +216,7 @@ async fn test_reduce_below_min_events_passthrough() {
     let transformer = ReduceTransformer::new(config).unwrap();
 
     // Send only 2 identical messages - below min_events threshold
-    let batch = make_json_batch(&[
-        r#"{"msg": "unique"}"#,
-        r#"{"msg": "unique"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"msg": "unique"}"#, r#"{"msg": "unique"}"#]);
 
     // Force flush to get output
     let _result = transformer.transform(batch).await.unwrap();

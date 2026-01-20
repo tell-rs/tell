@@ -14,10 +14,10 @@
 //! - `DELETE /api/v1/admin/apikeys/{id}` - Revoke any API key
 
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, post},
-    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

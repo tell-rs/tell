@@ -36,8 +36,8 @@ fn default_granularity() -> String {
 impl MetricParams {
     /// Convert to analytics Filter
     pub fn to_filter(&self) -> Result<Filter> {
-        let range = TimeRange::parse(&self.range)
-            .map_err(|e| ApiError::InvalidTimeRange(e.to_string()))?;
+        let range =
+            TimeRange::parse(&self.range).map_err(|e| ApiError::InvalidTimeRange(e.to_string()))?;
 
         let granularity = Granularity::parse(&self.granularity)
             .map_err(|e| ApiError::InvalidFilter(e.to_string()))?;
@@ -49,8 +49,8 @@ impl MetricParams {
         }
 
         if let Some(compare) = &self.compare {
-            let compare_mode = CompareMode::parse(compare)
-                .map_err(|e| ApiError::InvalidFilter(e.to_string()))?;
+            let compare_mode =
+                CompareMode::parse(compare).map_err(|e| ApiError::InvalidFilter(e.to_string()))?;
             filter = filter.with_compare(compare_mode);
         }
 
@@ -77,8 +77,8 @@ fn default_limit() -> u32 {
 impl DrillDownParams {
     /// Convert to analytics Filter
     pub fn to_filter(&self) -> Result<Filter> {
-        let range = TimeRange::parse(&self.range)
-            .map_err(|e| ApiError::InvalidTimeRange(e.to_string()))?;
+        let range =
+            TimeRange::parse(&self.range).map_err(|e| ApiError::InvalidTimeRange(e.to_string()))?;
 
         Ok(Filter::new(range).with_limit(self.limit))
     }
@@ -103,8 +103,8 @@ fn default_top_limit() -> u32 {
 impl TopParams {
     /// Convert to analytics Filter
     pub fn to_filter(&self) -> Result<Filter> {
-        let range = TimeRange::parse(&self.range)
-            .map_err(|e| ApiError::InvalidTimeRange(e.to_string()))?;
+        let range =
+            TimeRange::parse(&self.range).map_err(|e| ApiError::InvalidTimeRange(e.to_string()))?;
 
         Ok(Filter::new(range).with_limit(self.limit))
     }

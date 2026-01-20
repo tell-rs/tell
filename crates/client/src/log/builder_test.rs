@@ -1,7 +1,7 @@
 //! Tests for LogEntryBuilder and LogDataBuilder
 
-use crate::log::{LogDataBuilder, LogEntryBuilder, LogEventType, LogLevel};
 use crate::BuilderError;
+use crate::log::{LogDataBuilder, LogEntryBuilder, LogEventType, LogLevel};
 
 // =============================================================================
 // LogEntryBuilder basic tests
@@ -331,7 +331,10 @@ fn test_payload_json() {
 #[test]
 fn test_payload_binary() {
     let binary_data: Vec<u8> = (0u8..=255).collect();
-    let log = LogEntryBuilder::new().payload(&binary_data).build().unwrap();
+    let log = LogEntryBuilder::new()
+        .payload(&binary_data)
+        .build()
+        .unwrap();
 
     assert!(!log.is_empty());
 }
@@ -562,8 +565,10 @@ fn test_log_data_roundtrip_single_log() {
         .error()
         .source("web-01.prod")
         .service("api-gateway")
-        .session_id([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                     0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10])
+        .session_id([
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10,
+        ])
         .timestamp(1700000000000)
         .payload_json(r#"{"error": "connection timeout", "retry": 3}"#)
         .build()
@@ -580,9 +585,17 @@ fn test_log_data_roundtrip_single_log() {
     assert_eq!(entry.source, Some("web-01.prod"));
     assert_eq!(entry.service, Some("api-gateway"));
     assert_eq!(entry.timestamp, 1700000000000);
-    assert_eq!(entry.session_id, Some(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                                          0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10]));
-    assert_eq!(std::str::from_utf8(entry.payload).unwrap(), r#"{"error": "connection timeout", "retry": 3}"#);
+    assert_eq!(
+        entry.session_id,
+        Some(&[
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10
+        ])
+    );
+    assert_eq!(
+        std::str::from_utf8(entry.payload).unwrap(),
+        r#"{"error": "connection timeout", "retry": 3}"#
+    );
 }
 
 #[test]
@@ -636,8 +649,8 @@ fn test_log_data_roundtrip_multiple_logs() {
 
 #[test]
 fn test_full_log_batch_roundtrip() {
-    use tell_protocol::{FlatBatch, SchemaType, decode_log_data};
     use crate::BatchBuilder;
+    use tell_protocol::{FlatBatch, SchemaType, decode_log_data};
 
     let log = LogEntryBuilder::new()
         .error()

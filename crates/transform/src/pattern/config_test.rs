@@ -85,8 +85,7 @@ fn test_persistence_config_default() {
 
 #[test]
 fn test_persistence_with_file() {
-    let config = PersistenceConfig::default()
-        .with_file(PathBuf::from("/tmp/patterns.json"));
+    let config = PersistenceConfig::default().with_file(PathBuf::from("/tmp/patterns.json"));
 
     assert!(config.enabled);
     assert_eq!(config.file_path, Some(PathBuf::from("/tmp/patterns.json")));
@@ -133,8 +132,7 @@ fn test_reload_config_default() {
 
 #[test]
 fn test_reload_with_interval() {
-    let config = ReloadConfig::default()
-        .with_interval(Duration::from_secs(30));
+    let config = ReloadConfig::default().with_interval(Duration::from_secs(30));
 
     assert!(config.enabled);
     assert_eq!(config.interval, Duration::from_secs(30));

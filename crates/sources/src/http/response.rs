@@ -4,9 +4,9 @@
 
 use std::net::IpAddr;
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use tell_protocol::{BatchBuilder, BatchType};
 
 use super::error::{BatchResult, HttpSourceError};
@@ -33,9 +33,7 @@ pub fn send_batch(
         Err(crossfire::TrySendError::Full(_)) => {
             Err(HttpSourceError::ServiceUnavailable("channel full".into()))
         }
-        Err(crossfire::TrySendError::Disconnected(_)) => {
-            Err(HttpSourceError::ChannelClosed)
-        }
+        Err(crossfire::TrySendError::Disconnected(_)) => Err(HttpSourceError::ChannelClosed),
     }
 }
 
@@ -63,9 +61,7 @@ pub fn send_batch_with_metadata(
         Err(crossfire::TrySendError::Full(_)) => {
             Err(HttpSourceError::ServiceUnavailable("channel full".into()))
         }
-        Err(crossfire::TrySendError::Disconnected(_)) => {
-            Err(HttpSourceError::ChannelClosed)
-        }
+        Err(crossfire::TrySendError::Disconnected(_)) => Err(HttpSourceError::ChannelClosed),
     }
 }
 
@@ -85,10 +81,14 @@ pub fn build_response(result: BatchResult) -> Response {
         let response = PartialResponse {
             accepted: result.accepted,
             rejected: result.rejected,
-            errors: result.errors.into_iter().map(|e| LineErrorResponse {
-                line: e.line,
-                error: e.error,
-            }).collect(),
+            errors: result
+                .errors
+                .into_iter()
+                .map(|e| LineErrorResponse {
+                    line: e.line,
+                    error: e.error,
+                })
+                .collect(),
             request_id,
         };
         (StatusCode::MULTI_STATUS, Json(response)).into_response()

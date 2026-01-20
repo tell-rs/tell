@@ -6,9 +6,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crossfire::mpsc as cf_mpsc;
 use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tell_routing::{RoutingTable, SinkId};
-use crossfire::mpsc as cf_mpsc;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 

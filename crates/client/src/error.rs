@@ -191,10 +191,7 @@ mod tests {
     #[test]
     fn test_error_display_empty_event_data() {
         let err = BuilderError::EmptyEventData;
-        assert_eq!(
-            err.to_string(),
-            "EventData must contain at least one event"
-        );
+        assert_eq!(err.to_string(), "EventData must contain at least one event");
     }
 
     #[test]

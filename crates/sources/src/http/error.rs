@@ -37,7 +37,10 @@ pub enum HttpSourceError {
 
     /// Invalid field value
     #[error("invalid value for field '{field}': {message}")]
-    InvalidField { field: &'static str, message: String },
+    InvalidField {
+        field: &'static str,
+        message: String,
+    },
 
     /// Payload too large
     #[error("payload size {size} exceeds limit {limit}")]

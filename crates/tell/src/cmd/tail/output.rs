@@ -2,19 +2,19 @@
 //!
 //! Decodes FlatBuffer payloads using tell_protocol and formats as JSON.
 
-use tell_protocol::{
-    decode_event_data, decode_log_data, decode_metric_data, decode_snapshot_data, decode_trace_data,
-    DecodedEvent, DecodedLogEntry, DecodedMetric, DecodedSnapshot, DecodedSpan,
-    FlatBatch, LogLevel, MetricType, SpanStatus,
-};
-use tell_tap::TapEnvelope;
 use owo_colors::{OwoColorize, Style};
 use serde::Serialize;
+use tell_protocol::{
+    DecodedEvent, DecodedLogEntry, DecodedMetric, DecodedSnapshot, DecodedSpan, FlatBatch,
+    LogLevel, MetricType, SpanStatus, decode_event_data, decode_log_data, decode_metric_data,
+    decode_snapshot_data, decode_trace_data,
+};
+use tell_tap::TapEnvelope;
 
 /// Batch type constants (aligned with SchemaType wire values)
 /// These must match BatchType::to_u8() and SchemaType values
 const BATCH_TYPE_EVENT: u8 = 1;
-const BATCH_TYPE_LOG: u8 = 2;     // Also used for Syslog on wire
+const BATCH_TYPE_LOG: u8 = 2; // Also used for Syslog on wire
 const BATCH_TYPE_METRIC: u8 = 3;
 const BATCH_TYPE_TRACE: u8 = 4;
 const BATCH_TYPE_SNAPSHOT: u8 = 5;
@@ -470,7 +470,10 @@ impl Formatter {
                 let value_str = match metric.metric_type {
                     MetricType::Histogram => {
                         if let Some(h) = &metric.histogram {
-                            format!("count={} sum={:.3} min={:.3} max={:.3}", h.count, h.sum, h.min, h.max)
+                            format!(
+                                "count={} sum={:.3} min={:.3} max={:.3}",
+                                h.count, h.sum, h.min, h.max
+                            )
                         } else {
                             String::from("-")
                         }
@@ -487,7 +490,12 @@ impl Formatter {
                         .iter()
                         .map(|l| format!("{}={}", l.key, l.value))
                         .collect();
-                    parts.extend(metric.int_labels.iter().map(|l| format!("{}={}", l.key, l.value)));
+                    parts.extend(
+                        metric
+                            .int_labels
+                            .iter()
+                            .map(|l| format!("{}={}", l.key, l.value)),
+                    );
                     format!("{{{}}}", parts.join(","))
                 };
 
@@ -647,36 +655,26 @@ impl BatchOutput {
         let mut output = Self::metadata_only(envelope);
 
         match envelope.batch_type {
-            BATCH_TYPE_EVENT => {
-                match decode_events(envelope) {
-                    Ok(events) => output.events = Some(events),
-                    Err(e) => output.error = Some(format!("decode error: {e}")),
-                }
-            }
-            BATCH_TYPE_LOG => {
-                match decode_logs(envelope) {
-                    Ok(logs) => output.logs = Some(logs),
-                    Err(e) => output.error = Some(format!("decode error: {e}")),
-                }
-            }
-            BATCH_TYPE_SNAPSHOT => {
-                match decode_snapshots(envelope) {
-                    Ok(snapshots) => output.snapshots = Some(snapshots),
-                    Err(e) => output.error = Some(format!("decode error: {e}")),
-                }
-            }
-            BATCH_TYPE_METRIC => {
-                match decode_metrics(envelope) {
-                    Ok(metrics) => output.metrics = Some(metrics),
-                    Err(e) => output.error = Some(format!("decode error: {e}")),
-                }
-            }
-            BATCH_TYPE_TRACE => {
-                match decode_traces(envelope) {
-                    Ok(traces) => output.traces = Some(traces),
-                    Err(e) => output.error = Some(format!("decode error: {e}")),
-                }
-            }
+            BATCH_TYPE_EVENT => match decode_events(envelope) {
+                Ok(events) => output.events = Some(events),
+                Err(e) => output.error = Some(format!("decode error: {e}")),
+            },
+            BATCH_TYPE_LOG => match decode_logs(envelope) {
+                Ok(logs) => output.logs = Some(logs),
+                Err(e) => output.error = Some(format!("decode error: {e}")),
+            },
+            BATCH_TYPE_SNAPSHOT => match decode_snapshots(envelope) {
+                Ok(snapshots) => output.snapshots = Some(snapshots),
+                Err(e) => output.error = Some(format!("decode error: {e}")),
+            },
+            BATCH_TYPE_METRIC => match decode_metrics(envelope) {
+                Ok(metrics) => output.metrics = Some(metrics),
+                Err(e) => output.error = Some(format!("decode error: {e}")),
+            },
+            BATCH_TYPE_TRACE => match decode_traces(envelope) {
+                Ok(traces) => output.traces = Some(traces),
+                Err(e) => output.error = Some(format!("decode error: {e}")),
+            },
             _ => {
                 output.error = Some(format!(
                     "unsupported batch type: {} ({})",
@@ -1043,11 +1041,22 @@ fn parse_payload(bytes: &[u8]) -> (Option<serde_json::Value>, Option<String>) {
 fn format_uuid(bytes: &[u8; 16]) -> String {
     format!(
         "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        bytes[0], bytes[1], bytes[2], bytes[3],
-        bytes[4], bytes[5],
-        bytes[6], bytes[7],
-        bytes[8], bytes[9],
-        bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+        bytes[0],
+        bytes[1],
+        bytes[2],
+        bytes[3],
+        bytes[4],
+        bytes[5],
+        bytes[6],
+        bytes[7],
+        bytes[8],
+        bytes[9],
+        bytes[10],
+        bytes[11],
+        bytes[12],
+        bytes[13],
+        bytes[14],
+        bytes[15]
     )
 }
 

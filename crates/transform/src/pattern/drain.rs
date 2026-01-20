@@ -90,11 +90,7 @@ fn current_timestamp() -> u64 {
 /// Takes the first 5 non-wildcard tokens and joins them with spaces.
 /// Returns "Unknown Pattern" if all tokens are wildcards.
 pub fn generate_canonical_name(tokens: &[Option<String>]) -> String {
-    let name_tokens: Vec<&str> = tokens
-        .iter()
-        .filter_map(|t| t.as_deref())
-        .take(5)
-        .collect();
+    let name_tokens: Vec<&str> = tokens.iter().filter_map(|t| t.as_deref()).take(5).collect();
 
     if name_tokens.is_empty() {
         "Unknown Pattern".to_string()
@@ -192,10 +188,7 @@ impl DrainTree {
 
     /// Tokenize a log message
     fn tokenize(&self, message: &str) -> Vec<String> {
-        message
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect()
+        message.split_whitespace().map(|s| s.to_string()).collect()
     }
 
     /// Check if a token is likely a variable
@@ -213,9 +206,7 @@ impl DrainTree {
         }
 
         // IP addresses (simple check)
-        if token.matches('.').count() == 3
-            && token.split('.').all(|p| p.parse::<u8>().is_ok())
-        {
+        if token.matches('.').count() == 3 && token.split('.').all(|p| p.parse::<u8>().is_ok()) {
             return true;
         }
 

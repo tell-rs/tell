@@ -17,8 +17,8 @@
 //! table LogData { logs:[LogEntry] (required); }
 //! ```
 
-use crate::{ProtocolError, Result};
 use super::table::{FlatTable, read_u32};
+use crate::{ProtocolError, Result};
 
 // =============================================================================
 // Log Event Types

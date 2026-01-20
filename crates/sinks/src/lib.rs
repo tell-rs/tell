@@ -88,13 +88,13 @@ mod common;
 pub use common::{MetricsSnapshot, SinkConfig, SinkError, SinkMetrics};
 
 // Re-export main sink types for convenience
+pub use arrow_ipc::{ArrowIpcSink, ArrowIpcSinkMetricsHandle};
 pub use clickhouse::{ClickHouseSink, ClickHouseSinkMetricsHandle};
 pub use disk_binary::{DiskBinaryConfig, DiskBinarySink, DiskBinarySinkMetricsHandle};
 pub use disk_plaintext::{DiskPlaintextSink, DiskPlaintextSinkMetricsHandle};
 pub use forwarder::{ForwarderSink, ForwarderSinkMetricsHandle};
 pub use null::{NullSink, NullSinkConfig, NullSinkMetricsHandle};
 pub use parquet::{ParquetSink, ParquetSinkMetricsHandle};
-pub use arrow_ipc::{ArrowIpcSink, ArrowIpcSinkMetricsHandle};
 pub use stdout::{StdoutSink, StdoutSinkMetricsHandle};
 
 // Tests are registered in their respective modules via #[cfg(test)]

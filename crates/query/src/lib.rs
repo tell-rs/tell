@@ -31,9 +31,9 @@ pub mod error;
 pub mod result;
 
 // Re-exports
+pub use backend::QueryBackend;
 pub use backend::clickhouse::{ClickHouseBackend, ClickHouseBackendConfig};
 pub use backend::polars::PolarsBackend;
-pub use backend::QueryBackend;
 pub use config::{QueryBackendType, QueryConfig, ResolvedQueryConfig};
 pub use error::QueryError;
 pub use result::{Column, DataType, QueryResult, TableInfo};

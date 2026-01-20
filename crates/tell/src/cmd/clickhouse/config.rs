@@ -53,7 +53,12 @@ mod tests {
 
     #[test]
     fn test_generate_config() {
-        let config = generate_config("acme", "http://localhost:8123", "collector_pw", "dashboard_pw");
+        let config = generate_config(
+            "acme",
+            "http://localhost:8123",
+            "collector_pw",
+            "dashboard_pw",
+        );
 
         assert!(config.contains("database = \"acme\""));
         assert!(config.contains("username = \"acme_collector\""));

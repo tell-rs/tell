@@ -74,7 +74,11 @@ pub fn create_indexes(workspace: &str) -> Vec<String> {
 }
 
 /// Generate CREATE USER statements
-pub fn create_users(workspace: &str, collector_password: &str, dashboard_password: &str) -> Vec<String> {
+pub fn create_users(
+    workspace: &str,
+    collector_password: &str,
+    dashboard_password: &str,
+) -> Vec<String> {
     vec![
         format!(
             "CREATE USER IF NOT EXISTS {workspace}_collector IDENTIFIED BY '{collector_password}'"

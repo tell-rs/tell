@@ -1,8 +1,8 @@
 //! Tests for query builder
 
 use crate::builder::{
-    count_distinct_query, count_query, distinct_values_query, raw_data_query, top_n_query,
-    QueryBuilder,
+    QueryBuilder, count_distinct_query, count_query, distinct_values_query, raw_data_query,
+    top_n_query,
 };
 use crate::filter::{Condition, Filter, Granularity};
 use crate::timerange::TimeRange;
@@ -71,10 +71,7 @@ fn test_order_by_desc() {
 
 #[test]
 fn test_limit() {
-    let sql = QueryBuilder::new("events_v1")
-        .select("*")
-        .limit(10)
-        .build();
+    let sql = QueryBuilder::new("events_v1").select("*").limit(10).build();
 
     assert!(sql.contains("LIMIT 10"));
 }
@@ -150,8 +147,8 @@ fn test_condition_operators() {
     assert!(sql.contains("field LIKE '%sub%'"));
 
     // In
-    let filter =
-        Filter::new(range.clone()).with_condition(Condition::is_in("f", vec!["a".into(), "b".into()]));
+    let filter = Filter::new(range.clone())
+        .with_condition(Condition::is_in("f", vec!["a".into(), "b".into()]));
     let sql = QueryBuilder::new("t").apply_filter(&filter, "ts").build();
     assert!(sql.contains("f IN ('a', 'b')"));
 
@@ -169,16 +166,23 @@ fn test_condition_operators() {
 #[test]
 fn test_sql_injection_prevention() {
     let range = TimeRange::parse("7d").unwrap();
-    let filter = Filter::new(range).with_condition(Condition::eq("field", "'; DROP TABLE users; --"));
+    let filter =
+        Filter::new(range).with_condition(Condition::eq("field", "'; DROP TABLE users; --"));
 
-    let sql = QueryBuilder::new("events").apply_filter(&filter, "ts").build();
+    let sql = QueryBuilder::new("events")
+        .apply_filter(&filter, "ts")
+        .build();
 
     // Should escape the single quote, making the injection a harmless string value
     // Input: '; DROP TABLE users; --
     // Escaped: ''; DROP TABLE users; --
     // Full SQL: field = '''; DROP TABLE users; --'
     // This is safe because the injection is now inside quotes as a literal string
-    assert!(sql.contains("''"), "SQL should contain escaped quotes: {}", sql);
+    assert!(
+        sql.contains("''"),
+        "SQL should contain escaped quotes: {}",
+        sql
+    );
 }
 
 #[test]

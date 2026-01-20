@@ -25,16 +25,40 @@ fn test_user_id_determinism() {
         let id2 = generate_user_id_from_email(email);
         let id3 = generate_user_id_from_email(email);
 
-        assert_eq!(id1, id2, "First and second generation should match for {}", email);
-        assert_eq!(id2, id3, "Second and third generation should match for {}", email);
-        assert_eq!(id1, id3, "First and third generation should match for {}", email);
+        assert_eq!(
+            id1, id2,
+            "First and second generation should match for {}",
+            email
+        );
+        assert_eq!(
+            id2, id3,
+            "Second and third generation should match for {}",
+            email
+        );
+        assert_eq!(
+            id1, id3,
+            "First and third generation should match for {}",
+            email
+        );
 
         // Should be valid UUID format (8-4-4-4-12)
         assert_eq!(id1.len(), 36, "UUID should be 36 characters");
-        assert!(id1.chars().nth(8) == Some('-'), "UUID should have dash at position 8");
-        assert!(id1.chars().nth(13) == Some('-'), "UUID should have dash at position 13");
-        assert!(id1.chars().nth(18) == Some('-'), "UUID should have dash at position 18");
-        assert!(id1.chars().nth(23) == Some('-'), "UUID should have dash at position 23");
+        assert!(
+            id1.chars().nth(8) == Some('-'),
+            "UUID should have dash at position 8"
+        );
+        assert!(
+            id1.chars().nth(13) == Some('-'),
+            "UUID should have dash at position 13"
+        );
+        assert!(
+            id1.chars().nth(18) == Some('-'),
+            "UUID should have dash at position 18"
+        );
+        assert!(
+            id1.chars().nth(23) == Some('-'),
+            "UUID should have dash at position 23"
+        );
 
         // Should be UUID v5 (version nibble = 5)
         let version_char = id1.chars().nth(14).unwrap();
@@ -71,13 +95,13 @@ fn test_user_id_whitespace_handling() {
     let base_id = generate_user_id_from_email(base_email);
 
     let variations = [
-        " test@example.com",     // leading space
-        "test@example.com ",     // trailing space
-        " test@example.com ",    // both spaces
-        "\ttest@example.com",    // leading tab
-        "test@example.com\n",    // trailing newline
-        "test@example.com\r\n",  // CRLF
-        "  test@example.com  ",  // multiple spaces
+        " test@example.com",    // leading space
+        "test@example.com ",    // trailing space
+        " test@example.com ",   // both spaces
+        "\ttest@example.com",   // leading tab
+        "test@example.com\n",   // trailing newline
+        "test@example.com\r\n", // CRLF
+        "  test@example.com  ", // multiple spaces
     ];
 
     for email in variations {
@@ -93,7 +117,11 @@ fn test_user_id_whitespace_handling() {
 #[test]
 fn test_user_id_edge_cases() {
     // Empty string
-    assert_eq!(generate_user_id_from_email(""), "", "Empty string should return empty");
+    assert_eq!(
+        generate_user_id_from_email(""),
+        "",
+        "Empty string should return empty"
+    );
 
     // Only spaces
     assert_eq!(
@@ -114,8 +142,15 @@ fn test_user_id_edge_cases() {
 
     // Email with special chars
     let special = generate_user_id_from_email("user+tag@example.com");
-    assert!(!special.is_empty(), "Special chars email should produce UUID");
-    assert_eq!(special.len(), 36, "Special chars email UUID should be valid");
+    assert!(
+        !special.is_empty(),
+        "Special chars email should produce UUID"
+    );
+    assert_eq!(
+        special.len(),
+        36,
+        "Special chars email UUID should be valid"
+    );
 }
 
 #[test]
@@ -214,9 +249,9 @@ mod ip_tests {
         // Actual testing requires a mock Batch or integration test
         let expected_format = [
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // bytes 0-7: zeros
-            0x00, 0x00,             // bytes 8-9: zeros
-            0xff, 0xff,             // bytes 10-11: IPv4-mapped marker
-            192, 168, 1, 100,       // bytes 12-15: IPv4 address (192.168.1.100)
+            0x00, 0x00, // bytes 8-9: zeros
+            0xff, 0xff, // bytes 10-11: IPv4-mapped marker
+            192, 168, 1, 100, // bytes 12-15: IPv4 address (192.168.1.100)
         ];
 
         // Verify marker bytes are correct

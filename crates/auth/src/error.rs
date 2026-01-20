@@ -56,7 +56,6 @@ pub enum AuthError {
     WatchError(String),
 
     // JWT validation errors
-
     /// Token is missing or empty
     #[error("missing token")]
     MissingToken,

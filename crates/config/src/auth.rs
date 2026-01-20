@@ -102,7 +102,10 @@ impl AuthConfig {
             }
             "workos" => {
                 // WorkOS config required
-                let workos = self.workos.as_ref().ok_or("auth.workos section is required when provider = \"workos\"")?;
+                let workos = self
+                    .workos
+                    .as_ref()
+                    .ok_or("auth.workos section is required when provider = \"workos\"")?;
                 if workos.api_key.is_empty() {
                     return Err("auth.workos.api_key is required".to_string());
                 }

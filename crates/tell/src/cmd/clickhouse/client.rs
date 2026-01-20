@@ -48,9 +48,7 @@ impl SchemaClient {
 
     /// Check if a database exists
     pub async fn database_exists(&self, name: &str) -> Result<bool> {
-        let sql = format!(
-            "SELECT 1 FROM system.databases WHERE name = '{name}' LIMIT 1"
-        );
+        let sql = format!("SELECT 1 FROM system.databases WHERE name = '{name}' LIMIT 1");
         let result = self
             .client
             .query(&sql)
@@ -76,9 +74,7 @@ impl SchemaClient {
 
     /// Check if a user exists
     pub async fn user_exists(&self, name: &str) -> Result<bool> {
-        let sql = format!(
-            "SELECT 1 FROM system.users WHERE name = '{name}' LIMIT 1"
-        );
+        let sql = format!("SELECT 1 FROM system.users WHERE name = '{name}' LIMIT 1");
         let result = self
             .client
             .query(&sql)
@@ -91,9 +87,8 @@ impl SchemaClient {
     /// List all tables in a database
     #[allow(dead_code)]
     pub async fn list_tables(&self, database: &str) -> Result<Vec<String>> {
-        let sql = format!(
-            "SELECT name FROM system.tables WHERE database = '{database}' ORDER BY name"
-        );
+        let sql =
+            format!("SELECT name FROM system.tables WHERE database = '{database}' ORDER BY name");
         let tables = self
             .client
             .query(&sql)

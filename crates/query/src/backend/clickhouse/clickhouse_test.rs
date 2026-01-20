@@ -30,10 +30,7 @@ fn test_infer_data_type_int() {
 
 #[test]
 fn test_infer_data_type_float() {
-    assert_eq!(
-        infer_data_type(&serde_json::json!(3.14)),
-        DataType::Float64
-    );
+    assert_eq!(infer_data_type(&serde_json::json!(3.14)), DataType::Float64);
 }
 
 #[test]
@@ -46,7 +43,10 @@ fn test_infer_data_type_string() {
 
 #[test]
 fn test_infer_data_type_array() {
-    assert_eq!(infer_data_type(&serde_json::json!([1, 2, 3])), DataType::Json);
+    assert_eq!(
+        infer_data_type(&serde_json::json!([1, 2, 3])),
+        DataType::Json
+    );
 }
 
 #[test]

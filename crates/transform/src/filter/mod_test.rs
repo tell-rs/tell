@@ -1,8 +1,8 @@
 //! Tests for filter transformer
 
 use super::*;
-use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use std::sync::atomic::Ordering;
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 
 fn make_json_batch(messages: &[&str]) -> Batch {
     let mut builder = BatchBuilder::new(BatchType::Log, SourceId::new("test"));
@@ -14,8 +14,7 @@ fn make_json_batch(messages: &[&str]) -> Batch {
 
 #[tokio::test]
 async fn test_filter_transformer_new() {
-    let config = FilterConfig::new()
-        .with_condition(Condition::eq("level", "debug"));
+    let config = FilterConfig::new().with_condition(Condition::eq("level", "debug"));
     let transformer = FilterTransformer::new(config).unwrap();
     assert_eq!(transformer.name(), "filter");
     assert!(transformer.enabled());
@@ -155,7 +154,11 @@ async fn test_filter_regex() {
 async fn test_filter_numeric_gt() {
     let config = FilterConfig::new()
         .with_action(FilterAction::Keep)
-        .with_condition(Condition::new("status", Operator::Gte, Some("400".to_string())));
+        .with_condition(Condition::new(
+            "status",
+            Operator::Gte,
+            Some("400".to_string()),
+        ));
     let transformer = FilterTransformer::new(config).unwrap();
 
     let batch = make_json_batch(&[
@@ -253,8 +256,7 @@ async fn test_filter_non_json_passthrough() {
 
 #[tokio::test]
 async fn test_filter_empty_batch() {
-    let config = FilterConfig::new()
-        .with_condition(Condition::eq("level", "debug"));
+    let config = FilterConfig::new().with_condition(Condition::eq("level", "debug"));
     let transformer = FilterTransformer::new(config).unwrap();
 
     let batch = make_json_batch(&[]);
@@ -304,7 +306,7 @@ async fn test_filter_ne_missing_field() {
     let batch = make_json_batch(&[
         r#"{"level": "debug"}"#,
         r#"{"level": "info"}"#,
-        r#"{"other": "field"}"#,  // Missing level field
+        r#"{"other": "field"}"#, // Missing level field
     ]);
 
     let result = transformer.transform(batch).await.unwrap();

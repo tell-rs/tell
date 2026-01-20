@@ -74,7 +74,9 @@ pub fn parse_api_key(key: &str) -> Result<[u8; 16], HttpSourceError> {
 
     // This should always be 16 due to length check above, but verify anyway
     if bytes.len() != 16 {
-        return Err(HttpSourceError::AuthFailed("API key must be 16 bytes".into()));
+        return Err(HttpSourceError::AuthFailed(
+            "API key must be 16 bytes".into(),
+        ));
     }
 
     let mut result = [0u8; 16];

@@ -4,10 +4,10 @@
 //! Currently supports local JWT validation; WorkOS can be added later.
 
 use async_trait::async_trait;
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use tracing::debug;
 
-use crate::claims::{extract_jwt, is_api_token_format, TokenClaims};
+use crate::claims::{TokenClaims, extract_jwt, is_api_token_format};
 use crate::error::{AuthError, Result};
 use crate::user::UserInfo;
 
@@ -106,15 +106,17 @@ impl AuthProvider for LocalJwtProvider {
         let jwt = extract_jwt(token).ok_or(AuthError::InvalidTokenFormat)?;
 
         // Decode and verify JWT
-        let token_data = decode::<TokenClaims>(jwt, &self.decoding_key, &self.validation)
-            .map_err(|e| {
+        let token_data =
+            decode::<TokenClaims>(jwt, &self.decoding_key, &self.validation).map_err(|e| {
                 debug!("JWT validation failed: {:?}", e);
                 match e.kind() {
                     jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::TokenExpired,
                     jsonwebtoken::errors::ErrorKind::ImmatureSignature => {
                         AuthError::TokenNotYetValid
                     }
-                    jsonwebtoken::errors::ErrorKind::InvalidSignature => AuthError::InvalidSignature,
+                    jsonwebtoken::errors::ErrorKind::InvalidSignature => {
+                        AuthError::InvalidSignature
+                    }
                     _ => AuthError::InvalidClaims(e.to_string()),
                 }
             })?;
@@ -133,8 +135,8 @@ impl AuthProvider for LocalJwtProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{create_test_token, TEST_SECRET};
     use crate::Role;
+    use crate::test_utils::{TEST_SECRET, create_test_token};
 
     #[tokio::test]
     async fn test_valid_token() {
@@ -185,12 +187,8 @@ mod tests {
     #[tokio::test]
     async fn test_issuer_validation() {
         let provider = LocalJwtProvider::new(TEST_SECRET).with_issuer("tell");
-        let token = create_test_token_with_issuer(
-            "user-1",
-            "test@example.com",
-            Role::Editor,
-            Some("tell"),
-        );
+        let token =
+            create_test_token_with_issuer("user-1", "test@example.com", Role::Editor, Some("tell"));
 
         let user = provider.validate(&token).await.unwrap();
         assert_eq!(user.id, "user-1");

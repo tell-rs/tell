@@ -3,9 +3,9 @@
 //! Routes that don't require authentication (shared links, etc.)
 
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
 use serde::Serialize;
 
@@ -33,8 +33,13 @@ pub struct SharedBoardView {
 
 /// Public sharing routes (no auth required)
 pub fn routes() -> Router<AppState> {
+    use crate::ratelimit::{RateLimitConfig, RateLimitLayer};
+
     Router::new()
         .route("/b/{hash}", get(view_shared_board))
+        // Rate limit share link access - prevents brute force hash guessing
+        // 60 req/min is generous for legitimate use but blocks enumeration
+        .layer(RateLimitLayer::new(RateLimitConfig::new(60, 60)))
 }
 
 // =============================================================================

@@ -21,8 +21,8 @@
 //! table MetricData { metrics:[MetricEntry] (required); }
 //! ```
 
-use crate::{ProtocolError, Result};
 use super::table::{FlatTable, read_u32};
+use crate::{ProtocolError, Result};
 
 // =============================================================================
 // Metric Types
@@ -164,7 +164,9 @@ pub fn decode_metric_data(buf: &[u8]) -> Result<Vec<DecodedMetric<'_>>> {
 
     let root_offset = read_u32(buf, 0)? as usize;
     if root_offset >= buf.len() {
-        return Err(ProtocolError::invalid_flatbuffer("root offset out of bounds"));
+        return Err(ProtocolError::invalid_flatbuffer(
+            "root offset out of bounds",
+        ));
     }
 
     let table = FlatTable::parse(buf, root_offset)?;
@@ -276,7 +278,10 @@ fn parse_histogram<'a>(table: &FlatTable<'a>, field: usize) -> Result<Option<Dec
         for bucket_table in buckets_vec {
             let upper_bound = bucket_table.read_f64(0, 0.0);
             let bucket_count = bucket_table.read_u64(1, 0);
-            buckets.push(DecodedBucket { upper_bound, count: bucket_count });
+            buckets.push(DecodedBucket {
+                upper_bound,
+                count: bucket_count,
+            });
         }
         buckets
     } else {
@@ -289,5 +294,11 @@ fn parse_histogram<'a>(table: &FlatTable<'a>, field: usize) -> Result<Option<Dec
     // Field 4: max (double)
     let max = hist_table.read_f64(4, 0.0);
 
-    Ok(Some(DecodedHistogram { count, sum, min, max, buckets }))
+    Ok(Some(DecodedHistogram {
+        count,
+        sum,
+        min,
+        max,
+        buckets,
+    }))
 }

@@ -1,7 +1,7 @@
 //! Tests for GitHub connector
 
 use crate::error::ConnectorError;
-use crate::github::{parse_entity, GitHub, GitHubConfig};
+use crate::github::{GitHub, GitHubConfig, parse_entity};
 use crate::traits::Connector;
 use tell_protocol::BatchType;
 
@@ -154,7 +154,9 @@ async fn test_github_pull_real_repo() {
 #[ignore = "requires network access"]
 async fn test_github_pull_nonexistent_repo() {
     let github = GitHub::new(GitHubConfig::default()).expect("should create connector");
-    let result = github.pull("definitely-not-real-owner-12345/fake-repo-67890").await;
+    let result = github
+        .pull("definitely-not-real-owner-12345/fake-repo-67890")
+        .await;
 
     assert!(matches!(result, Err(ConnectorError::NotFound(_))));
 }

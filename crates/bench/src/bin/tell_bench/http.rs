@@ -2,24 +2,26 @@
 
 use std::io::{self, Write};
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-use tell_client::event::{EventBuilder, EventDataBuilder};
 use tell_client::BatchBuilder;
+use tell_client::event::{EventBuilder, EventDataBuilder};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::task::JoinSet;
 
 use crate::common::{
-    format_number, generate_events_jsonl, parse_http_url, print_header, print_summary,
-    ThreadTimedProgressReporter,
+    ThreadTimedProgressReporter, format_number, generate_events_jsonl, parse_http_url,
+    print_header, print_summary,
 };
 
 /// Read HTTP response until we see end of headers (\r\n\r\n)
 /// Returns Ok(()) on success, Err on connection issues
-async fn read_http_response(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn read_http_response(
+    stream: &mut TcpStream,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut buf = [0u8; 1024];
     let mut total = 0;
 

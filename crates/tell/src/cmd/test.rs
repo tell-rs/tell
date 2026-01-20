@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use tell_client::batch::BatchBuilder;
 use tell_client::event::{EventBuilder, EventDataBuilder};
-use tell_client::log::{LogEntryBuilder, LogDataBuilder};
+use tell_client::log::{LogDataBuilder, LogEntryBuilder};
 use tell_client::test::TcpTestClient;
 
 /// Default server address
@@ -107,7 +107,10 @@ pub async fn run(args: TestArgs) -> Result<()> {
     client.close().await.context("failed to close connection")?;
 
     if !args.quiet {
-        println!("\nDone. Sent {} events and {} logs.", args.events, args.logs);
+        println!(
+            "\nDone. Sent {} events and {} logs.",
+            args.events, args.logs
+        );
         println!("Check your sinks (stdout, disk, etc.) or use 'tell tail' to verify.");
     }
 

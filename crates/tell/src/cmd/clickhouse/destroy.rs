@@ -9,12 +9,12 @@
 //! tell clickhouse destroy acme --yes  # skip confirmation
 //! ```
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::Args;
 use owo_colors::OwoColorize;
 use std::io::{self, Write};
 
-use super::client::{SchemaClient, DEFAULT_URL};
+use super::client::{DEFAULT_URL, SchemaClient};
 use super::schema;
 
 #[derive(Args, Debug)]
@@ -69,10 +69,7 @@ pub async fn run(args: DestroyArgs) -> Result<()> {
 
     // Confirmation
     if !args.yes {
-        print!(
-            "Type '{}' to confirm: ",
-            workspace.red().bold()
-        );
+        print!("Type '{}' to confirm: ", workspace.red().bold());
         io::stdout().flush()?;
 
         let mut input = String::new();

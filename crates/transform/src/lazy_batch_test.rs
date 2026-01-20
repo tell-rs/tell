@@ -78,7 +78,10 @@ fn test_decoded_messages_iteration() {
     let decoded = lazy.decoded_messages().unwrap();
 
     let messages: Vec<&str> = decoded.iter().collect();
-    assert_eq!(messages, vec!["Log message one", "Log message two", "Log message three"]);
+    assert_eq!(
+        messages,
+        vec!["Log message one", "Log message two", "Log message three"]
+    );
 }
 
 #[test]

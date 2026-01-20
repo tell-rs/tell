@@ -15,12 +15,11 @@ use super::json_types::{JsonEvent, JsonLogEntry};
 /// Encode events from JSON to FlatBuffer Batch format
 ///
 /// Takes a slice of parsed JSON events and returns a complete Batch FlatBuffer.
-pub fn encode_events(
-    events: &[JsonEvent],
-    api_key: &[u8; 16],
-) -> Result<Vec<u8>, HttpSourceError> {
+pub fn encode_events(events: &[JsonEvent], api_key: &[u8; 16]) -> Result<Vec<u8>, HttpSourceError> {
     if events.is_empty() {
-        return Err(HttpSourceError::InvalidRequest("no events to encode".into()));
+        return Err(HttpSourceError::InvalidRequest(
+            "no events to encode".into(),
+        ));
     }
 
     // Convert JSON events to EncodedEvent structs
@@ -41,10 +40,7 @@ pub fn encode_events(
 }
 
 /// Encode logs from JSON to FlatBuffer Batch format
-pub fn encode_logs(
-    logs: &[JsonLogEntry],
-    api_key: &[u8; 16],
-) -> Result<Vec<u8>, HttpSourceError> {
+pub fn encode_logs(logs: &[JsonLogEntry], api_key: &[u8; 16]) -> Result<Vec<u8>, HttpSourceError> {
     if logs.is_empty() {
         return Err(HttpSourceError::InvalidRequest("no logs to encode".into()));
     }
@@ -77,10 +73,7 @@ fn json_event_to_encoded(event: &JsonEvent) -> Result<EncodedEvent, HttpSourceEr
     })?;
 
     // Parse optional session_id
-    let session_id = event
-        .session_id
-        .as_ref()
-        .and_then(|s| parse_uuid(s));
+    let session_id = event.session_id.as_ref().and_then(|s| parse_uuid(s));
 
     // Get timestamp or use current time
     let timestamp = event.timestamp.unwrap_or_else(current_timestamp_ms);
@@ -163,7 +156,10 @@ fn build_event_payload(event: &JsonEvent) -> Result<Vec<u8>, HttpSourceError> {
 
     // Add group_id if present
     if let Some(ref group_id) = event.group_id {
-        payload.insert("group_id".into(), serde_json::Value::String(group_id.clone()));
+        payload.insert(
+            "group_id".into(),
+            serde_json::Value::String(group_id.clone()),
+        );
     }
 
     // Merge properties
@@ -199,7 +195,10 @@ fn build_log_payload(log: &JsonLogEntry) -> Result<Vec<u8>, HttpSourceError> {
     let mut payload = serde_json::Map::new();
 
     // Always include message
-    payload.insert("message".into(), serde_json::Value::String(log.message.clone()));
+    payload.insert(
+        "message".into(),
+        serde_json::Value::String(log.message.clone()),
+    );
 
     // Merge additional data
     if let Some(ref data) = log.data {

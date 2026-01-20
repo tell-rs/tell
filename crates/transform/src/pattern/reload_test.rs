@@ -67,16 +67,9 @@ async fn test_reload_worker_runs_and_stops() {
     let cache = create_test_cache();
     let cancel = CancellationToken::new();
 
-    let config = ReloadWorkerConfig::default()
-        .with_interval(Duration::from_millis(50));
+    let config = ReloadWorkerConfig::default().with_interval(Duration::from_millis(50));
 
-    let (worker, _handle) = ReloadWorker::new(
-        persistence,
-        drain,
-        cache,
-        config,
-        cancel.clone(),
-    );
+    let (worker, _handle) = ReloadWorker::new(persistence, drain, cache, config, cancel.clone());
 
     // Spawn worker
     let worker_task = tokio::spawn(worker.run());
@@ -96,16 +89,9 @@ async fn test_reload_worker_manual_trigger() {
     let cache = create_test_cache();
     let cancel = CancellationToken::new();
 
-    let config = ReloadWorkerConfig::default()
-        .with_interval(Duration::from_secs(3600)); // Very long interval
+    let config = ReloadWorkerConfig::default().with_interval(Duration::from_secs(3600)); // Very long interval
 
-    let (worker, handle) = ReloadWorker::new(
-        persistence,
-        drain,
-        cache,
-        config,
-        cancel.clone(),
-    );
+    let (worker, handle) = ReloadWorker::new(persistence, drain, cache, config, cancel.clone());
 
     let worker_task = tokio::spawn(worker.run());
 
@@ -137,8 +123,7 @@ async fn test_reload_worker_loads_patterns() {
     // Create new cache (empty)
     let new_cache = Arc::new(PatternCache::new(1000, 100));
 
-    let config = ReloadWorkerConfig::default()
-        .with_interval(Duration::from_millis(50));
+    let config = ReloadWorkerConfig::default().with_interval(Duration::from_millis(50));
 
     let handle = spawn_reload_worker(
         Arc::clone(&persistence),
@@ -168,16 +153,9 @@ async fn test_reload_worker_disabled_persistence() {
     let cache = create_test_cache();
     let cancel = CancellationToken::new();
 
-    let config = ReloadWorkerConfig::default()
-        .with_interval(Duration::from_millis(50));
+    let config = ReloadWorkerConfig::default().with_interval(Duration::from_millis(50));
 
-    let (worker, handle) = ReloadWorker::new(
-        persistence,
-        drain,
-        cache,
-        config,
-        cancel.clone(),
-    );
+    let (worker, handle) = ReloadWorker::new(persistence, drain, cache, config, cancel.clone());
 
     let worker_task = tokio::spawn(worker.run());
 

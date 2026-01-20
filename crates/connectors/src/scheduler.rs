@@ -5,13 +5,13 @@
 
 use crate::error::ConnectorError;
 use crate::traits::Connector;
-use tell_protocol::Batch;
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+use tell_protocol::Batch;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
@@ -247,7 +247,12 @@ impl ConnectorScheduler {
                     tokio::spawn(async move {
                         let result = tokio::time::timeout(
                             overall_timeout,
-                            execute_connector_pull(&name, &connector_impl, &entities, &batch_sender),
+                            execute_connector_pull(
+                                &name,
+                                &connector_impl,
+                                &entities,
+                                &batch_sender,
+                            ),
                         )
                         .await;
 

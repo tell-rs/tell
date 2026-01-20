@@ -14,19 +14,19 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use tell_auth::ApiKeyStore;
 use tell_bench::SCENARIOS;
 use tell_client::test::{SyslogTcpTestClient, SyslogUdpTestClient, TcpTestClient};
 use tell_client::{BatchBuilder as ClientBatchBuilder, SchemaType};
 use tell_pipeline::{Router, SinkHandle};
-use tell_routing::RoutingTable;
 use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
+use tell_routing::RoutingTable;
 use tell_sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink};
 use tell_sources::{
     SyslogTcpSource, SyslogTcpSourceConfig, SyslogUdpSource, SyslogUdpSourceConfig, TcpSource,
     TcpSourceConfig,
 };
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use tempfile::TempDir;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::runtime::Runtime;

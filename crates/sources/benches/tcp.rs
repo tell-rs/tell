@@ -33,12 +33,12 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 
 use bytes::{Buf, BytesMut};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use tell_auth::ApiKeyStore;
-use tell_client::BatchBuilder;
 use tell_bench::{BenchScenario, SCENARIOS};
+use tell_client::BatchBuilder;
 use tell_protocol::{FlatBatch, SchemaType};
 use tell_sources::tcp::{bytes_to_ip, ip_to_bytes};
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 
 /// Test API key (hex: 0102030405060708090a0b0c0d0e0f10)
 const TEST_API_KEY: [u8; 16] = [
@@ -188,16 +188,12 @@ fn bench_flatbuffer_parse(c: &mut Criterion) {
         let msg = create_wire_message_from_scenario(scenario);
 
         group.throughput(Throughput::Bytes(msg.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("parse", scenario.name),
-            &msg,
-            |b, msg| {
-                b.iter(|| {
-                    let batch = FlatBatch::parse(msg).expect("valid flatbuffer");
-                    black_box(batch)
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("parse", scenario.name), &msg, |b, msg| {
+            b.iter(|| {
+                let batch = FlatBatch::parse(msg).expect("valid flatbuffer");
+                black_box(batch)
+            });
+        });
     }
 
     group.finish();

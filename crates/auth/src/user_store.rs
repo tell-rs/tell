@@ -5,8 +5,8 @@
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use sqlx::Row;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use tracing::{debug, info};
 
 use crate::error::{AuthError, Result};
@@ -215,7 +215,11 @@ impl LocalUserStore {
     }
 
     /// Verify email and password, returning user if valid
-    pub async fn verify_credentials(&self, email: &str, password: &str) -> Result<Option<StoredUser>> {
+    pub async fn verify_credentials(
+        &self,
+        email: &str,
+        password: &str,
+    ) -> Result<Option<StoredUser>> {
         let user = match self.get_by_email(email).await? {
             Some(u) => u,
             None => return Ok(None),
@@ -506,7 +510,13 @@ mod tests {
             .unwrap();
 
         assert!(store.delete_user(&user.id).await.unwrap());
-        assert!(store.get_by_email("test@example.com").await.unwrap().is_none());
+        assert!(
+            store
+                .get_by_email("test@example.com")
+                .await
+                .unwrap()
+                .is_none()
+        );
 
         // Delete non-existent
         assert!(!store.delete_user("non-existent").await.unwrap());
@@ -523,7 +533,11 @@ mod tests {
 
         assert!(store.update_role(&user.id, Role::Admin).await.unwrap());
 
-        let updated = store.get_by_email("test@example.com").await.unwrap().unwrap();
+        let updated = store
+            .get_by_email("test@example.com")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(updated.role, Role::Admin);
     }
 }

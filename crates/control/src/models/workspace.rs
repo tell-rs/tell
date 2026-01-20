@@ -107,7 +107,11 @@ pub struct WorkspaceMembership {
 
 impl WorkspaceMembership {
     /// Create a new active membership
-    pub fn new(user_id: impl Into<String>, workspace_id: impl Into<String>, role: MemberRole) -> Self {
+    pub fn new(
+        user_id: impl Into<String>,
+        workspace_id: impl Into<String>,
+        role: MemberRole,
+    ) -> Self {
         Self {
             user_id: user_id.into(),
             workspace_id: workspace_id.into(),

@@ -107,7 +107,9 @@ impl UserInfo {
 
     /// Get workspace scope from metadata (if set by API key)
     pub fn api_key_workspace_scope(&self) -> Option<&str> {
-        self.metadata.get("api_key_workspace_scope").map(|s| s.as_str())
+        self.metadata
+            .get("api_key_workspace_scope")
+            .map(|s| s.as_str())
     }
 
     /// Get auth method from metadata

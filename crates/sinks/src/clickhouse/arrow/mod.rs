@@ -25,7 +25,7 @@ mod sink;
 
 pub use builders::{
     ContextBuilder, EventsBuilder, LogsBuilder, SnapshotsBuilder, UserDevicesBuilder,
-    UsersBuilder, UserTraitsBuilder,
+    UserTraitsBuilder, UsersBuilder,
 };
 pub use schema::{
     context_schema, events_schema, logs_schema, snapshots_schema, user_devices_schema,

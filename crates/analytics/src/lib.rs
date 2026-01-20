@@ -65,4 +65,6 @@ pub use metrics::{
     SessionsMetric, SessionsType, StickinessMetric, StickinessType, TopEventsMetric, TopLogsMetric,
 };
 pub use timerange::TimeRange;
-pub use timeseries::{ComparisonData, GroupedTimeSeries, TimeSeriesData, TimeSeriesGroup, TimeSeriesPoint};
+pub use timeseries::{
+    ComparisonData, GroupedTimeSeries, TimeSeriesData, TimeSeriesGroup, TimeSeriesPoint,
+};

@@ -5,13 +5,13 @@
 
 use crate::config::GitHubConnectorConfig;
 use crate::error::ConnectorError;
-use crate::resilience::{CircuitBreaker, ResilienceConfig, execute_with_retry, RetryError};
+use crate::resilience::{CircuitBreaker, ResilienceConfig, RetryError, execute_with_retry};
 use crate::traits::Connector;
-use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tracing::{debug, warn};
 
 /// GitHub connector configuration (simple version for CLI)
@@ -125,21 +125,15 @@ impl GitHub {
     }
 
     /// Handle common HTTP response errors
-    fn handle_error_status(
-        &self,
-        response: reqwest::Response,
-        entity: &str,
-    ) -> ConnectorError {
+    fn handle_error_status(&self, response: reqwest::Response, entity: &str) -> ConnectorError {
         match response.status() {
-            reqwest::StatusCode::NOT_FOUND => {
-                ConnectorError::NotFound(entity.to_string())
-            }
+            reqwest::StatusCode::NOT_FOUND => ConnectorError::NotFound(entity.to_string()),
             reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
                 ConnectorError::AuthFailed("Invalid or missing token".into())
             }
-            reqwest::StatusCode::TOO_MANY_REQUESTS => {
-                ConnectorError::RateLimited { retry_after_secs: 60 }
-            }
+            reqwest::StatusCode::TOO_MANY_REQUESTS => ConnectorError::RateLimited {
+                retry_after_secs: 60,
+            },
             _ => ConnectorError::Http(response.error_for_status().unwrap_err()),
         }
     }
@@ -195,10 +189,13 @@ impl GitHub {
 
         match result {
             Ok(value) => Ok(value),
-            Err(RetryError::CircuitOpen) => {
-                Err(ConnectorError::ConfigError("circuit breaker open".to_string()))
-            }
-            Err(RetryError::Exhausted { attempts, last_error }) => {
+            Err(RetryError::CircuitOpen) => Err(ConnectorError::ConfigError(
+                "circuit breaker open".to_string(),
+            )),
+            Err(RetryError::Exhausted {
+                attempts,
+                last_error,
+            }) => {
                 warn!(
                     connector = "github",
                     entity = %entity,
@@ -358,7 +355,11 @@ impl GitHub {
             })
             .await?;
 
-        Ok(PrCounts { open, closed, merged })
+        Ok(PrCounts {
+            open,
+            closed,
+            merged,
+        })
     }
 
     /// Check if a metric should be included
@@ -573,7 +574,9 @@ fn parse_last_page(link: &str) -> Option<u64> {
             // Extract page number from URL
             if let Some(start) = part.find("page=") {
                 let after_page = &part[start + 5..];
-                let end = after_page.find(|c: char| !c.is_ascii_digit()).unwrap_or(after_page.len());
+                let end = after_page
+                    .find(|c: char| !c.is_ascii_digit())
+                    .unwrap_or(after_page.len());
                 return after_page[..end].parse().ok();
             }
         }
@@ -683,7 +686,6 @@ struct FilteredMetrics {
     #[serde(skip_serializing_if = "Option::is_none")]
     prs_merged: Option<u64>,
 }
-
 
 #[cfg(test)]
 mod tests;

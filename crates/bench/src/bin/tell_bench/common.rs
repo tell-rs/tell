@@ -1,7 +1,7 @@
 //! Common utilities for tell-bench
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use sysinfo::System;
 
@@ -96,11 +96,7 @@ pub struct TimedProgressReporter {
 
 impl TimedProgressReporter {
     /// Start a timed progress reporter (tokio)
-    pub fn start(
-        events: Arc<AtomicU64>,
-        bytes: Arc<AtomicU64>,
-        total: Option<u64>,
-    ) -> Self {
+    pub fn start(events: Arc<AtomicU64>, bytes: Arc<AtomicU64>, total: Option<u64>) -> Self {
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
 
@@ -156,11 +152,7 @@ impl TimedProgressReporter {
     }
 
     /// Start a progress reporter with a target total (backward compatible)
-    pub fn start_with_target(
-        events: Arc<AtomicU64>,
-        bytes: Arc<AtomicU64>,
-        total: u64,
-    ) -> Self {
+    pub fn start_with_target(events: Arc<AtomicU64>, bytes: Arc<AtomicU64>, total: u64) -> Self {
         Self::start(events, bytes, Some(total))
     }
 
@@ -181,11 +173,7 @@ pub struct ThreadTimedProgressReporter {
 
 impl ThreadTimedProgressReporter {
     /// Start a thread-based timed progress reporter
-    pub fn start(
-        events: Arc<AtomicU64>,
-        bytes: Arc<AtomicU64>,
-        total: Option<u64>,
-    ) -> Self {
+    pub fn start(events: Arc<AtomicU64>, bytes: Arc<AtomicU64>, total: Option<u64>) -> Self {
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
 

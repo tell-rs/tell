@@ -206,8 +206,7 @@ async fn test_worker_shutdown_flush() {
 async fn test_worker_channel_full_returns_false() {
     let (_temp_dir, persistence) = create_test_persistence();
     let cancel = CancellationToken::new();
-    let config = WorkerConfig::default()
-        .with_channel_capacity(2); // Very small capacity
+    let config = WorkerConfig::default().with_channel_capacity(2); // Very small capacity
 
     let (_worker, handle) = PatternWorker::new(persistence, config, cancel);
 

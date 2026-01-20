@@ -126,9 +126,9 @@ impl LogEncoder {
 
         // === LogData vtable ===
         let log_data_vtable_start = buf.len();
-        write_u16(&mut buf, 6);  // vtable_size: 4 header + 1 field * 2
-        write_u16(&mut buf, 8);  // table_size: soffset(4) + logs_offset(4)
-        write_u16(&mut buf, 4);  // field 0 (logs) at offset 4
+        write_u16(&mut buf, 6); // vtable_size: 4 header + 1 field * 2
+        write_u16(&mut buf, 8); // table_size: soffset(4) + logs_offset(4)
+        write_u16(&mut buf, 4); // field 0 (logs) at offset 4
 
         // Align to 4
         while buf.len() % 4 != 0 {
@@ -223,13 +223,13 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
     write_u16(buf, table_inline_size as u16);
 
     // Field offsets
-    write_u16(buf, 4);  // field 0: event_type at +4
-    write_u16(buf, if log.session_id.is_some() { 16 } else { 0 });  // field 1
-    write_u16(buf, 5);  // field 2: level at +5
-    write_u16(buf, 8);  // field 3: timestamp at +8
-    write_u16(buf, if log.source.is_some() { 20 } else { 0 });      // field 4
-    write_u16(buf, if log.service.is_some() { 24 } else { 0 });     // field 5
-    write_u16(buf, if !log.payload.is_empty() { 28 } else { 0 });   // field 6
+    write_u16(buf, 4); // field 0: event_type at +4
+    write_u16(buf, if log.session_id.is_some() { 16 } else { 0 }); // field 1
+    write_u16(buf, 5); // field 2: level at +5
+    write_u16(buf, 8); // field 3: timestamp at +8
+    write_u16(buf, if log.source.is_some() { 20 } else { 0 }); // field 4
+    write_u16(buf, if log.service.is_some() { 24 } else { 0 }); // field 5
+    write_u16(buf, if !log.payload.is_empty() { 28 } else { 0 }); // field 6
 
     // Align
     while buf.len() % 4 != 0 {
@@ -280,8 +280,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - session_id_offset_pos) as u32;
-        buf[session_id_offset_pos..session_id_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[session_id_offset_pos..session_id_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     // source
@@ -294,8 +293,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - source_offset_pos) as u32;
-        buf[source_offset_pos..source_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[source_offset_pos..source_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     // service
@@ -308,8 +306,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - service_offset_pos) as u32;
-        buf[service_offset_pos..service_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[service_offset_pos..service_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     // payload
@@ -321,8 +318,7 @@ fn encode_single_log_entry(buf: &mut Vec<u8>, log: &EncodedLogEntry) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - payload_offset_pos) as u32;
-        buf[payload_offset_pos..payload_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[payload_offset_pos..payload_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     table_start

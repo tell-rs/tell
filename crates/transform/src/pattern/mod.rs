@@ -30,24 +30,24 @@ mod worker;
 
 pub use cache::{CacheStats, PatternCache};
 pub use config::{ClickHouseConfig, PatternConfig, PersistenceConfig, ReloadConfig};
-pub use drain::{generate_canonical_name, DrainTree, Pattern, PatternId};
+pub use drain::{DrainTree, Pattern, PatternId, generate_canonical_name};
 pub use persistence::{PatternPersistence, StoredPattern};
-pub use reload::{spawn_reload_worker, ReloadWorker, ReloadWorkerConfig, ReloadWorkerHandle};
+pub use reload::{ReloadWorker, ReloadWorkerConfig, ReloadWorkerHandle, spawn_reload_worker};
 pub use storage::{
     BoxedPatternStorage, FilePatternStorage, NullPatternStorage, PatternStorage, StorageError,
     StorageResult,
 };
-pub use worker::{spawn_pattern_worker, PatternWorker, PatternWorkerHandle, WorkerConfig};
+pub use worker::{PatternWorker, PatternWorkerHandle, WorkerConfig, spawn_pattern_worker};
 
 use crate::{
-    registry::{TransformerConfig, TransformerFactory},
     TransformError, TransformResult, Transformer,
+    registry::{TransformerConfig, TransformerFactory},
 };
-use tell_protocol::{Batch, BatchType, FlatBatch, SchemaType, decode_log_data};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use tell_protocol::{Batch, BatchType, FlatBatch, SchemaType, decode_log_data};
 use tokio_util::sync::CancellationToken;
 
 #[cfg(test)]
@@ -178,7 +178,8 @@ impl PatternTransformer {
 
         for pattern in stored {
             // Pre-populate cache with known patterns
-            self.cache.put_l2(hash_template(&pattern.template), pattern.id);
+            self.cache
+                .put_l2(hash_template(&pattern.template), pattern.id);
         }
 
         tracing::info!("Loaded {} patterns from persistence", count);
@@ -220,7 +221,9 @@ impl PatternTransformer {
             return batch;
         }
 
-        self.metrics.batches_processed.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .batches_processed
+            .fetch_add(1, Ordering::Relaxed);
 
         let message_count = batch.message_count();
         let mut pattern_ids = Vec::with_capacity(message_count);
@@ -303,7 +306,9 @@ impl PatternTransformer {
 
         // Track new patterns
         if pattern_count_after > pattern_count_before {
-            self.metrics.patterns_created.fetch_add(1, Ordering::Relaxed);
+            self.metrics
+                .patterns_created
+                .fetch_add(1, Ordering::Relaxed);
 
             // Persist new pattern
             if let Some(pattern) = self.drain.get_pattern(id) {
@@ -413,18 +418,9 @@ impl TransformerFactory for PatternFactory {
 
     fn default_config(&self) -> Option<TransformerConfig> {
         let mut config = TransformerConfig::new();
-        config.insert(
-            "similarity_threshold".to_string(),
-            toml::Value::Float(0.5),
-        );
-        config.insert(
-            "max_child_nodes".to_string(),
-            toml::Value::Integer(100),
-        );
-        config.insert(
-            "cache_size".to_string(),
-            toml::Value::Integer(100_000),
-        );
+        config.insert("similarity_threshold".to_string(), toml::Value::Float(0.5));
+        config.insert("max_child_nodes".to_string(), toml::Value::Integer(100));
+        config.insert("cache_size".to_string(), toml::Value::Integer(100_000));
         Some(config)
     }
 }
@@ -450,8 +446,8 @@ fn parse_pattern_config(config: &TransformerConfig) -> TransformResult<PatternCo
     }
 
     if let Some(toml::Value::String(v)) = config.get("persistence_file") {
-        pattern_config.persistence = PersistenceConfig::default()
-            .with_file(std::path::PathBuf::from(v));
+        pattern_config.persistence =
+            PersistenceConfig::default().with_file(std::path::PathBuf::from(v));
     }
 
     pattern_config.validate().map_err(TransformError::config)?;

@@ -26,7 +26,6 @@ mod flatbuf;
 mod schema;
 mod source;
 
-
 pub use batch::{Batch, BatchBuilder};
 pub use decode::{
     DecodedBucket, DecodedData, DecodedEvent, DecodedHistogram, DecodedIntLabel, DecodedLabel,

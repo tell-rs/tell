@@ -55,9 +55,6 @@ pub use global::GlobalConfig;
 pub use logging::LogConfig;
 pub use metrics::{MetricsConfig, MetricsFormat};
 pub use routing::{MatchCondition, RoutingConfig, RoutingRule};
-pub use transformers::{
-    is_known_transformer_type, TransformerInstanceConfig, KNOWN_TRANSFORMER_TYPES,
-};
 pub use sinks::{
     ArrowIpcSinkConfig, ClickHouseNativeSinkConfig, ClickHouseSinkConfig, Compression,
     DiskBinarySinkConfig, DiskPlaintextSinkConfig, ForwarderSinkConfig, NullSinkConfig,
@@ -67,6 +64,9 @@ pub use sinks::{
 pub use sources::{
     SourcesConfig, SyslogTcpSourceConfig, SyslogUdpSourceConfig, TcpDebugSourceConfig,
     TcpSourceConfig,
+};
+pub use transformers::{
+    KNOWN_TRANSFORMER_TYPES, TransformerInstanceConfig, is_known_transformer_type,
 };
 
 use serde::Deserialize;

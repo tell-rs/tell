@@ -60,8 +60,7 @@ fn test_validate_empty_conditions() {
 
 #[test]
 fn test_validate_empty_field() {
-    let config = FilterConfig::new()
-        .with_condition(Condition::eq("", "value"));
+    let config = FilterConfig::new().with_condition(Condition::eq("", "value"));
     let result = config.validate();
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("empty field"));
@@ -69,12 +68,11 @@ fn test_validate_empty_field() {
 
 #[test]
 fn test_validate_missing_value() {
-    let config = FilterConfig::new()
-        .with_condition(Condition {
-            field: "level".to_string(),
-            operator: Operator::Eq,
-            value: None,
-        });
+    let config = FilterConfig::new().with_condition(Condition {
+        field: "level".to_string(),
+        operator: Operator::Eq,
+        value: None,
+    });
     let result = config.validate();
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("requires a value"));
@@ -82,8 +80,7 @@ fn test_validate_missing_value() {
 
 #[test]
 fn test_validate_exists_no_value_ok() {
-    let config = FilterConfig::new()
-        .with_condition(Condition::exists("user_id"));
+    let config = FilterConfig::new().with_condition(Condition::exists("user_id"));
     let result = config.validate();
     assert!(result.is_ok());
 }

@@ -4,12 +4,12 @@
 //! This provides granular visibility into each sink's health.
 
 use crate::{
-    format::MetricsFormatter, HumanFormatter, JsonFormatter, SinkMetricsProvider,
-    SinkMetricsSnapshot,
+    HumanFormatter, JsonFormatter, SinkMetricsProvider, SinkMetricsSnapshot,
+    format::MetricsFormatter,
 };
-use tell_config::MetricsFormat;
 use std::sync::Arc;
-use tokio::time::{interval, Duration};
+use tell_config::MetricsFormat;
+use tokio::time::{Duration, interval};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -201,7 +201,9 @@ mod tests {
         let metrics = SinkMetrics::new();
         metrics.batches_written.fetch_add(100, Ordering::Relaxed);
         metrics.messages_written.fetch_add(50000, Ordering::Relaxed);
-        metrics.bytes_written.fetch_add(10_000_000, Ordering::Relaxed);
+        metrics
+            .bytes_written
+            .fetch_add(10_000_000, Ordering::Relaxed);
 
         let sink = Arc::new(TestSink {
             id: "clickhouse".into(),
@@ -247,10 +249,7 @@ mod tests {
         // Note: We can't easily test the actual spawn without a runtime,
         // but we can verify the filtering logic works
         let sinks = vec![enabled_sink, disabled_sink];
-        let enabled_count = sinks
-            .iter()
-            .filter(|s| s.metrics_config().enabled)
-            .count();
+        let enabled_count = sinks.iter().filter(|s| s.metrics_config().enabled).count();
 
         assert_eq!(enabled_count, 1);
     }

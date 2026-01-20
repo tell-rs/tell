@@ -25,10 +25,10 @@
 //! client.send(&batch).await?;
 //! ```
 
-mod tcp;
 mod syslog_tcp;
 mod syslog_udp;
+mod tcp;
 
-pub use tcp::TcpTestClient;
-pub use syslog_tcp::{SyslogTcpTestClient, LineEnding};
+pub use syslog_tcp::{LineEnding, SyslogTcpTestClient};
 pub use syslog_udp::SyslogUdpTestClient;
+pub use tcp::TcpTestClient;

@@ -3,13 +3,13 @@
 use super::{DiskBinaryConfig, DiskBinarySink, MetricsSnapshot};
 use crate::disk_binary::writer::{METADATA_SIZE, MessageMetadata};
 use crate::util::RotationInterval;
-use tell_client::event::{EventBuilder, EventDataBuilder};
-use tell_client::log::{LogEntryBuilder, LogDataBuilder};
-use tell_client::BatchBuilder as FlatBufferBuilder;
-use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use std::time::Duration;
+use tell_client::BatchBuilder as FlatBufferBuilder;
+use tell_client::event::{EventBuilder, EventDataBuilder};
+use tell_client::log::{LogDataBuilder, LogEntryBuilder};
+use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tempfile::TempDir;
 use tokio::sync::mpsc;
 
@@ -58,11 +58,16 @@ fn create_realistic_event_batch(workspace_id: u32, event_count: usize) -> Batch 
     for i in 0..event_count {
         let event = EventBuilder::new()
             .track(&format!("page_view_{}", i))
-            .device_id([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, i as u8])
+            .device_id([
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, i as u8,
+            ])
             .session_id([0x10; 16])
             .timestamp_now()
-            .payload_json(&format!(r#"{{"page": "/test/{}", "referrer": "google"}}"#, i))
+            .payload_json(&format!(
+                r#"{{"page": "/test/{}", "referrer": "google"}}"#,
+                i
+            ))
             .build()
             .expect("build event");
 
@@ -95,7 +100,11 @@ fn create_realistic_log_batch(workspace_id: u32, log_count: usize) -> Batch {
             .source(&format!("server-{}", i % 5))
             .service("nginx")
             .timestamp_now()
-            .payload_json(&format!(r#"{{"status": 200, "path": "/api/v1/users/{}", "latency_ms": {}}}"#, i, 10 + i))
+            .payload_json(&format!(
+                r#"{{"status": 200, "path": "/api/v1/users/{}", "latency_ms": {}}}"#,
+                i,
+                10 + i
+            ))
             .build()
             .expect("build log");
 
@@ -629,7 +638,10 @@ async fn test_sink_compression_with_realistic_data() {
     drop(tx);
     let snapshot = sink.run().await;
     assert_eq!(snapshot.batches_received, 1);
-    assert!(snapshot.bytes_written > 0, "should have written compressed bytes");
+    assert!(
+        snapshot.bytes_written > 0,
+        "should have written compressed bytes"
+    );
 }
 
 #[tokio::test]

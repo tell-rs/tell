@@ -313,7 +313,14 @@ impl FileContext {
         };
         let chain_id_clone = chain_id.clone();
         tokio::spawn(async move {
-            run_writer_task(chain_id_clone, receiver, writer, flush_interval, retry_config).await;
+            run_writer_task(
+                chain_id_clone,
+                receiver,
+                writer,
+                flush_interval,
+                retry_config,
+            )
+            .await;
         });
 
         Ok(BufferChain {
@@ -604,7 +611,14 @@ impl AtomicRotationSink {
         };
         let chain_id_clone = chain_id.clone();
         tokio::spawn(async move {
-            run_writer_task(chain_id_clone, receiver, writer, flush_interval, retry_config).await;
+            run_writer_task(
+                chain_id_clone,
+                receiver,
+                writer,
+                flush_interval,
+                retry_config,
+            )
+            .await;
         });
 
         Ok(BufferChain {

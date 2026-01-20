@@ -101,7 +101,6 @@ struct PatternFile {
     patterns: Vec<StoredPattern>,
 }
 
-
 /// Pattern persistence manager
 pub struct PatternPersistence {
     /// File path for pattern storage
@@ -204,8 +203,9 @@ impl PatternPersistence {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
-        let pattern_file: PatternFile = serde_json::from_reader(reader)
-            .map_err(|e| crate::TransformError::decode(format!("failed to parse pattern file: {}", e)))?;
+        let pattern_file: PatternFile = serde_json::from_reader(reader).map_err(|e| {
+            crate::TransformError::decode(format!("failed to parse pattern file: {}", e))
+        })?;
 
         if pattern_file.version != FORMAT_VERSION {
             tracing::warn!(
@@ -246,8 +246,9 @@ impl PatternPersistence {
             patterns,
         };
 
-        serde_json::to_writer_pretty(&mut writer, &pattern_file)
-            .map_err(|e| crate::TransformError::failed(format!("failed to write patterns: {}", e)))?;
+        serde_json::to_writer_pretty(&mut writer, &pattern_file).map_err(|e| {
+            crate::TransformError::failed(format!("failed to write patterns: {}", e))
+        })?;
 
         writer.flush()?;
 

@@ -14,10 +14,10 @@
 //! | `PUT /boards/{id}/pin` | Required | Editor+ | Pin/unpin board |
 
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, post, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -225,7 +225,9 @@ async fn create_board(
 ) -> Result<(StatusCode, Json<BoardResponse>), ApiError> {
     // Require Editor+ permission
     if !user.has_permission(Permission::Create) {
-        return Err(ApiError::forbidden("Editor permission required to create boards"));
+        return Err(ApiError::forbidden(
+            "Editor permission required to create boards",
+        ));
     }
 
     let control = state
@@ -251,7 +253,10 @@ async fn create_board(
     // Validate description length
     if let Some(ref desc) = req.description {
         if desc.len() > 2000 {
-            return Err(ApiError::validation("description", "must be at most 2000 characters"));
+            return Err(ApiError::validation(
+                "description",
+                "must be at most 2000 characters",
+            ));
         }
     }
 
@@ -312,7 +317,10 @@ async fn update_board(
     }
     if let Some(description) = req.description {
         if description.len() > 2000 {
-            return Err(ApiError::validation("description", "must be at most 2000 characters"));
+            return Err(ApiError::validation(
+                "description",
+                "must be at most 2000 characters",
+            ));
         }
         board.description = Some(description);
     }

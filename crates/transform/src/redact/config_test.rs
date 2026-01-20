@@ -69,8 +69,7 @@ fn test_validate_requires_pattern() {
 
 #[test]
 fn test_validate_ok() {
-    let config = RedactConfig::new()
-        .with_pattern(PatternType::Email);
+    let config = RedactConfig::new().with_pattern(PatternType::Email);
 
     let result = config.validate();
     assert!(result.is_ok());

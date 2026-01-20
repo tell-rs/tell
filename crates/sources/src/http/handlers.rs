@@ -12,20 +12,24 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{ConnectInfo, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use tell_auth::ApiKeyStore;
 use tell_protocol::{BatchType, FlatBatch, SourceId};
 
-use super::auth::{extract_api_key, extract_api_key_with_workspace, get_source_ip, is_binary_content_type};
+use super::auth::{
+    extract_api_key, extract_api_key_with_workspace, get_source_ip, is_binary_content_type,
+};
 use super::encoder::{encode_events, encode_logs};
 use super::error::BatchResult;
 use super::jsonl::{parse_jsonl_events, parse_jsonl_logs};
 use super::metrics::HttpSourceMetrics;
-use super::response::{build_response, error_response, generate_request_id, send_batch, send_batch_with_metadata};
+use super::response::{
+    build_response, error_response, generate_request_id, send_batch, send_batch_with_metadata,
+};
 use crate::ShardedSender;
 
 /// Shared state for handlers
@@ -52,7 +56,11 @@ pub async fn ingest_events(
         return error_response(
             StatusCode::PAYLOAD_TOO_LARGE,
             "payload_too_large",
-            format!("payload size {} exceeds limit {}", body.len(), state.max_payload_size),
+            format!(
+                "payload size {} exceeds limit {}",
+                body.len(),
+                state.max_payload_size
+            ),
         );
     }
 
@@ -70,7 +78,11 @@ pub async fn ingest_events(
 
     if events.is_empty() && parse_errors.is_empty() {
         state.metrics.request_client_error();
-        return error_response(StatusCode::BAD_REQUEST, "empty_body", "no events in request body");
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "empty_body",
+            "no events in request body",
+        );
     }
 
     // Track parse errors
@@ -93,15 +105,26 @@ pub async fn ingest_events(
     // Build result
     let result = BatchResult {
         accepted: if send_result.is_ok() { events.len() } else { 0 },
-        rejected: parse_errors.len() + if send_result.is_err() { events.len() } else { 0 },
+        rejected: parse_errors.len()
+            + if send_result.is_err() {
+                events.len()
+            } else {
+                0
+            },
         errors: parse_errors,
     };
 
-    state.metrics.items_processed(result.accepted, result.rejected);
+    state
+        .metrics
+        .items_processed(result.accepted, result.rejected);
 
     if let Err(e) = send_result {
         state.metrics.request_server_error();
-        return error_response(StatusCode::SERVICE_UNAVAILABLE, "service_unavailable", e.to_string());
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "service_unavailable",
+            e.to_string(),
+        );
     }
 
     state.metrics.request_success();
@@ -123,7 +146,11 @@ pub async fn ingest_logs(
         return error_response(
             StatusCode::PAYLOAD_TOO_LARGE,
             "payload_too_large",
-            format!("payload size {} exceeds limit {}", body.len(), state.max_payload_size),
+            format!(
+                "payload size {} exceeds limit {}",
+                body.len(),
+                state.max_payload_size
+            ),
         );
     }
 
@@ -141,7 +168,11 @@ pub async fn ingest_logs(
 
     if logs.is_empty() && parse_errors.is_empty() {
         state.metrics.request_client_error();
-        return error_response(StatusCode::BAD_REQUEST, "empty_body", "no logs in request body");
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "empty_body",
+            "no logs in request body",
+        );
     }
 
     for _ in &parse_errors {
@@ -166,11 +197,17 @@ pub async fn ingest_logs(
         errors: parse_errors,
     };
 
-    state.metrics.items_processed(result.accepted, result.rejected);
+    state
+        .metrics
+        .items_processed(result.accepted, result.rejected);
 
     if let Err(e) = send_result {
         state.metrics.request_server_error();
-        return error_response(StatusCode::SERVICE_UNAVAILABLE, "service_unavailable", e.to_string());
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "service_unavailable",
+            e.to_string(),
+        );
     }
 
     state.metrics.request_success();
@@ -216,7 +253,11 @@ pub async fn ingest_binary(
         return error_response(
             StatusCode::PAYLOAD_TOO_LARGE,
             "payload_too_large",
-            format!("payload size {} exceeds limit {}", body.len(), state.max_payload_size),
+            format!(
+                "payload size {} exceeds limit {}",
+                body.len(),
+                state.max_payload_size
+            ),
         );
     }
 
@@ -236,7 +277,8 @@ pub async fn ingest_binary(
     }
 
     // Extract and validate API key from header, get workspace_id
-    let (api_key, workspace_id) = match extract_api_key_with_workspace(&headers, &state.auth_store) {
+    let (api_key, workspace_id) = match extract_api_key_with_workspace(&headers, &state.auth_store)
+    {
         Ok(result) => result,
         Err(e) => {
             state.metrics.auth_failure();
@@ -289,17 +331,16 @@ pub async fn ingest_binary(
     let source_ip = get_source_ip(&headers, addr.ip());
 
     // Send with workspace_id and source_ip (like TCP source)
-    let send_result = send_batch_with_metadata(
-        &state,
-        &body,
-        batch_type,
-        workspace_id.as_u32(),
-        source_ip,
-    );
+    let send_result =
+        send_batch_with_metadata(&state, &body, batch_type, workspace_id.as_u32(), source_ip);
 
     if let Err(e) = send_result {
         state.metrics.request_server_error();
-        return error_response(StatusCode::SERVICE_UNAVAILABLE, "service_unavailable", e.to_string());
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "service_unavailable",
+            e.to_string(),
+        );
     }
 
     state.metrics.items_processed(1, 0);

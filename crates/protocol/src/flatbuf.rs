@@ -26,7 +26,10 @@
 //! This module performs bounds checking on all accesses. Invalid messages
 //! will return errors rather than panicking or reading out of bounds.
 
-use crate::{API_KEY_LENGTH, IPV6_LENGTH, MAX_REASONABLE_SIZE, MIN_BATCH_SIZE, ProtocolError, Result, SchemaType};
+use crate::{
+    API_KEY_LENGTH, IPV6_LENGTH, MAX_REASONABLE_SIZE, MIN_BATCH_SIZE, ProtocolError, Result,
+    SchemaType,
+};
 
 /// Field IDs from common.fbs (these are vtable slot indices, not byte offsets)
 /// Slot 0 and 1 are reserved for vtable_size and table_size
@@ -93,7 +96,10 @@ impl<'a> FlatBatch<'a> {
         }
 
         if buf.len() > MAX_REASONABLE_SIZE {
-            return Err(ProtocolError::message_too_large(buf.len(), MAX_REASONABLE_SIZE));
+            return Err(ProtocolError::message_too_large(
+                buf.len(),
+                MAX_REASONABLE_SIZE,
+            ));
         }
 
         // Read root offset (first 4 bytes, little-endian u32)

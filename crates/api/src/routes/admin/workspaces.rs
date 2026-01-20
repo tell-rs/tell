@@ -14,10 +14,10 @@
 //! | `DELETE /admin/workspaces/{id}` | Required | Platform only |
 
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     routing::{delete, get, post, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -105,7 +105,10 @@ async fn list_user_workspaces(
         .map_err(|e| ApiError::internal(format!("Failed to list workspaces: {}", e)))?;
 
     Ok(Json(ListWorkspacesResponse {
-        workspaces: workspaces.into_iter().map(WorkspaceResponse::from).collect(),
+        workspaces: workspaces
+            .into_iter()
+            .map(WorkspaceResponse::from)
+            .collect(),
     }))
 }
 
@@ -128,7 +131,11 @@ async fn create_workspace(
     if req.slug.is_empty() || req.slug.len() > 50 {
         return Err(ApiError::validation("slug", "must be 1-50 characters"));
     }
-    if !req.slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+    if !req
+        .slug
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
         return Err(ApiError::validation(
             "slug",
             "must contain only alphanumeric characters and hyphens",
@@ -162,7 +169,10 @@ async fn create_workspace(
         .await
         .map_err(|e| ApiError::internal(format!("Failed to add membership: {}", e)))?;
 
-    Ok((StatusCode::CREATED, Json(WorkspaceResponse::from(workspace))))
+    Ok((
+        StatusCode::CREATED,
+        Json(WorkspaceResponse::from(workspace)),
+    ))
 }
 
 // =============================================================================
@@ -202,7 +212,10 @@ async fn list_all_workspaces(
         .map_err(|e| ApiError::internal(format!("Failed to list workspaces: {}", e)))?;
 
     Ok(Json(ListWorkspacesResponse {
-        workspaces: workspaces.into_iter().map(WorkspaceResponse::from).collect(),
+        workspaces: workspaces
+            .into_iter()
+            .map(WorkspaceResponse::from)
+            .collect(),
     }))
 }
 
@@ -222,7 +235,12 @@ async fn get_workspace(
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
     // Check if user has access
-    let membership = control.workspaces().get_member(&id, &user.id).await.ok().flatten();
+    let membership = control
+        .workspaces()
+        .get_member(&id, &user.id)
+        .await
+        .ok()
+        .flatten();
 
     let has_access = user.has_permission(Permission::Platform)
         || membership.map(|m| m.role.can_manage()).unwrap_or(false);
@@ -258,7 +276,12 @@ async fn update_workspace(
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
     // Check if user has access
-    let membership = control.workspaces().get_member(&id, &user.id).await.ok().flatten();
+    let membership = control
+        .workspaces()
+        .get_member(&id, &user.id)
+        .await
+        .ok()
+        .flatten();
 
     let has_access = user.has_permission(Permission::Platform)
         || membership.map(|m| m.role.can_manage()).unwrap_or(false);

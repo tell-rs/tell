@@ -45,9 +45,9 @@ pub mod repos;
 pub use db::ControlPlane;
 pub use error::{ControlError, Result};
 pub use models::{
-    Block, BlockPosition, Board, BoardLayout, BoardSettings, InviteStatus, MemberRole, MemberStatus,
-    MetricBlock, NoteBlock, ResourceType, SharedLink, UserApiKey, VisualizationType, Workspace,
-    WorkspaceInvite, WorkspaceMembership, WorkspaceSettings, WorkspaceStatus,
+    Block, BlockPosition, Board, BoardLayout, BoardSettings, InviteStatus, MemberRole,
+    MemberStatus, MetricBlock, NoteBlock, ResourceType, SharedLink, UserApiKey, VisualizationType,
+    Workspace, WorkspaceInvite, WorkspaceMembership, WorkspaceSettings, WorkspaceStatus,
 };
 pub use repos::{ApiKeyRepo, BoardRepo, InviteRepo, SharingRepo, WorkspaceRepo};
 

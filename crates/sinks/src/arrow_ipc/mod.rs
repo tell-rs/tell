@@ -57,10 +57,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use tell_protocol::{Batch, BatchType, FlatBatch, SchemaType, decode_event_data, decode_log_data};
 use chrono::{DateTime, Datelike, Timelike, Utc};
-use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
 use parking_lot::Mutex;
+use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use tell_protocol::{Batch, BatchType, FlatBatch, SchemaType, decode_event_data, decode_log_data};
 use tokio::sync::mpsc;
 
 pub use writer::ArrowIpcWriter;

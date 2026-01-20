@@ -131,7 +131,8 @@ impl TransformerInstanceConfig {
 }
 
 /// Known transformer types for validation
-pub const KNOWN_TRANSFORMER_TYPES: &[&str] = &["noop", "pattern_matcher", "reduce", "filter", "redact"];
+pub const KNOWN_TRANSFORMER_TYPES: &[&str] =
+    &["noop", "pattern_matcher", "reduce", "filter", "redact"];
 
 /// Check if a transformer type is known
 pub fn is_known_transformer_type(transformer_type: &str) -> bool {

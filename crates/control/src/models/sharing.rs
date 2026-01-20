@@ -131,13 +131,12 @@ mod tests {
     #[test]
     fn test_share_with_expiration() {
         let future = Utc::now() + chrono::Duration::hours(24);
-        let link = SharedLink::for_board("board_123", "ws_456", "user_789")
-            .with_expiration(future);
+        let link = SharedLink::for_board("board_123", "ws_456", "user_789").with_expiration(future);
         assert!(!link.is_expired());
 
         let past = Utc::now() - chrono::Duration::hours(1);
-        let expired_link = SharedLink::for_board("board_123", "ws_456", "user_789")
-            .with_expiration(past);
+        let expired_link =
+            SharedLink::for_board("board_123", "ws_456", "user_789").with_expiration(past);
         assert!(expired_link.is_expired());
     }
 

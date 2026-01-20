@@ -426,8 +426,14 @@ impl Default for BackpressureTracker {
 impl std::fmt::Debug for BackpressureTracker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BackpressureTracker")
-            .field("interval_drops", &self.interval_drops.load(Ordering::Relaxed))
-            .field("interval_messages", &self.interval_messages.load(Ordering::Relaxed))
+            .field(
+                "interval_drops",
+                &self.interval_drops.load(Ordering::Relaxed),
+            )
+            .field(
+                "interval_messages",
+                &self.interval_messages.load(Ordering::Relaxed),
+            )
             .finish()
     }
 }

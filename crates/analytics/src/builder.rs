@@ -39,7 +39,8 @@ impl QueryBuilder {
 
     /// Add a SELECT column with alias
     pub fn select_as(mut self, expr: impl Into<String>, alias: impl Into<String>) -> Self {
-        self.select.push(format!("{} AS {}", expr.into(), alias.into()));
+        self.select
+            .push(format!("{} AS {}", expr.into(), alias.into()));
         self
     }
 
@@ -76,8 +77,16 @@ impl QueryBuilder {
     /// Apply a filter to this query
     pub fn apply_filter(mut self, filter: &Filter, timestamp_col: &str) -> Self {
         // Add time range condition
-        let start = filter.time_range.start.format("%Y-%m-%d %H:%M:%S").to_string();
-        let end = filter.time_range.end.format("%Y-%m-%d %H:%M:%S").to_string();
+        let start = filter
+            .time_range
+            .start
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let end = filter
+            .time_range
+            .end
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
         self.where_clauses.push(format!(
             "{} >= '{}' AND {} <= '{}'",
             timestamp_col, start, timestamp_col, end

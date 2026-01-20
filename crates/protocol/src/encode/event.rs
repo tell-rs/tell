@@ -102,9 +102,9 @@ impl EventEncoder {
 
         // === EventData vtable ===
         let event_data_vtable_start = buf.len();
-        write_u16(&mut buf, 6);  // vtable_size: 4 header + 1 field * 2
-        write_u16(&mut buf, 8);  // table_size: soffset(4) + events_offset(4)
-        write_u16(&mut buf, 4);  // field 0 (events) at offset 4
+        write_u16(&mut buf, 6); // vtable_size: 4 header + 1 field * 2
+        write_u16(&mut buf, 8); // table_size: soffset(4) + events_offset(4)
+        write_u16(&mut buf, 4); // field 0 (events) at offset 4
 
         // Align to 4
         while buf.len() % 4 != 0 {
@@ -197,12 +197,12 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
     write_u16(buf, table_inline_size as u16);
 
     // Field offsets
-    write_u16(buf, 4);  // field 0: event_type at +4
-    write_u16(buf, 8);  // field 1: timestamp at +8
-    write_u16(buf, if event.device_id.is_some() { 16 } else { 0 });   // field 2
-    write_u16(buf, if event.session_id.is_some() { 20 } else { 0 });  // field 3
-    write_u16(buf, if event.event_name.is_some() { 24 } else { 0 });  // field 4
-    write_u16(buf, if !event.payload.is_empty() { 28 } else { 0 });   // field 5
+    write_u16(buf, 4); // field 0: event_type at +4
+    write_u16(buf, 8); // field 1: timestamp at +8
+    write_u16(buf, if event.device_id.is_some() { 16 } else { 0 }); // field 2
+    write_u16(buf, if event.session_id.is_some() { 20 } else { 0 }); // field 3
+    write_u16(buf, if event.event_name.is_some() { 24 } else { 0 }); // field 4
+    write_u16(buf, if !event.payload.is_empty() { 28 } else { 0 }); // field 5
 
     // Align
     while buf.len() % 4 != 0 {
@@ -250,8 +250,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - device_id_offset_pos) as u32;
-        buf[device_id_offset_pos..device_id_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[device_id_offset_pos..device_id_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     // session_id
@@ -263,8 +262,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - session_id_offset_pos) as u32;
-        buf[session_id_offset_pos..session_id_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[session_id_offset_pos..session_id_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     // event_name
@@ -277,8 +275,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - event_name_offset_pos) as u32;
-        buf[event_name_offset_pos..event_name_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[event_name_offset_pos..event_name_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     // payload
@@ -290,8 +287,7 @@ fn encode_single_event(buf: &mut Vec<u8>, event: &EncodedEvent) -> usize {
             buf.push(0);
         }
         let rel = (vec_start - payload_offset_pos) as u32;
-        buf[payload_offset_pos..payload_offset_pos + 4]
-            .copy_from_slice(&rel.to_le_bytes());
+        buf[payload_offset_pos..payload_offset_pos + 4].copy_from_slice(&rel.to_le_bytes());
     }
 
     table_start

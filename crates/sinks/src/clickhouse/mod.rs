@@ -42,15 +42,13 @@ pub mod tables;
 
 // Re-export public API
 pub use config::{
-    ClickHouseConfig, TableNames, DEFAULT_BATCH_SIZE, DEFAULT_CONNECTION_TIMEOUT,
-    DEFAULT_FLUSH_INTERVAL, DEFAULT_RETRY_ATTEMPTS,
+    ClickHouseConfig, DEFAULT_BATCH_SIZE, DEFAULT_CONNECTION_TIMEOUT, DEFAULT_FLUSH_INTERVAL,
+    DEFAULT_RETRY_ATTEMPTS, TableNames,
 };
 pub use error::ClickHouseSinkError;
 pub use metrics::{ClickHouseMetrics, ClickHouseSinkMetricsHandle, MetricsSnapshot};
 pub use sink::ClickHouseSink;
-pub use tables::{
-    ContextRow, EventRow, LogRow, SnapshotRow, UserDeviceRow, UserRow, UserTraitRow,
-};
+pub use tables::{ContextRow, EventRow, LogRow, SnapshotRow, UserDeviceRow, UserRow, UserTraitRow};
 
 // Arrow-based sink (recommended for high throughput)
 pub use arrow::ArrowClickHouseSink;

@@ -17,9 +17,7 @@
 //! - Medium: 100 events/logs per request
 //! - Large: 1000 events/logs per request
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 
 use tell_protocol::{
     BatchEncoder, EncodedEvent, EncodedLogEntry, EventEncoder, EventTypeValue, FlatBatch,
@@ -28,14 +26,12 @@ use tell_protocol::{
 
 /// Test API key
 const TEST_API_KEY: [u8; 16] = [
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-    0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
 ];
 
 /// Test device ID (UUID bytes)
 const TEST_DEVICE_ID: [u8; 16] = [
-    0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4,
-    0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00,
+    0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00,
 ];
 
 // =============================================================================
@@ -125,24 +121,20 @@ fn bench_jsonl_parse_events(c: &mut Criterion) {
         let jsonl = generate_events_jsonl(count);
 
         group.throughput(Throughput::Elements(count as u64));
-        group.bench_with_input(
-            BenchmarkId::new("parse", count),
-            &jsonl,
-            |b, jsonl| {
-                b.iter(|| {
-                    let mut events = Vec::new();
-                    for line in jsonl.split(|&b| b == b'\n') {
-                        if line.is_empty() {
-                            continue;
-                        }
-                        if let Ok(event) = serde_json::from_slice::<serde_json::Value>(line) {
-                            events.push(event);
-                        }
+        group.bench_with_input(BenchmarkId::new("parse", count), &jsonl, |b, jsonl| {
+            b.iter(|| {
+                let mut events = Vec::new();
+                for line in jsonl.split(|&b| b == b'\n') {
+                    if line.is_empty() {
+                        continue;
                     }
-                    black_box(events)
-                });
-            },
-        );
+                    if let Ok(event) = serde_json::from_slice::<serde_json::Value>(line) {
+                        events.push(event);
+                    }
+                }
+                black_box(events)
+            });
+        });
     }
 
     group.finish();
@@ -156,24 +148,20 @@ fn bench_jsonl_parse_logs(c: &mut Criterion) {
         let jsonl = generate_logs_jsonl(count);
 
         group.throughput(Throughput::Elements(count as u64));
-        group.bench_with_input(
-            BenchmarkId::new("parse", count),
-            &jsonl,
-            |b, jsonl| {
-                b.iter(|| {
-                    let mut logs = Vec::new();
-                    for line in jsonl.split(|&b| b == b'\n') {
-                        if line.is_empty() {
-                            continue;
-                        }
-                        if let Ok(log) = serde_json::from_slice::<serde_json::Value>(line) {
-                            logs.push(log);
-                        }
+        group.bench_with_input(BenchmarkId::new("parse", count), &jsonl, |b, jsonl| {
+            b.iter(|| {
+                let mut logs = Vec::new();
+                for line in jsonl.split(|&b| b == b'\n') {
+                    if line.is_empty() {
+                        continue;
                     }
-                    black_box(logs)
-                });
-            },
-        );
+                    if let Ok(log) = serde_json::from_slice::<serde_json::Value>(line) {
+                        logs.push(log);
+                    }
+                }
+                black_box(logs)
+            });
+        });
     }
 
     group.finish();
@@ -191,16 +179,12 @@ fn bench_encode_events(c: &mut Criterion) {
         let events = generate_encoded_events(count);
 
         group.throughput(Throughput::Elements(count as u64));
-        group.bench_with_input(
-            BenchmarkId::new("encode", count),
-            &events,
-            |b, events| {
-                b.iter(|| {
-                    let event_data = EventEncoder::encode_events(events);
-                    black_box(event_data)
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("encode", count), &events, |b, events| {
+            b.iter(|| {
+                let event_data = EventEncoder::encode_events(events);
+                black_box(event_data)
+            });
+        });
     }
 
     group.finish();
@@ -268,28 +252,24 @@ fn bench_roundtrip(c: &mut Criterion) {
         let events = generate_encoded_events(count);
 
         group.throughput(Throughput::Elements(count as u64));
-        group.bench_with_input(
-            BenchmarkId::new("events", count),
-            &events,
-            |b, events| {
-                b.iter(|| {
-                    // Encode
-                    let event_data = EventEncoder::encode_events(events);
-                    let mut batch_encoder = BatchEncoder::new();
-                    batch_encoder.set_api_key(&TEST_API_KEY);
-                    batch_encoder.set_schema_type(SchemaType::Event);
-                    let batch_bytes = batch_encoder.encode(&event_data);
+        group.bench_with_input(BenchmarkId::new("events", count), &events, |b, events| {
+            b.iter(|| {
+                // Encode
+                let event_data = EventEncoder::encode_events(events);
+                let mut batch_encoder = BatchEncoder::new();
+                batch_encoder.set_api_key(&TEST_API_KEY);
+                batch_encoder.set_schema_type(SchemaType::Event);
+                let batch_bytes = batch_encoder.encode(&event_data);
 
-                    // Decode and verify (black_box each to prevent optimization)
-                    let batch = FlatBatch::parse(&batch_bytes).expect("valid");
-                    black_box(batch.schema_type());
-                    black_box(batch.api_key().expect("api_key"));
-                    black_box(batch.data().expect("data").len());
+                // Decode and verify (black_box each to prevent optimization)
+                let batch = FlatBatch::parse(&batch_bytes).expect("valid");
+                black_box(batch.schema_type());
+                black_box(batch.api_key().expect("api_key"));
+                black_box(batch.data().expect("data").len());
 
-                    batch_bytes.len()
-                });
-            },
-        );
+                batch_bytes.len()
+            });
+        });
     }
 
     group.finish();

@@ -16,14 +16,6 @@ use tracing::{error, info, warn};
 
 use tell_auth::ApiKeyStore;
 use tell_config::{Config, RoutingConfig};
-use tell_protocol::Batch;
-use tell_routing::{RoutingTable, SinkId};
-use tell_sources::tcp::{TcpSource, TcpSourceConfig};
-use tell_sources::tcp_debug::{TcpDebugSource, TcpDebugSourceConfig};
-use tell_sources::{
-    HttpSource, HttpSourceConfig, ShardedSender, SyslogTcpSource, SyslogTcpSourceConfig,
-    SyslogUdpSource, SyslogUdpSourceConfig,
-};
 #[cfg(feature = "connector-github")]
 use tell_connectors::GitHubConnectorConfig;
 #[cfg(feature = "connector-shopify")]
@@ -31,6 +23,8 @@ use tell_connectors::ShopifyConnectorConfig;
 use tell_connectors::{ConnectorScheduler, ScheduledConnector};
 use tell_metrics::{SinkMetricsProvider, SourceMetricsProvider, UnifiedReporter};
 use tell_pipeline::{Router, RouterMetricsHandle, SinkHandle};
+use tell_protocol::Batch;
+use tell_routing::{RoutingTable, SinkId};
 use tell_sinks::arrow_ipc::{ArrowIpcConfig, ArrowIpcSink};
 use tell_sinks::clickhouse::{ArrowClickHouseSink, ClickHouseConfig, ClickHouseSink};
 use tell_sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink};
@@ -39,6 +33,12 @@ use tell_sinks::forwarder::{ForwarderConfig, ForwarderSink};
 use tell_sinks::null::NullSink;
 use tell_sinks::parquet::{ParquetConfig, ParquetSink};
 use tell_sinks::stdout::{StdoutConfig, StdoutSink};
+use tell_sources::tcp::{TcpSource, TcpSourceConfig};
+use tell_sources::tcp_debug::{TcpDebugSource, TcpDebugSourceConfig};
+use tell_sources::{
+    HttpSource, HttpSourceConfig, ShardedSender, SyslogTcpSource, SyslogTcpSourceConfig,
+    SyslogUdpSource, SyslogUdpSourceConfig,
+};
 use tell_tap::{TapPoint, TapServer, TapServerConfig};
 
 use std::collections::HashMap;
@@ -55,7 +55,10 @@ pub struct ServeArgs {
 
 /// Run the serve command
 pub async fn run(args: ServeArgs) -> Result<()> {
-    let config_path = args.config.as_ref().map(|p| p.display().to_string())
+    let config_path = args
+        .config
+        .as_ref()
+        .map(|p| p.display().to_string())
         .unwrap_or_else(|| "(default)".to_string());
 
     info!(
@@ -359,7 +362,10 @@ type SinkIds = HashMap<String, SinkId>;
 
 /// Build routing table from configuration
 /// Registers all sinks referenced in routing config
-fn build_routing_table(routing_config: &RoutingConfig, sinks_config: &tell_config::SinksConfig) -> (RoutingTable, SinkIds) {
+fn build_routing_table(
+    routing_config: &RoutingConfig,
+    sinks_config: &tell_config::SinksConfig,
+) -> (RoutingTable, SinkIds) {
     use std::collections::HashSet;
 
     let mut table = RoutingTable::new();
@@ -389,9 +395,8 @@ fn build_routing_table(routing_config: &RoutingConfig, sinks_config: &tell_confi
 
     for &sink_name in &referenced_sinks {
         // Check if sink exists in config or is a built-in type
-        let exists = sinks_config.contains(sink_name)
-            || sink_name == "null"
-            || sink_name == "stdout";
+        let exists =
+            sinks_config.contains(sink_name) || sink_name == "null" || sink_name == "stdout";
 
         if exists {
             let id = table.register_sink(sink_name);
@@ -403,9 +408,7 @@ fn build_routing_table(routing_config: &RoutingConfig, sinks_config: &tell_confi
     }
 
     // Helper to resolve sink name to ID
-    let resolve_sink = |name: &str| -> Option<SinkId> {
-        sink_ids.get(name).copied()
-    };
+    let resolve_sink = |name: &str| -> Option<SinkId> { sink_ids.get(name).copied() };
 
     // Set up routing based on config
     if routing_config.has_default() {
@@ -629,8 +632,12 @@ async fn create_and_register_sinks(
                     buffer_size: disk_config.buffer_size,
                     compression: matches!(disk_config.compression, tell_config::Compression::Lz4),
                     rotation_interval: match disk_config.rotation {
-                        tell_config::RotationInterval::Hourly => tell_sinks::util::RotationInterval::Hourly,
-                        tell_config::RotationInterval::Daily => tell_sinks::util::RotationInterval::Daily,
+                        tell_config::RotationInterval::Hourly => {
+                            tell_sinks::util::RotationInterval::Hourly
+                        }
+                        tell_config::RotationInterval::Daily => {
+                            tell_sinks::util::RotationInterval::Daily
+                        }
                     },
                     ..Default::default()
                 };
@@ -669,8 +676,12 @@ async fn create_and_register_sinks(
                     queue_size: disk_config.write_queue_size,
                     compression: matches!(disk_config.compression, tell_config::Compression::Lz4),
                     rotation_interval: match disk_config.rotation {
-                        tell_config::RotationInterval::Hourly => tell_sinks::util::RotationInterval::Hourly,
-                        tell_config::RotationInterval::Daily => tell_sinks::util::RotationInterval::Daily,
+                        tell_config::RotationInterval::Hourly => {
+                            tell_sinks::util::RotationInterval::Hourly
+                        }
+                        tell_config::RotationInterval::Daily => {
+                            tell_sinks::util::RotationInterval::Daily
+                        }
                     },
                     flush_interval: disk_config.flush_interval,
                     ..Default::default()
@@ -704,19 +715,26 @@ async fn create_and_register_sinks(
                 let handle = SinkHandle::new(sink_id, sink_name, tx);
                 router.register_sink(handle);
 
-                let mut sink_config = ParquetConfig::default()
-                    .with_path(&pq_config.path);
+                let mut sink_config = ParquetConfig::default().with_path(&pq_config.path);
 
                 sink_config.rotation_interval = match pq_config.rotation {
-                    tell_config::RotationInterval::Hourly => tell_sinks::parquet::RotationInterval::Hourly,
-                    tell_config::RotationInterval::Daily => tell_sinks::parquet::RotationInterval::Daily,
+                    tell_config::RotationInterval::Hourly => {
+                        tell_sinks::parquet::RotationInterval::Hourly
+                    }
+                    tell_config::RotationInterval::Daily => {
+                        tell_sinks::parquet::RotationInterval::Daily
+                    }
                 };
 
                 sink_config.compression = match pq_config.compression {
-                    tell_config::ParquetCompression::Snappy => tell_sinks::parquet::Compression::Snappy,
+                    tell_config::ParquetCompression::Snappy => {
+                        tell_sinks::parquet::Compression::Snappy
+                    }
                     tell_config::ParquetCompression::Zstd => tell_sinks::parquet::Compression::Zstd,
                     tell_config::ParquetCompression::Lz4 => tell_sinks::parquet::Compression::Lz4,
-                    tell_config::ParquetCompression::Uncompressed => tell_sinks::parquet::Compression::None,
+                    tell_config::ParquetCompression::Uncompressed => {
+                        tell_sinks::parquet::Compression::None
+                    }
                 };
 
                 let sink = ParquetSink::new(sink_config, rx);
@@ -759,8 +777,12 @@ async fn create_and_register_sinks(
                     .with_buffer_size(arrow_config.buffer_size);
 
                 sink_config.rotation_interval = match arrow_config.rotation {
-                    tell_config::RotationInterval::Hourly => tell_sinks::arrow_ipc::RotationInterval::Hourly,
-                    tell_config::RotationInterval::Daily => tell_sinks::arrow_ipc::RotationInterval::Daily,
+                    tell_config::RotationInterval::Hourly => {
+                        tell_sinks::arrow_ipc::RotationInterval::Hourly
+                    }
+                    tell_config::RotationInterval::Daily => {
+                        tell_sinks::arrow_ipc::RotationInterval::Daily
+                    }
                 };
 
                 sink_config.flush_interval = arrow_config.flush_interval;
@@ -800,18 +822,19 @@ async fn create_and_register_sinks(
                 let handle = SinkHandle::new(sink_id, sink_name, tx);
                 router.register_sink(handle);
 
-                let sink_config = match ForwarderConfig::new(&fwd_config.target, &fwd_config.api_key) {
-                    Ok(cfg) => cfg
-                        .with_connection_timeout(fwd_config.connection_timeout)
-                        .with_write_timeout(fwd_config.write_timeout)
-                        .with_retry_attempts(fwd_config.retry_attempts)
-                        .with_retry_interval(fwd_config.retry_interval)
-                        .with_reconnect_interval(fwd_config.reconnect_interval),
-                    Err(e) => {
-                        error!(sink = %sink_name, error = %e, "invalid forwarder config");
-                        continue;
-                    }
-                };
+                let sink_config =
+                    match ForwarderConfig::new(&fwd_config.target, &fwd_config.api_key) {
+                        Ok(cfg) => cfg
+                            .with_connection_timeout(fwd_config.connection_timeout)
+                            .with_write_timeout(fwd_config.write_timeout)
+                            .with_retry_attempts(fwd_config.retry_attempts)
+                            .with_retry_interval(fwd_config.retry_interval)
+                            .with_reconnect_interval(fwd_config.reconnect_interval),
+                        Err(e) => {
+                            error!(sink = %sink_name, error = %e, "invalid forwarder config");
+                            continue;
+                        }
+                    };
 
                 let sink = ForwarderSink::new(sink_config, rx);
                 sink_metrics.push(Arc::new(sink.metrics_handle()));
@@ -900,169 +923,166 @@ async fn start_sources(
     if let Some(ref syslog_tcp_cfg) = config.sources.syslog_tcp
         && syslog_tcp_cfg.enabled
     {
-            let workspace_id = parse_workspace_id(&syslog_tcp_cfg.workspace_id);
+        let workspace_id = parse_workspace_id(&syslog_tcp_cfg.workspace_id);
 
-            let syslog_tcp_config = SyslogTcpSourceConfig {
-                id: "syslog_tcp".to_string(),
-                address: syslog_tcp_cfg.address.clone(),
-                port: syslog_tcp_cfg.port,
-                buffer_size: syslog_tcp_cfg
-                    .buffer_size
-                    .unwrap_or(config.global.buffer_size),
-                queue_size: syslog_tcp_cfg
-                    .queue_size
-                    .unwrap_or(config.global.queue_size),
-                batch_size: config.global.batch_size,
-                flush_interval: syslog_tcp_cfg.flush_interval,
-                nodelay: syslog_tcp_cfg.no_delay,
-                connection_timeout: syslog_tcp_cfg.connection_timeout,
-                workspace_id,
-                max_message_size: syslog_tcp_cfg.max_message_size,
-                socket_buffer_size: 256 * 1024,
-            };
+        let syslog_tcp_config = SyslogTcpSourceConfig {
+            id: "syslog_tcp".to_string(),
+            address: syslog_tcp_cfg.address.clone(),
+            port: syslog_tcp_cfg.port,
+            buffer_size: syslog_tcp_cfg
+                .buffer_size
+                .unwrap_or(config.global.buffer_size),
+            queue_size: syslog_tcp_cfg
+                .queue_size
+                .unwrap_or(config.global.queue_size),
+            batch_size: config.global.batch_size,
+            flush_interval: syslog_tcp_cfg.flush_interval,
+            nodelay: syslog_tcp_cfg.no_delay,
+            connection_timeout: syslog_tcp_cfg.connection_timeout,
+            workspace_id,
+            max_message_size: syslog_tcp_cfg.max_message_size,
+            socket_buffer_size: 256 * 1024,
+        };
 
-            info!(
-                source_id = "syslog_tcp",
-                address = %syslog_tcp_config.address,
-                port = syslog_tcp_config.port,
-                workspace_id = workspace_id,
-                max_message_size = syslog_tcp_config.max_message_size,
-                "starting Syslog TCP source"
-            );
+        info!(
+            source_id = "syslog_tcp",
+            address = %syslog_tcp_config.address,
+            port = syslog_tcp_config.port,
+            workspace_id = workspace_id,
+            max_message_size = syslog_tcp_config.max_message_size,
+            "starting Syslog TCP source"
+        );
 
-            let syslog_tcp_source = SyslogTcpSource::new(syslog_tcp_config, sharded_sender.clone());
+        let syslog_tcp_source = SyslogTcpSource::new(syslog_tcp_config, sharded_sender.clone());
 
-            // Collect metrics handle before running
-            source_metrics.push(Arc::new(syslog_tcp_source.metrics_handle()));
+        // Collect metrics handle before running
+        source_metrics.push(Arc::new(syslog_tcp_source.metrics_handle()));
 
-            let cancel_token = cancel.clone();
-            tasks.push(tokio::spawn(async move {
-                if let Err(e) = syslog_tcp_source.run(cancel_token).await {
-                    error!(source_id = "syslog_tcp", error = %e, "Syslog TCP source error");
-                }
-            }));
+        let cancel_token = cancel.clone();
+        tasks.push(tokio::spawn(async move {
+            if let Err(e) = syslog_tcp_source.run(cancel_token).await {
+                error!(source_id = "syslog_tcp", error = %e, "Syslog TCP source error");
+            }
+        }));
     }
 
     // Start Syslog UDP source
     if let Some(ref syslog_udp_cfg) = config.sources.syslog_udp
         && syslog_udp_cfg.enabled
     {
-            let workspace_id = parse_workspace_id(&syslog_udp_cfg.workspace_id);
+        let workspace_id = parse_workspace_id(&syslog_udp_cfg.workspace_id);
 
-            let syslog_udp_config = SyslogUdpSourceConfig {
-                id: "syslog_udp".to_string(),
-                address: syslog_udp_cfg.address.clone(),
-                port: syslog_udp_cfg.port,
-                buffer_size: syslog_udp_cfg
-                    .buffer_size
-                    .unwrap_or(config.global.buffer_size),
-                queue_size: config.global.queue_size,
-                batch_size: config.global.batch_size,
-                flush_interval: std::time::Duration::from_millis(50), // Faster for UDP
-                num_workers: syslog_udp_cfg.num_workers,
-                workspace_id,
-                max_message_size: syslog_udp_cfg.max_message_size,
-            };
+        let syslog_udp_config = SyslogUdpSourceConfig {
+            id: "syslog_udp".to_string(),
+            address: syslog_udp_cfg.address.clone(),
+            port: syslog_udp_cfg.port,
+            buffer_size: syslog_udp_cfg
+                .buffer_size
+                .unwrap_or(config.global.buffer_size),
+            queue_size: config.global.queue_size,
+            batch_size: config.global.batch_size,
+            flush_interval: std::time::Duration::from_millis(50), // Faster for UDP
+            num_workers: syslog_udp_cfg.num_workers,
+            workspace_id,
+            max_message_size: syslog_udp_cfg.max_message_size,
+        };
 
-            info!(
-                source_id = "syslog_udp",
-                address = %syslog_udp_config.address,
-                port = syslog_udp_config.port,
-                workspace_id = workspace_id,
-                num_workers = syslog_udp_config.num_workers,
-                max_message_size = syslog_udp_config.max_message_size,
-                "starting Syslog UDP source"
-            );
+        info!(
+            source_id = "syslog_udp",
+            address = %syslog_udp_config.address,
+            port = syslog_udp_config.port,
+            workspace_id = workspace_id,
+            num_workers = syslog_udp_config.num_workers,
+            max_message_size = syslog_udp_config.max_message_size,
+            "starting Syslog UDP source"
+        );
 
-            let syslog_udp_source = SyslogUdpSource::new(syslog_udp_config, sharded_sender.clone());
+        let syslog_udp_source = SyslogUdpSource::new(syslog_udp_config, sharded_sender.clone());
 
-            // Collect metrics handle before running
-            source_metrics.push(Arc::new(syslog_udp_source.metrics_handle()));
+        // Collect metrics handle before running
+        source_metrics.push(Arc::new(syslog_udp_source.metrics_handle()));
 
-            let cancel_token = cancel.clone();
-            tasks.push(tokio::spawn(async move {
-                if let Err(e) = syslog_udp_source.run(cancel_token).await {
-                    error!(source_id = "syslog_udp", error = %e, "Syslog UDP source error");
-                }
-            }));
+        let cancel_token = cancel.clone();
+        tasks.push(tokio::spawn(async move {
+            if let Err(e) = syslog_udp_source.run(cancel_token).await {
+                error!(source_id = "syslog_udp", error = %e, "Syslog UDP source error");
+            }
+        }));
     }
 
     // Start TCP Debug source if configured
     if let Some(ref tcp_debug_cfg) = config.sources.tcp_debug
         && tcp_debug_cfg.enabled
     {
-            let tcp_debug_config = TcpDebugSourceConfig {
-                id: "tcp_debug".to_string(),
-                address: tcp_debug_cfg.address.clone(),
-                port: tcp_debug_cfg.port,
-                buffer_size: tcp_debug_cfg
-                    .buffer_size
-                    .unwrap_or(config.global.buffer_size),
-                batch_size: config.global.batch_size,
-                flush_interval: tcp_debug_cfg.flush_interval,
-                nodelay: tcp_debug_cfg.no_delay,
-                socket_buffer_size: 256 * 1024, // 256KB default
-            };
+        let tcp_debug_config = TcpDebugSourceConfig {
+            id: "tcp_debug".to_string(),
+            address: tcp_debug_cfg.address.clone(),
+            port: tcp_debug_cfg.port,
+            buffer_size: tcp_debug_cfg
+                .buffer_size
+                .unwrap_or(config.global.buffer_size),
+            batch_size: config.global.batch_size,
+            flush_interval: tcp_debug_cfg.flush_interval,
+            nodelay: tcp_debug_cfg.no_delay,
+            socket_buffer_size: 256 * 1024, // 256KB default
+        };
 
-            warn!(
-                source_id = "tcp_debug",
-                address = %tcp_debug_config.address,
-                port = tcp_debug_config.port,
-                "Starting TCP DEBUG source - NOT FOR PRODUCTION USE"
-            );
+        warn!(
+            source_id = "tcp_debug",
+            address = %tcp_debug_config.address,
+            port = tcp_debug_config.port,
+            "Starting TCP DEBUG source - NOT FOR PRODUCTION USE"
+        );
 
-            let tcp_debug_source = TcpDebugSource::new(
-                tcp_debug_config,
-                Arc::clone(&auth_store),
-                sharded_sender.clone(),
-            );
+        let tcp_debug_source = TcpDebugSource::new(
+            tcp_debug_config,
+            Arc::clone(&auth_store),
+            sharded_sender.clone(),
+        );
 
-            let cancel_token = cancel.clone();
-            tasks.push(tokio::spawn(async move {
-                if let Err(e) = tcp_debug_source.run(cancel_token).await {
-                    error!(source_id = "tcp_debug", error = %e, "TCP debug source error");
-                }
-            }));
+        let cancel_token = cancel.clone();
+        tasks.push(tokio::spawn(async move {
+            if let Err(e) = tcp_debug_source.run(cancel_token).await {
+                error!(source_id = "tcp_debug", error = %e, "TCP debug source error");
+            }
+        }));
     }
 
     // Start HTTP REST API source
     if let Some(ref http_cfg) = config.sources.http
         && http_cfg.enabled
     {
-            let http_config = HttpSourceConfig {
-                id: "http".to_string(),
-                address: http_cfg.address.clone(),
-                port: http_cfg.port,
-                max_payload_size: http_cfg.max_payload_size,
-                batch_size: http_cfg.batch_size,
-                cors_enabled: http_cfg.cors_enabled,
-                ..Default::default()
-            };
+        let http_config = HttpSourceConfig {
+            id: "http".to_string(),
+            address: http_cfg.address.clone(),
+            port: http_cfg.port,
+            max_payload_size: http_cfg.max_payload_size,
+            batch_size: http_cfg.batch_size,
+            cors_enabled: http_cfg.cors_enabled,
+            ..Default::default()
+        };
 
-            info!(
-                source_id = "http",
-                address = %http_config.address,
-                port = http_config.port,
-                max_payload_size = http_config.max_payload_size,
-                cors_enabled = http_config.cors_enabled,
-                "starting HTTP source"
-            );
+        info!(
+            source_id = "http",
+            address = %http_config.address,
+            port = http_config.port,
+            max_payload_size = http_config.max_payload_size,
+            cors_enabled = http_config.cors_enabled,
+            "starting HTTP source"
+        );
 
-            let http_source = HttpSource::new(
-                http_config,
-                Arc::clone(&auth_store),
-                sharded_sender.clone(),
-            );
+        let http_source =
+            HttpSource::new(http_config, Arc::clone(&auth_store), sharded_sender.clone());
 
-            // Collect metrics handle before running
-            source_metrics.push(Arc::new(http_source.metrics_handle()));
+        // Collect metrics handle before running
+        source_metrics.push(Arc::new(http_source.metrics_handle()));
 
-            let cancel_token = cancel.clone();
-            tasks.push(tokio::spawn(async move {
-                if let Err(e) = http_source.run(cancel_token).await {
-                    error!(source_id = "http", error = %e, "HTTP source error");
-                }
-            }));
+        let cancel_token = cancel.clone();
+        tasks.push(tokio::spawn(async move {
+            if let Err(e) = http_source.run(cancel_token).await {
+                error!(source_id = "http", error = %e, "HTTP source error");
+            }
+        }));
     }
 
     // If no sources configured in non-debug mode, start default TCP source

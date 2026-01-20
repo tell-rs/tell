@@ -38,10 +38,7 @@ pub static PATTERNS: Lazy<HashMap<PatternType, Regex>> = Lazy::new(|| {
     );
 
     // Danish CPR: DDMMYY-XXXX
-    m.insert(
-        PatternType::CprDk,
-        Regex::new(r"\b\d{6}-\d{4}\b").unwrap(),
-    );
+    m.insert(PatternType::CprDk, Regex::new(r"\b\d{6}-\d{4}\b").unwrap());
 
     // UK National Insurance Number: AB123456C
     m.insert(
@@ -50,10 +47,7 @@ pub static PATTERNS: Lazy<HashMap<PatternType, Regex>> = Lazy::new(|| {
     );
 
     // Dutch BSN: 9 digits
-    m.insert(
-        PatternType::BsnNl,
-        Regex::new(r"\b\d{9}\b").unwrap(),
-    );
+    m.insert(PatternType::BsnNl, Regex::new(r"\b\d{9}\b").unwrap());
 
     // IPv4: Standard dotted decimal
     m.insert(
@@ -90,7 +84,10 @@ pub fn get_pattern(pattern_type: PatternType) -> Option<&'static Regex> {
 
 /// Check if a string matches a pattern type
 pub fn matches_pattern(pattern_type: PatternType, text: &str) -> bool {
-    PATTERNS.get(&pattern_type).map(|re| re.is_match(text)).unwrap_or(false)
+    PATTERNS
+        .get(&pattern_type)
+        .map(|re| re.is_match(text))
+        .unwrap_or(false)
 }
 
 /// Find all matches of a pattern type in text

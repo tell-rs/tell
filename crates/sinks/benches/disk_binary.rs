@@ -28,13 +28,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::BytesMut;
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use tell_bench::{BenchScenario, SCENARIOS};
 use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tell_sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink, METADATA_SIZE};
 use tell_sinks::util::{AtomicRotationSink, BinaryWriter, BufferPool, RotationConfig};
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -104,8 +102,7 @@ fn bench_serialization(c: &mut Criterion) {
     // Test standard scenarios from Go benchmarks
     for scenario in SCENARIOS {
         let batch = create_batch_from_scenario(scenario);
-        let total_bytes =
-            scenario.events_per_batch * (METADATA_SIZE + 4 + scenario.event_size);
+        let total_bytes = scenario.events_per_batch * (METADATA_SIZE + 4 + scenario.event_size);
 
         group.throughput(Throughput::Elements(scenario.events_per_batch as u64));
         group.bench_with_input(

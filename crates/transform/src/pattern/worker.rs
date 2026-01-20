@@ -10,8 +10,8 @@
 //! - Flushes to persistence on batch threshold or time interval
 //! - Graceful shutdown flushes remaining patterns
 
-use super::persistence::PatternPersistence;
 use super::drain::Pattern;
+use super::persistence::PatternPersistence;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -218,10 +218,7 @@ impl PatternWorker {
         // Flush to disk
         match self.persistence.flush() {
             Ok(flushed) => {
-                tracing::debug!(
-                    patterns = flushed,
-                    "Flushed patterns to persistence"
-                );
+                tracing::debug!(patterns = flushed, "Flushed patterns to persistence");
             }
             Err(e) => {
                 tracing::warn!(

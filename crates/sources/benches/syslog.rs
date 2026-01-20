@@ -14,16 +14,17 @@
 use std::net::{IpAddr, Ipv4Addr};
 
 use bytes::BytesMut;
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use tell_bench::SCENARIOS;
 use tell_protocol::{BatchBuilder, BatchType, SourceId};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 // =============================================================================
 // Test Data
 // =============================================================================
 
 /// Sample RFC 3164 syslog message (BSD format)
-const RFC3164_SAMPLE: &[u8] = b"<34>Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8";
+const RFC3164_SAMPLE: &[u8] =
+    b"<34>Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8";
 
 /// Sample RFC 5424 syslog message (IETF format)
 const RFC5424_SAMPLE: &[u8] = b"<165>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog - ID47 [exampleSDID@32473 iut=\"3\" eventSource=\"Application\" eventID=\"1011\"] Application event log entry";

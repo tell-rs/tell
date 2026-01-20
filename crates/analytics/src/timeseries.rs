@@ -28,7 +28,11 @@ impl TimeSeriesPoint {
     }
 
     /// Create a point with a dimension
-    pub fn with_dimension(date: impl Into<String>, value: f64, dimension: impl Into<String>) -> Self {
+    pub fn with_dimension(
+        date: impl Into<String>,
+        value: f64,
+        dimension: impl Into<String>,
+    ) -> Self {
         Self {
             date: date.into(),
             value,
@@ -158,10 +162,7 @@ fn calculate_stats(points: &[TimeSeriesPoint]) -> Stats {
     }
 
     let total: f64 = points.iter().map(|p| p.value).sum();
-    let min = points
-        .iter()
-        .map(|p| p.value)
-        .fold(f64::INFINITY, f64::min);
+    let min = points.iter().map(|p| p.value).fold(f64::INFINITY, f64::min);
     let max = points
         .iter()
         .map(|p| p.value)

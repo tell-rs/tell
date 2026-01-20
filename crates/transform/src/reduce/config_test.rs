@@ -35,7 +35,10 @@ fn test_disabled() {
 #[test]
 fn test_window_duration() {
     let config = ReduceConfig::new().with_window_ms(3000);
-    assert_eq!(config.window_duration(), std::time::Duration::from_millis(3000));
+    assert_eq!(
+        config.window_duration(),
+        std::time::Duration::from_millis(3000)
+    );
 }
 
 #[test]
@@ -53,9 +56,7 @@ fn test_validation_zero_window() {
 
 #[test]
 fn test_validation_min_exceeds_max() {
-    let config = ReduceConfig::new()
-        .with_max_events(10)
-        .with_min_events(20);
+    let config = ReduceConfig::new().with_max_events(10).with_min_events(20);
     let err = config.validate().unwrap_err();
     assert!(err.contains("min_events"));
     assert!(err.contains("max_events"));

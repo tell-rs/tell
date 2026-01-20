@@ -3,8 +3,8 @@
 //! Outputs a markdown table for easy copy-paste into RESULTS.md
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use tell_client::event::{EventBuilder, EventDataBuilder};
@@ -14,7 +14,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::task::JoinSet;
 
-use crate::common::{format_number, generate_events_jsonl, generate_syslog_message, system_info_string, SyslogFormat};
+use crate::common::{
+    SyslogFormat, format_number, generate_events_jsonl, generate_syslog_message, system_info_string,
+};
 
 /// Matrix benchmark configuration
 #[derive(clap::Args)]
@@ -92,7 +94,11 @@ impl BenchResult {
 pub async fn run(args: MatrixArgs) -> Result<(), Box<dyn std::error::Error>> {
     let batch_sizes = [500, 100, 10, 3];
 
-    eprintln!("Running benchmarks: {} events per test, {} clients\n", format_number(args.events), args.clients);
+    eprintln!(
+        "Running benchmarks: {} events per test, {} clients\n",
+        format_number(args.events),
+        args.clients
+    );
 
     // Collect all results first
     let mut results: Vec<(&str, Vec<String>)> = Vec::new();
@@ -101,7 +107,14 @@ pub async fn run(args: MatrixArgs) -> Result<(), Box<dyn std::error::Error>> {
     if !args.skip_tcp {
         let mut row = Vec::new();
         for &batch_size in &batch_sizes {
-            let result = run_tcp_bench(&args.tcp_server, &args.api_key, args.clients, args.events, batch_size).await;
+            let result = run_tcp_bench(
+                &args.tcp_server,
+                &args.api_key,
+                args.clients,
+                args.events,
+                batch_size,
+            )
+            .await;
             match result {
                 Ok(r) => row.push(r.format()),
                 Err(e) => {
@@ -117,7 +130,14 @@ pub async fn run(args: MatrixArgs) -> Result<(), Box<dyn std::error::Error>> {
     if !args.skip_http {
         let mut row = Vec::new();
         for &batch_size in &batch_sizes {
-            let result = run_http_fbs_bench(&args.http_url, &args.api_key, args.clients, args.events, batch_size).await;
+            let result = run_http_fbs_bench(
+                &args.http_url,
+                &args.api_key,
+                args.clients,
+                args.events,
+                batch_size,
+            )
+            .await;
             match result {
                 Ok(r) => row.push(r.format()),
                 Err(e) => {
@@ -131,7 +151,14 @@ pub async fn run(args: MatrixArgs) -> Result<(), Box<dyn std::error::Error>> {
         // HTTP JSON
         let mut row = Vec::new();
         for &batch_size in &batch_sizes {
-            let result = run_http_json_bench(&args.http_url, &args.api_key, args.clients, args.events, batch_size).await;
+            let result = run_http_json_bench(
+                &args.http_url,
+                &args.api_key,
+                args.clients,
+                args.events,
+                batch_size,
+            )
+            .await;
             match result {
                 Ok(r) => row.push(r.format()),
                 Err(e) => {
@@ -147,7 +174,13 @@ pub async fn run(args: MatrixArgs) -> Result<(), Box<dyn std::error::Error>> {
     if !args.skip_syslog {
         let mut row = Vec::new();
         for &batch_size in &batch_sizes {
-            let result = run_syslog_tcp_bench(&args.syslog_tcp_server, args.clients, args.events, batch_size).await;
+            let result = run_syslog_tcp_bench(
+                &args.syslog_tcp_server,
+                args.clients,
+                args.events,
+                batch_size,
+            )
+            .await;
             match result {
                 Ok(r) => row.push(r.format()),
                 Err(e) => {
@@ -161,7 +194,13 @@ pub async fn run(args: MatrixArgs) -> Result<(), Box<dyn std::error::Error>> {
         // Syslog UDP
         let mut row = Vec::new();
         for &batch_size in &batch_sizes {
-            let result = run_syslog_udp_bench(&args.syslog_udp_server, args.clients, args.events, batch_size).await;
+            let result = run_syslog_udp_bench(
+                &args.syslog_udp_server,
+                args.clients,
+                args.events,
+                batch_size,
+            )
+            .await;
             match result {
                 Ok(r) => row.push(r.format()),
                 Err(e) => {
@@ -176,7 +215,12 @@ pub async fn run(args: MatrixArgs) -> Result<(), Box<dyn std::error::Error>> {
     // Print the complete table
     eprintln!();
     println!("## Benchmark Matrix\n");
-    println!("{} | {} clients | {} events/test | null sink\n", system_info_string(), args.clients, format_number(args.events));
+    println!(
+        "{} | {} clients | {} events/test | null sink\n",
+        system_info_string(),
+        args.clients,
+        format_number(args.events)
+    );
 
     // Header
     print!("| Source |");
@@ -320,11 +364,14 @@ async fn run_http_fbs_bench(
             let _ = stream.set_nodelay(true);
 
             let mut local_events = 0u64;
-            let device_id: [u8; 16] = [0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4,
-                                       0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00];
+            let device_id: [u8; 16] = [
+                0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44,
+                0x00, 0x00,
+            ];
 
             while local_events < events_per_client {
-                let batch_count = std::cmp::min(batch_size, (events_per_client - local_events) as usize);
+                let batch_count =
+                    std::cmp::min(batch_size, (events_per_client - local_events) as usize);
 
                 // Build events
                 let mut event_data_builder = EventDataBuilder::new();
@@ -352,7 +399,9 @@ async fn run_http_fbs_bench(
                      Content-Length: {}\r\n\
                      Connection: keep-alive\r\n\
                      \r\n",
-                    path_prefix, api_key_str, fbs_data.len()
+                    path_prefix,
+                    api_key_str,
+                    fbs_data.len()
                 );
 
                 stream.write_all(request.as_bytes()).await?;
@@ -421,7 +470,8 @@ async fn run_http_json_bench(
             let mut local_events = 0u64;
 
             while local_events < events_per_client {
-                let batch_count = std::cmp::min(batch_size, (events_per_client - local_events) as usize);
+                let batch_count =
+                    std::cmp::min(batch_size, (events_per_client - local_events) as usize);
                 let jsonl = generate_events_jsonl(batch_count, client_id);
 
                 let request = format!(
@@ -432,7 +482,9 @@ async fn run_http_json_bench(
                      Content-Length: {}\r\n\
                      Connection: keep-alive\r\n\
                      \r\n",
-                    path_prefix, api_key, jsonl.len()
+                    path_prefix,
+                    api_key,
+                    jsonl.len()
                 );
 
                 stream.write_all(request.as_bytes()).await?;
@@ -500,7 +552,8 @@ async fn run_syslog_tcp_bench(
             while local_events < events_per_client {
                 // Build batch of messages
                 let mut batch_data = Vec::new();
-                let batch_count = std::cmp::min(batch_size, (events_per_client - local_events) as usize);
+                let batch_count =
+                    std::cmp::min(batch_size, (events_per_client - local_events) as usize);
 
                 for _ in 0..batch_count {
                     let msg = generate_syslog_message(SyslogFormat::Rfc3164, client_id, seq);
@@ -572,7 +625,8 @@ async fn run_syslog_udp_bench(
             let mut seq = 0u64;
 
             while local_events < events_per_client {
-                let batch_count = std::cmp::min(batch_size, (events_per_client - local_events) as usize);
+                let batch_count =
+                    std::cmp::min(batch_size, (events_per_client - local_events) as usize);
 
                 // UDP sends each message as separate datagram
                 for _ in 0..batch_count {
@@ -613,7 +667,9 @@ async fn run_syslog_udp_bench(
 // =============================================================================
 
 /// Read HTTP response until end of headers
-async fn read_http_response(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn read_http_response(
+    stream: &mut TcpStream,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut buf = [0u8; 1024];
     let mut total = 0;
 

@@ -51,18 +51,18 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::{Buf, BytesMut};
-use tell_auth::ApiKeyStore;
-use tell_protocol::{BatchBuilder, BatchType, FlatBatch, ProtocolError, SchemaType, SourceId};
 use crossfire::TrySendError;
 use socket2::{Socket, TcpKeepalive};
+use tell_auth::ApiKeyStore;
+use tell_protocol::{BatchBuilder, BatchType, FlatBatch, ProtocolError, SchemaType, SourceId};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::sync::CancellationToken;
 
 use tell_metrics::{SourceMetricsProvider, SourceMetricsSnapshot};
 
-use crate::common::{ConnectionInfo, SourceMetrics};
 use crate::ShardedSender;
+use crate::common::{ConnectionInfo, SourceMetrics};
 
 /// Maximum message size (16MB)
 const MAX_MESSAGE_SIZE: u32 = 16 * 1024 * 1024;
@@ -387,7 +387,11 @@ impl TcpSource {
     }
 
     /// Main accept loop
-    async fn accept_loop(self, listener: TcpListener, cancel: CancellationToken) -> Result<(), TcpSourceError> {
+    async fn accept_loop(
+        self,
+        listener: TcpListener,
+        cancel: CancellationToken,
+    ) -> Result<(), TcpSourceError> {
         let source = Arc::new(self);
 
         loop {
@@ -476,7 +480,8 @@ impl TcpSource {
             match stream.read_buf(&mut buf).await {
                 Ok(0) => {
                     // EOF - flush and exit
-                    self.flush_batches(&mut event_batch, &mut log_batch, connection_id).await?;
+                    self.flush_batches(&mut event_batch, &mut log_batch, connection_id)
+                        .await?;
                     return Ok(());
                 }
                 Ok(_) => {
@@ -487,12 +492,8 @@ impl TcpSource {
                         let msg_end = msg_start + msg_len;
                         let msg = &buf[msg_start..msg_end];
 
-                        let result = self.process_message(
-                            msg,
-                            &conn_info,
-                            &mut event_batch,
-                            &mut log_batch,
-                        );
+                        let result =
+                            self.process_message(msg, &conn_info, &mut event_batch, &mut log_batch);
 
                         // Advance buffer past this message (length prefix + data)
                         buf.advance(msg_end);
@@ -500,10 +501,12 @@ impl TcpSource {
                         match result {
                             Ok((event_full, log_full)) => {
                                 if event_full {
-                                    self.send_batch(&mut event_batch, &source_id, connection_id).await?;
+                                    self.send_batch(&mut event_batch, &source_id, connection_id)
+                                        .await?;
                                 }
                                 if log_full {
-                                    self.send_batch(&mut log_batch, &source_id, connection_id).await?;
+                                    self.send_batch(&mut log_batch, &source_id, connection_id)
+                                        .await?;
                                 }
                             }
                             Err(e) => {
@@ -519,13 +522,16 @@ impl TcpSource {
 
                     // Check for periodic flush after processing messages
                     if last_flush.elapsed() >= flush_interval {
-                        self.flush_batches(&mut event_batch, &mut log_batch, connection_id).await?;
+                        self.flush_batches(&mut event_batch, &mut log_batch, connection_id)
+                            .await?;
                         last_flush = std::time::Instant::now();
                     }
                 }
                 Err(e) => {
                     // Flush before returning error
-                    let _ = self.flush_batches(&mut event_batch, &mut log_batch, connection_id).await;
+                    let _ = self
+                        .flush_batches(&mut event_batch, &mut log_batch, connection_id)
+                        .await;
                     return Err(e.into());
                 }
             }
@@ -699,11 +705,13 @@ impl TcpSource {
         let source_id = self.config.source_id();
 
         if !event_batch.is_empty() {
-            self.send_batch(event_batch, &source_id, connection_id).await?;
+            self.send_batch(event_batch, &source_id, connection_id)
+                .await?;
         }
 
         if !log_batch.is_empty() {
-            self.send_batch(log_batch, &source_id, connection_id).await?;
+            self.send_batch(log_batch, &source_id, connection_id)
+                .await?;
         }
 
         Ok(())
@@ -787,7 +795,7 @@ impl TcpSource {
         // Set TCP keepalive to detect dead connections
         if self.config.keepalive {
             let keepalive = TcpKeepalive::new()
-                .with_time(Duration::from_secs(60))      // Start probes after 60s idle
+                .with_time(Duration::from_secs(60)) // Start probes after 60s idle
                 .with_interval(Duration::from_secs(10)); // Probe every 10s
 
             if let Err(e) = socket.set_tcp_keepalive(&keepalive) {

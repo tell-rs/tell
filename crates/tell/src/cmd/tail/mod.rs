@@ -12,7 +12,7 @@ use anyhow::Result;
 use clap::Args;
 use tracing_subscriber::EnvFilter;
 
-use tell_protocol::{decode_event_data, decode_log_data, FlatBatch, LogLevel};
+use tell_protocol::{FlatBatch, LogLevel, decode_event_data, decode_log_data};
 use tell_tap::{SubscribeRequest, TapEnvelope, TapMessage};
 
 use filter::ContentFilter;

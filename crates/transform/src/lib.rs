@@ -103,8 +103,8 @@
 
 mod chain;
 mod error;
-mod lazy_batch;
 pub mod filter;
+mod lazy_batch;
 pub mod noop;
 pub mod pattern;
 pub mod redact;
@@ -131,12 +131,16 @@ pub use redact::{
     CustomPattern, PatternType, PseudonymHasher, RedactConfig, RedactFactory, RedactMetrics,
     RedactStrategy, RedactTransformer, TargetedField,
 };
-pub use reduce::{ReduceConfig, ReduceFactory, ReduceGroup, ReduceMetrics, ReduceState, ReduceTransformer};
-pub use registry::{default_registry, NoopFactory, TransformerConfig, TransformerFactory, TransformerRegistry};
+pub use reduce::{
+    ReduceConfig, ReduceFactory, ReduceGroup, ReduceMetrics, ReduceState, ReduceTransformer,
+};
+pub use registry::{
+    NoopFactory, TransformerConfig, TransformerFactory, TransformerRegistry, default_registry,
+};
 
-use tell_protocol::Batch;
 use std::future::Future;
 use std::pin::Pin;
+use tell_protocol::Batch;
 
 /// Result type for transformer operations
 pub type TransformResult<T> = Result<T, TransformError>;

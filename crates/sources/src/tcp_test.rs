@@ -11,8 +11,8 @@ use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
-use crate::tcp::{TcpSource, TcpSourceConfig, TcpSourceMetrics, bytes_to_ip, ip_to_bytes};
 use crate::ShardedSender;
+use crate::tcp::{TcpSource, TcpSourceConfig, TcpSourceMetrics, bytes_to_ip, ip_to_bytes};
 
 // ============================================================================
 // Helper Functions

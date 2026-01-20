@@ -84,12 +84,10 @@ impl TransformerRegistry {
     /// Use `try_register` for fallible registration.
     pub fn register<F: TransformerFactory + 'static>(&mut self, type_name: &str, factory: F) {
         if self.factories.contains_key(type_name) {
-            panic!(
-                "Transformer factory '{}' already registered",
-                type_name
-            );
+            panic!("Transformer factory '{}' already registered", type_name);
         }
-        self.factories.insert(type_name.to_string(), Box::new(factory));
+        self.factories
+            .insert(type_name.to_string(), Box::new(factory));
     }
 
     /// Try to register a transformer factory
@@ -103,7 +101,8 @@ impl TransformerRegistry {
         if self.factories.contains_key(type_name) {
             return false;
         }
-        self.factories.insert(type_name.to_string(), Box::new(factory));
+        self.factories
+            .insert(type_name.to_string(), Box::new(factory));
         true
     }
 
@@ -146,7 +145,9 @@ impl TransformerRegistry {
     ///
     /// Returns None if the type is not registered or has no defaults.
     pub fn default_config(&self, type_name: &str) -> Option<TransformerConfig> {
-        self.factories.get(type_name).and_then(|f| f.default_config())
+        self.factories
+            .get(type_name)
+            .and_then(|f| f.default_config())
     }
 
     /// Get the number of registered factories

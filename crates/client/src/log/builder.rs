@@ -452,7 +452,11 @@ fn build_log_entry_flatbuffer(
     let table_size: u16 = 4 + 28;
 
     // Estimate buffer size
-    let session_id_size = if session_id.is_some() { 4 + UUID_LENGTH } else { 0 };
+    let session_id_size = if session_id.is_some() {
+        4 + UUID_LENGTH
+    } else {
+        0
+    };
     let source_size = source.map(|s| 4 + s.len() + 1).unwrap_or(0);
     let service_size = service.map(|s| 4 + s.len() + 1).unwrap_or(0);
     let payload_size = payload.map(|p| 4 + p.len()).unwrap_or(0);

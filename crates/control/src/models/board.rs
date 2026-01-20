@@ -132,7 +132,12 @@ pub struct BlockPosition {
 
 impl BlockPosition {
     pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 }
 
@@ -163,8 +168,7 @@ mod tests {
 
     #[test]
     fn test_board_with_description() {
-        let board = Board::new("ws_1", "user_1", "Dashboard")
-            .with_description("A test dashboard");
+        let board = Board::new("ws_1", "user_1", "Dashboard").with_description("A test dashboard");
         assert_eq!(board.description, Some("A test dashboard".to_string()));
     }
 

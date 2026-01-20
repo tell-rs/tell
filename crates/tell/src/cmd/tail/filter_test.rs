@@ -269,12 +269,7 @@ fn test_log_substring_matches_source() {
 fn test_log_substring_matches_service() {
     let f = ContentFilter::new().with_substring("gateway");
 
-    assert!(f.matches_log(&make_log(
-        LogLevel::Info,
-        None,
-        Some("api-gateway"),
-        b"{}"
-    )));
+    assert!(f.matches_log(&make_log(LogLevel::Info, None, Some("api-gateway"), b"{}")));
     assert!(!f.matches_log(&make_log(LogLevel::Info, None, Some("worker"), b"{}")));
 }
 
@@ -282,10 +277,20 @@ fn test_log_substring_matches_service() {
 fn test_log_substring_matches_payload() {
     let f = ContentFilter::new().with_substring("timeout");
 
-    let log = make_log(LogLevel::Error, None, None, br#"{"error":"connection timeout"}"#);
+    let log = make_log(
+        LogLevel::Error,
+        None,
+        None,
+        br#"{"error":"connection timeout"}"#,
+    );
     assert!(f.matches_log(&log));
 
-    let log2 = make_log(LogLevel::Error, None, None, br#"{"error":"connection refused"}"#);
+    let log2 = make_log(
+        LogLevel::Error,
+        None,
+        None,
+        br#"{"error":"connection refused"}"#,
+    );
     assert!(!f.matches_log(&log2));
 }
 
@@ -307,4 +312,3 @@ fn test_log_combined_filters() {
     let log3 = make_log(LogLevel::Info, None, None, br#"{"msg":"timeout"}"#);
     assert!(!f.matches_log(&log3));
 }
-

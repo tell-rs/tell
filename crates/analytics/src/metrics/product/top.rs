@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use crate::builder::top_n_query;
 use crate::error::Result;
 use crate::filter::Filter;
-use crate::metrics::{table_name, Metric};
+use crate::metrics::{Metric, table_name};
 use crate::timeseries::{TimeSeriesData, TimeSeriesPoint};
 use tell_query::QueryBackend;
 
@@ -46,7 +46,10 @@ impl Metric for TopEventsMetric {
             .iter()
             .filter_map(|row| {
                 let name = row.first()?.as_str()?;
-                let count = row.get(1)?.as_f64().or_else(|| row.get(1)?.as_i64().map(|i| i as f64))?;
+                let count = row
+                    .get(1)?
+                    .as_f64()
+                    .or_else(|| row.get(1)?.as_i64().map(|i| i as f64))?;
                 Some(TimeSeriesPoint::with_dimension(name, count, name))
             })
             .collect();

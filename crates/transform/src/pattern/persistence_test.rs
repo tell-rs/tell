@@ -1,7 +1,7 @@
 //! Tests for pattern persistence
 
-use super::*;
 use super::super::drain::generate_canonical_name;
+use super::*;
 use tempfile::TempDir;
 
 fn create_test_pattern(id: PatternId, template: &str) -> Pattern {

@@ -182,13 +182,37 @@ impl<'a> SharingRepo<'a> {
     // =========================================================================
 
     fn row_to_link(row: &turso::Row) -> Result<SharedLink> {
-        let hash = row.get_value(0)?.as_text().unwrap_or(&String::new()).clone();
-        let resource_type_str = row.get_value(1)?.as_text().unwrap_or(&String::new()).clone();
-        let resource_id = row.get_value(2)?.as_text().unwrap_or(&String::new()).clone();
-        let workspace_id = row.get_value(3)?.as_text().unwrap_or(&String::new()).clone();
-        let created_by = row.get_value(4)?.as_text().unwrap_or(&String::new()).clone();
+        let hash = row
+            .get_value(0)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let resource_type_str = row
+            .get_value(1)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let resource_id = row
+            .get_value(2)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let workspace_id = row
+            .get_value(3)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let created_by = row
+            .get_value(4)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
         let expires_at_str = row.get_value(5)?.as_text().cloned();
-        let created_at_str = row.get_value(6)?.as_text().unwrap_or(&String::new()).clone();
+        let created_at_str = row
+            .get_value(6)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
 
         let resource_type =
             ResourceType::from_str(&resource_type_str).unwrap_or(ResourceType::Board);

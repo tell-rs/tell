@@ -25,8 +25,10 @@ fn test_state() -> TestContext {
     let auth_store = Arc::new(ApiKeyStore::new());
 
     // Add a test API key (hex encoded)
-    let test_key = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                    0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10];
+    let test_key = [
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+        0x10,
+    ];
     auth_store.insert(test_key, WorkspaceId::new(1));
 
     // Create a crossfire channel - keep receiver alive
@@ -41,7 +43,10 @@ fn test_state() -> TestContext {
         max_payload_size: 16 * 1024 * 1024,
     });
 
-    TestContext { state, _rx: Box::new(rx) }
+    TestContext {
+        state,
+        _rx: Box::new(rx),
+    }
 }
 
 /// Get test API key as hex string
@@ -68,7 +73,9 @@ async fn test_health_check() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 1024)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["status"], "ok");
@@ -97,7 +104,9 @@ async fn test_ingest_single_event() {
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["accepted"], 1);
@@ -124,7 +133,9 @@ async fn test_ingest_multiple_events() {
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["accepted"], 3);
@@ -250,7 +261,9 @@ async fn test_ingest_events_partial_failure() {
     // Should return 207 Multi-Status for partial success
     assert_eq!(response.status(), StatusCode::MULTI_STATUS);
 
-    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["accepted"], 1);
@@ -280,7 +293,9 @@ async fn test_ingest_single_log() {
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["accepted"], 1);
@@ -307,7 +322,9 @@ async fn test_ingest_multiple_logs() {
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["accepted"], 3);
@@ -363,12 +380,16 @@ async fn test_ingest_with_x_api_key_header() {
 
 use super::encoder::{encode_events, encode_logs};
 use super::json_types::{JsonEvent, JsonLogEntry};
-use tell_protocol::{FlatBatch, SchemaType, decode_event_data, decode_log_data, EventType, LogLevel};
+use tell_protocol::{
+    EventType, FlatBatch, LogLevel, SchemaType, decode_event_data, decode_log_data,
+};
 
 /// Test API key bytes for encoder tests
 fn test_api_key_bytes() -> [u8; 16] {
-    [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-     0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10]
+    [
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+        0x10,
+    ]
 }
 
 #[test]
@@ -410,17 +431,27 @@ fn test_event_encoding_round_trip() {
 
     // Verify device_id (UUID bytes)
     let device_id = decoded.device_id.expect("device_id should exist");
-    assert_eq!(device_id, &[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4,
-                           0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00]);
+    assert_eq!(
+        device_id,
+        &[
+            0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44,
+            0x00, 0x00
+        ]
+    );
 
     // Verify session_id
     let session_id = decoded.session_id.expect("session_id should exist");
-    assert_eq!(session_id, &[0x66, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4,
-                             0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x01]);
+    assert_eq!(
+        session_id,
+        &[
+            0x66, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44,
+            0x00, 0x01
+        ]
+    );
 
     // Verify payload contains user_id and properties
-    let payload: serde_json::Value = serde_json::from_slice(decoded.payload)
-        .expect("payload should be valid JSON");
+    let payload: serde_json::Value =
+        serde_json::from_slice(decoded.payload).expect("payload should be valid JSON");
     assert_eq!(payload["user_id"], "user_123");
     assert_eq!(payload["page"], "/home");
     assert_eq!(payload["referrer"], "google");
@@ -452,14 +483,18 @@ fn test_all_event_types_encoding() {
             context: None,
         };
 
-        let encoded = encode_events(&[event], &test_api_key_bytes())
-            .expect("encoding should succeed");
+        let encoded =
+            encode_events(&[event], &test_api_key_bytes()).expect("encoding should succeed");
 
         let batch = FlatBatch::parse(&encoded).expect("FlatBatch parse should succeed");
         let data = batch.data().expect("data should exist");
         let events = decode_event_data(data).expect("decode should succeed");
 
-        assert_eq!(events[0].event_type, *expected_type, "event type mismatch for {}", type_str);
+        assert_eq!(
+            events[0].event_type, *expected_type,
+            "event type mismatch for {}",
+            type_str
+        );
     }
 }
 
@@ -470,27 +505,41 @@ fn test_multiple_events_encoding() {
             event_type: "track".to_string(),
             event: Some("event_1".to_string()),
             device_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
-            session_id: None, user_id: None, group_id: None,
-            timestamp: Some(1700000000000), properties: None, traits: None, context: None,
+            session_id: None,
+            user_id: None,
+            group_id: None,
+            timestamp: Some(1700000000000),
+            properties: None,
+            traits: None,
+            context: None,
         },
         JsonEvent {
             event_type: "identify".to_string(),
             event: None,
             device_id: "550e8400-e29b-41d4-a716-446655440001".to_string(),
-            session_id: None, user_id: Some("user_456".to_string()), group_id: None,
-            timestamp: Some(1700000001000), properties: None, traits: None, context: None,
+            session_id: None,
+            user_id: Some("user_456".to_string()),
+            group_id: None,
+            timestamp: Some(1700000001000),
+            properties: None,
+            traits: None,
+            context: None,
         },
         JsonEvent {
             event_type: "track".to_string(),
             event: Some("event_3".to_string()),
             device_id: "550e8400-e29b-41d4-a716-446655440002".to_string(),
-            session_id: None, user_id: None, group_id: None,
-            timestamp: Some(1700000002000), properties: None, traits: None, context: None,
+            session_id: None,
+            user_id: None,
+            group_id: None,
+            timestamp: Some(1700000002000),
+            properties: None,
+            traits: None,
+            context: None,
         },
     ];
 
-    let encoded = encode_events(&events, &test_api_key_bytes())
-        .expect("encoding should succeed");
+    let encoded = encode_events(&events, &test_api_key_bytes()).expect("encoding should succeed");
 
     let batch = FlatBatch::parse(&encoded).expect("FlatBatch parse should succeed");
     let data = batch.data().expect("data should exist");
@@ -515,8 +564,7 @@ fn test_log_encoding_round_trip() {
         log_type: "log".to_string(),
     };
 
-    let encoded = encode_logs(&[log], &test_api_key_bytes())
-        .expect("encoding should succeed");
+    let encoded = encode_logs(&[log], &test_api_key_bytes()).expect("encoding should succeed");
 
     // Parse batch wrapper
     let batch = FlatBatch::parse(&encoded).expect("FlatBatch parse should succeed");
@@ -537,12 +585,17 @@ fn test_log_encoding_round_trip() {
 
     // Verify session_id
     let session_id = decoded.session_id.expect("session_id should exist");
-    assert_eq!(session_id, &[0x77, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4,
-                             0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x02]);
+    assert_eq!(
+        session_id,
+        &[
+            0x77, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44,
+            0x00, 0x02
+        ]
+    );
 
     // Verify payload
-    let payload: serde_json::Value = serde_json::from_slice(decoded.payload)
-        .expect("payload should be valid JSON");
+    let payload: serde_json::Value =
+        serde_json::from_slice(decoded.payload).expect("payload should be valid JSON");
     assert_eq!(payload["message"], "Connection failed");
     assert_eq!(payload["retry"], 3);
     assert_eq!(payload["error_code"], "ECONNREFUSED");
@@ -570,18 +623,24 @@ fn test_all_log_levels_encoding() {
             level: level_str.to_string(),
             message: "test".to_string(),
             timestamp: Some(1700000000000),
-            source: None, service: None, session_id: None, data: None,
+            source: None,
+            service: None,
+            session_id: None,
+            data: None,
             log_type: "log".to_string(),
         };
 
-        let encoded = encode_logs(&[log], &test_api_key_bytes())
-            .expect("encoding should succeed");
+        let encoded = encode_logs(&[log], &test_api_key_bytes()).expect("encoding should succeed");
 
         let batch = FlatBatch::parse(&encoded).expect("parse should succeed");
         let data = batch.data().expect("data should exist");
         let logs = decode_log_data(data).expect("decode should succeed");
 
-        assert_eq!(logs[0].level, *expected_level, "level mismatch for {}", level_str);
+        assert_eq!(
+            logs[0].level, *expected_level,
+            "level mismatch for {}",
+            level_str
+        );
     }
 }
 
@@ -592,20 +651,25 @@ fn test_multiple_logs_encoding() {
             level: "info".to_string(),
             message: "Starting service".to_string(),
             timestamp: Some(1700000000000),
-            source: None, service: Some("api".to_string()),
-            session_id: None, data: None, log_type: "log".to_string(),
+            source: None,
+            service: Some("api".to_string()),
+            session_id: None,
+            data: None,
+            log_type: "log".to_string(),
         },
         JsonLogEntry {
             level: "warning".to_string(),
             message: "High memory".to_string(),
             timestamp: Some(1700000001000),
-            source: None, service: Some("api".to_string()),
-            session_id: None, data: None, log_type: "log".to_string(),
+            source: None,
+            service: Some("api".to_string()),
+            session_id: None,
+            data: None,
+            log_type: "log".to_string(),
         },
     ];
 
-    let encoded = encode_logs(&logs, &test_api_key_bytes())
-        .expect("encoding should succeed");
+    let encoded = encode_logs(&logs, &test_api_key_bytes()).expect("encoding should succeed");
 
     let batch = FlatBatch::parse(&encoded).expect("parse should succeed");
     let data = batch.data().expect("data should exist");
@@ -639,15 +703,14 @@ fn test_event_with_complex_properties() {
         context: None,
     };
 
-    let encoded = encode_events(&[event], &test_api_key_bytes())
-        .expect("encoding should succeed");
+    let encoded = encode_events(&[event], &test_api_key_bytes()).expect("encoding should succeed");
 
     let batch = FlatBatch::parse(&encoded).expect("parse should succeed");
     let data = batch.data().expect("data should exist");
     let events = decode_event_data(data).expect("decode should succeed");
 
-    let payload: serde_json::Value = serde_json::from_slice(events[0].payload)
-        .expect("payload should be valid JSON");
+    let payload: serde_json::Value =
+        serde_json::from_slice(events[0].payload).expect("payload should be valid JSON");
 
     assert_eq!(payload["items"][0]["sku"], "ITEM-001");
     assert_eq!(payload["items"][1]["price"], 15.50);
@@ -705,8 +768,8 @@ async fn test_dos_deeply_nested_json_rejected() {
 
     // Should be rejected (either 400 or 207 with error)
     assert!(
-        response.status() == StatusCode::BAD_REQUEST ||
-        response.status() == StatusCode::MULTI_STATUS,
+        response.status() == StatusCode::BAD_REQUEST
+            || response.status() == StatusCode::MULTI_STATUS,
         "deeply nested JSON should be rejected"
     );
 }
@@ -741,7 +804,8 @@ async fn test_api_key_must_be_32_hex_chars() {
     let ctx = test_state();
     let app = build_router(ctx.state);
 
-    let event = r#"{"type":"track","event":"test","device_id":"550e8400-e29b-41d4-a716-446655440000"}"#;
+    let event =
+        r#"{"type":"track","event":"test","device_id":"550e8400-e29b-41d4-a716-446655440000"}"#;
 
     // Too short (only 16 chars)
     let request = Request::builder()
@@ -761,7 +825,8 @@ async fn test_api_key_rejects_non_hex() {
     let ctx = test_state();
     let app = build_router(ctx.state);
 
-    let event = r#"{"type":"track","event":"test","device_id":"550e8400-e29b-41d4-a716-446655440000"}"#;
+    let event =
+        r#"{"type":"track","event":"test","device_id":"550e8400-e29b-41d4-a716-446655440000"}"#;
 
     // Contains non-hex characters (z, y, x, w)
     let request = Request::builder()

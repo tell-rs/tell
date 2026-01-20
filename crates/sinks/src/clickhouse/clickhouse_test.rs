@@ -4,9 +4,9 @@ use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tell_client::event::{EventBuilder, EventDataBuilder, EventType};
-use tell_client::log::{LogEntryBuilder, LogDataBuilder};
 use tell_client::BatchBuilder as FlatBufferBuilder;
+use tell_client::event::{EventBuilder, EventDataBuilder, EventType};
+use tell_client::log::{LogDataBuilder, LogEntryBuilder};
 use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tokio::sync::mpsc;
 
@@ -26,10 +26,14 @@ fn create_test_event_batch(event_count: usize) -> Vec<u8> {
     for i in 0..event_count {
         let event = EventBuilder::new()
             .track(&format!("test_event_{}", i))
-            .device_id([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, i as u8])
-            .session_id([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-                         0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, i as u8])
+            .device_id([
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, i as u8,
+            ])
+            .session_id([
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, i as u8,
+            ])
             .timestamp_now()
             .payload_json(&format!(r#"{{"index": {}, "page": "/test"}}"#, i))
             .build()
@@ -56,7 +60,9 @@ fn create_test_identify_batch() -> Vec<u8> {
         .device_id([0x01; 16])
         .session_id([0x02; 16])
         .timestamp_now()
-        .payload_json(r#"{"email": "test@example.com", "name": "Test User", "traits": {"plan": "premium"}}"#)
+        .payload_json(
+            r#"{"email": "test@example.com", "name": "Test User", "traits": {"plan": "premium"}}"#,
+        )
         .build()
         .expect("build identify event");
 
@@ -81,7 +87,8 @@ fn create_test_context_batch() -> Vec<u8> {
         .device_id([0x01; 16])
         .session_id([0x02; 16])
         .timestamp_now()
-        .payload_json(r#"{
+        .payload_json(
+            r#"{
             "device_type": "mobile",
             "device_model": "iPhone 14 Pro",
             "operating_system": "iOS",
@@ -89,7 +96,8 @@ fn create_test_context_batch() -> Vec<u8> {
             "app_version": "2.1.0",
             "timezone": "America/New_York",
             "locale": "en_US"
-        }"#)
+        }"#,
+        )
         .build()
         .expect("build context event");
 
@@ -895,7 +903,11 @@ fn test_process_batch_decodes_track_events() {
     assert!(result.is_ok());
 
     // Verify events were decoded and added to buffer
-    assert_eq!(sink.batches.track.len(), 3, "should have decoded 3 track events");
+    assert_eq!(
+        sink.batches.track.len(),
+        3,
+        "should have decoded 3 track events"
+    );
 
     // Verify event content
     assert!(sink.batches.track[0].event_name.starts_with("test_event_"));
@@ -919,7 +931,10 @@ fn test_process_batch_decodes_identify_events() {
     assert!(result.is_ok());
 
     // Verify user was added to buffer
-    assert!(!sink.batches.users.is_empty(), "should have decoded user from identify");
+    assert!(
+        !sink.batches.users.is_empty(),
+        "should have decoded user from identify"
+    );
 
     // Verify user data
     let user = &sink.batches.users[0];
@@ -944,7 +959,10 @@ fn test_process_batch_decodes_context_events() {
     assert!(result.is_ok());
 
     // Verify context was added to buffer
-    assert!(!sink.batches.context.is_empty(), "should have decoded context");
+    assert!(
+        !sink.batches.context.is_empty(),
+        "should have decoded context"
+    );
 
     // Verify context data
     let ctx = &sink.batches.context[0];
@@ -970,7 +988,11 @@ fn test_process_batch_decodes_log_entries() {
     assert!(result.is_ok());
 
     // Verify logs were decoded and added to buffer
-    assert_eq!(sink.batches.logs.len(), 5, "should have decoded 5 log entries");
+    assert_eq!(
+        sink.batches.logs.len(),
+        5,
+        "should have decoded 5 log entries"
+    );
 
     // Verify log content
     assert_eq!(sink.batches.logs[0].level, LogLevelEnum::Info);
@@ -1003,8 +1025,15 @@ fn test_process_batch_multiple_messages() {
     assert!(result.is_ok());
 
     // Verify all messages were decoded
-    assert_eq!(sink.batches.track.len(), 5, "should have 2 + 3 = 5 track events");
-    assert!(!sink.batches.users.is_empty(), "should have user from identify");
+    assert_eq!(
+        sink.batches.track.len(),
+        5,
+        "should have 2 + 3 = 5 track events"
+    );
+    assert!(
+        !sink.batches.users.is_empty(),
+        "should have user from identify"
+    );
 }
 
 #[test]

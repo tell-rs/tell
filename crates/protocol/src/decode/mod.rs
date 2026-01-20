@@ -42,14 +42,14 @@ mod table;
 mod trace;
 
 // Re-export public types and functions
-pub use event::{EventType, DecodedEvent, decode_event_data};
-pub use log::{LogEventType, LogLevel, DecodedLogEntry, decode_log_data};
+pub use event::{DecodedEvent, EventType, decode_event_data};
+pub use log::{DecodedLogEntry, LogEventType, LogLevel, decode_log_data};
 pub use metric::{
-    MetricType, Temporality, DecodedLabel, DecodedIntLabel, DecodedBucket, DecodedHistogram,
-    DecodedMetric, decode_metric_data,
+    DecodedBucket, DecodedHistogram, DecodedIntLabel, DecodedLabel, DecodedMetric, MetricType,
+    Temporality, decode_metric_data,
 };
 pub use snapshot::{DecodedSnapshot, decode_snapshot_data};
-pub use trace::{SpanKind, SpanStatus, DecodedSpan, decode_trace_data};
+pub use trace::{DecodedSpan, SpanKind, SpanStatus, decode_trace_data};
 
 // =============================================================================
 // Decoded Batch Result

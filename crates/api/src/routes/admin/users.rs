@@ -11,10 +11,10 @@
 //! - `DELETE /api/v1/admin/users/{id}` - Delete user
 
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, post, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 

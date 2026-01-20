@@ -259,10 +259,7 @@ pub enum RetryError<E> {
     /// Circuit breaker is open
     CircuitOpen,
     /// All retry attempts exhausted
-    Exhausted {
-        attempts: u32,
-        last_error: String,
-    },
+    Exhausted { attempts: u32, last_error: String },
     /// Non-retryable error
     Permanent(E),
 }
@@ -271,7 +268,10 @@ impl<E: std::fmt::Display> std::fmt::Display for RetryError<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RetryError::CircuitOpen => write!(f, "circuit breaker is open"),
-            RetryError::Exhausted { attempts, last_error } => {
+            RetryError::Exhausted {
+                attempts,
+                last_error,
+            } => {
                 write!(f, "failed after {} attempts: {}", attempts, last_error)
             }
             RetryError::Permanent(e) => write!(f, "permanent error: {}", e),

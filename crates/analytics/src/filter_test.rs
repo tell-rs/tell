@@ -87,7 +87,10 @@ fn test_granularity_clickhouse_fn() {
 
 #[test]
 fn test_compare_mode_parse() {
-    assert_eq!(CompareMode::parse("previous").unwrap(), CompareMode::Previous);
+    assert_eq!(
+        CompareMode::parse("previous").unwrap(),
+        CompareMode::Previous
+    );
     assert_eq!(CompareMode::parse("prev").unwrap(), CompareMode::Previous);
     assert_eq!(
         CompareMode::parse("previous_period").unwrap(),
@@ -98,7 +101,10 @@ fn test_compare_mode_parse() {
         CompareMode::parse("previous_year").unwrap(),
         CompareMode::PreviousYear
     );
-    assert_eq!(CompareMode::parse("yoy").unwrap(), CompareMode::PreviousYear);
+    assert_eq!(
+        CompareMode::parse("yoy").unwrap(),
+        CompareMode::PreviousYear
+    );
     assert_eq!(
         CompareMode::parse("year_over_year").unwrap(),
         CompareMode::PreviousYear

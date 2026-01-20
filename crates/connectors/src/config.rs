@@ -67,10 +67,8 @@ impl Default for GitHubConnectorConfig {
 impl GitHubConnectorConfig {
     /// Parse config from raw TOML value
     pub fn from_toml(value: &toml::Value) -> Result<Self, ConnectorError> {
-        let config: GitHubConnectorConfig = value
-            .clone()
-            .try_into()
-            .map_err(|e: toml::de::Error| {
+        let config: GitHubConnectorConfig =
+            value.clone().try_into().map_err(|e: toml::de::Error| {
                 ConnectorError::ConfigError(format!("Invalid GitHub config: {}", e))
             })?;
         Ok(config)
@@ -155,10 +153,8 @@ impl Default for ShopifyConnectorConfig {
 impl ShopifyConnectorConfig {
     /// Parse config from raw TOML value
     pub fn from_toml(value: &toml::Value) -> Result<Self, ConnectorError> {
-        let config: ShopifyConnectorConfig = value
-            .clone()
-            .try_into()
-            .map_err(|e: toml::de::Error| {
+        let config: ShopifyConnectorConfig =
+            value.clone().try_into().map_err(|e: toml::de::Error| {
                 ConnectorError::ConfigError(format!("Invalid Shopify config: {}", e))
             })?;
 

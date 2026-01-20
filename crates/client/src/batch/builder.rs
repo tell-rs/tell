@@ -23,7 +23,7 @@
 //! ```
 
 use bytes::Bytes;
-use tell_protocol::{SchemaType, API_KEY_LENGTH, IPV6_LENGTH};
+use tell_protocol::{API_KEY_LENGTH, IPV6_LENGTH, SchemaType};
 
 use crate::error::{BuilderError, Result};
 

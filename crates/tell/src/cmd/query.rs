@@ -41,7 +41,9 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Args;
-use tell_query::{OutputFormat, QueryConfig, QueryEngine, QueryResult, ResolvedQueryConfig, QueryBackendType};
+use tell_query::{
+    OutputFormat, QueryBackendType, QueryConfig, QueryEngine, QueryResult, ResolvedQueryConfig,
+};
 
 /// Query command arguments
 #[derive(Args, Debug)]
@@ -71,8 +73,8 @@ pub async fn run(args: QueryArgs) -> Result<()> {
     let resolved = build_resolved_config(args.config.as_ref())?;
 
     // Create query engine
-    let engine = QueryEngine::from_resolved_config(&resolved)
-        .context("failed to create query engine")?;
+    let engine =
+        QueryEngine::from_resolved_config(&resolved).context("failed to create query engine")?;
 
     // Execute query
     let result = engine
@@ -146,9 +148,12 @@ fn load_and_resolve_config(path: &PathBuf) -> Result<ResolvedQueryConfig> {
 
     // If sink reference exists, resolve it from [sinks] section
     if let Some(sink_name) = &query_config.sink {
-        let sinks_section = toml_value
-            .get("sinks")
-            .ok_or_else(|| anyhow::anyhow!("query.sink references '{}' but no [sinks] section found", sink_name))?;
+        let sinks_section = toml_value.get("sinks").ok_or_else(|| {
+            anyhow::anyhow!(
+                "query.sink references '{}' but no [sinks] section found",
+                sink_name
+            )
+        })?;
 
         let sink_config = sinks_section
             .get(sink_name)
@@ -158,16 +163,15 @@ fn load_and_resolve_config(path: &PathBuf) -> Result<ResolvedQueryConfig> {
     }
 
     // No sink reference, use inline config
-    ResolvedQueryConfig::from_config(&query_config)
-        .map_err(|e| anyhow::anyhow!("{}", e))
+    ResolvedQueryConfig::from_config(&query_config).map_err(|e| anyhow::anyhow!("{}", e))
 }
 
 /// Resolve query config from a sink configuration
-fn resolve_from_sink(sink: &toml::Value, query_config: &QueryConfig) -> Result<ResolvedQueryConfig> {
-    let sink_type = sink
-        .get("type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+fn resolve_from_sink(
+    sink: &toml::Value,
+    query_config: &QueryConfig,
+) -> Result<ResolvedQueryConfig> {
+    let sink_type = sink.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
     match sink_type {
         "clickhouse" | "clickhouse_native" => {
@@ -267,11 +271,7 @@ fn output_table(result: &QueryResult) -> Result<()> {
     }
 
     // Calculate column widths
-    let mut widths: Vec<usize> = result
-        .columns
-        .iter()
-        .map(|c| c.name.len())
-        .collect();
+    let mut widths: Vec<usize> = result.columns.iter().map(|c| c.name.len()).collect();
 
     for row in &result.rows {
         for (i, value) in row.iter().enumerate() {

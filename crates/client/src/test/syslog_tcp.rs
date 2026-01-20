@@ -151,7 +151,9 @@ impl SyslogTcpTestClient {
         let secs = now.as_secs();
 
         // Simple timestamp (not perfect but good enough for testing)
-        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        let months = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
         let days_since_epoch = secs / 86400;
         let month_approx = ((days_since_epoch % 365) / 30) as usize % 12;
         let day = ((days_since_epoch % 365) % 30) + 1;
@@ -161,15 +163,7 @@ impl SyslogTcpTestClient {
 
         format!(
             "<{}>{} {:2} {:02}:{:02}:{:02} {} {}: {}",
-            priority,
-            months[month_approx],
-            day,
-            hour,
-            min,
-            sec,
-            hostname,
-            tag,
-            message
+            priority, months[month_approx], day, hour, min, sec, hostname, tag, message
         )
     }
 

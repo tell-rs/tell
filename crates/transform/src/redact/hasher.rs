@@ -26,8 +26,7 @@ impl PseudonymHasher {
     /// Format: `<prefix><base62(hmac[:16])>`
     /// Example: `usr_7Hx9KmPqR2sT4v`
     pub fn hash(&self, value: &str, prefix: &str) -> String {
-        let mut mac = HmacSha256::new_from_slice(&self.key)
-            .expect("HMAC can take key of any size");
+        let mut mac = HmacSha256::new_from_slice(&self.key).expect("HMAC can take key of any size");
         mac.update(value.as_bytes());
         let result = mac.finalize();
         let hash_bytes = result.into_bytes();

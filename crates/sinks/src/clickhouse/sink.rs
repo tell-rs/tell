@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
+use clickhouse::{Client, insert::Insert};
 use tell_protocol::{
     Batch, BatchType, EventType, FlatBatch, SchemaType, decode_event_data, decode_log_data,
 };
-use clickhouse::{Client, insert::Insert};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -818,7 +818,10 @@ impl ClickHouseSink {
     }
 
     /// Flush snapshots to snapshots_v1
-    async fn flush_snapshots(&self, snapshots: Vec<SnapshotRow>) -> Result<(), ClickHouseSinkError> {
+    async fn flush_snapshots(
+        &self,
+        snapshots: Vec<SnapshotRow>,
+    ) -> Result<(), ClickHouseSinkError> {
         if snapshots.is_empty() {
             return Ok(());
         }

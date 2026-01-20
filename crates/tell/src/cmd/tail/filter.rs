@@ -3,8 +3,8 @@
 //! These filters run on the CLI after decoding FlatBuffers.
 //! They allow filtering by event name, log level, and substring patterns.
 
-use tell_protocol::{DecodedEvent, DecodedLogEntry, LogLevel};
 use std::collections::HashSet;
+use tell_protocol::{DecodedEvent, DecodedLogEntry, LogLevel};
 
 /// Content filter for decoded messages
 #[derive(Debug, Default)]
@@ -186,7 +186,6 @@ impl ContentFilter {
         true
     }
 }
-
 
 #[cfg(test)]
 #[path = "filter_test.rs"]

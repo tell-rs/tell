@@ -14,10 +14,10 @@
 //! - `POST /api/v1/invites/{token}/accept` - Accept an invite
 
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -438,9 +438,8 @@ async fn accept_invite(
 // =============================================================================
 
 fn parse_role(role_str: &str) -> Result<MemberRole, ApiError> {
-    MemberRole::from_str(role_str).ok_or_else(|| {
-        ApiError::validation("role", "must be one of: viewer, editor, admin")
-    })
+    MemberRole::from_str(role_str)
+        .ok_or_else(|| ApiError::validation("role", "must be one of: viewer, editor, admin"))
 }
 
 async fn check_workspace_admin(

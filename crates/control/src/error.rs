@@ -19,7 +19,10 @@ pub enum ControlError {
 
     /// Invalid data
     #[error("invalid {field}: {message}")]
-    Invalid { field: &'static str, message: String },
+    Invalid {
+        field: &'static str,
+        message: String,
+    },
 
     /// JSON serialization error
     #[error("json error: {0}")]

@@ -5,15 +5,15 @@
 use std::sync::Arc;
 
 use axum::{
-    body::Body,
-    http::{header, Method, Request, StatusCode},
     Router,
+    body::Body,
+    http::{Method, Request, StatusCode, header},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use tell_api::{routes::build_router, state::AppState};
-use tell_auth::{test_utils, LocalJwtProvider};
+use tell_auth::{LocalJwtProvider, test_utils};
 use tell_control::ControlPlane;
 
 /// Create a test app with in-memory control plane
@@ -55,9 +55,7 @@ fn auth_request(method: Method, uri: &str, token: &str, body: Option<Value>) -> 
         .header(header::CONTENT_TYPE, "application/json");
 
     if let Some(json_body) = body {
-        builder
-            .body(Body::from(json_body.to_string()))
-            .unwrap()
+        builder.body(Body::from(json_body.to_string())).unwrap()
     } else {
         builder.body(Body::empty()).unwrap()
     }
@@ -72,12 +70,7 @@ async fn response_json(response: axum::response::Response) -> Value {
 }
 
 /// Create a workspace and return its ID
-async fn create_workspace(
-    app: &Router,
-    token: &str,
-    name: &str,
-    slug: &str,
-) -> String {
+async fn create_workspace(app: &Router, token: &str, name: &str, slug: &str) -> String {
     let request = auth_request(
         Method::POST,
         "/api/v1/user/workspaces",
@@ -414,7 +407,10 @@ async fn test_pin_board() {
     // Pin the board
     let pin_request = auth_request(
         Method::PUT,
-        &format!("/api/v1/boards/{}/pin?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/pin?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         Some(json!({ "pinned": true })),
     );
@@ -428,7 +424,10 @@ async fn test_pin_board() {
     // List pinned boards
     let list_request = auth_request(
         Method::GET,
-        &format!("/api/v1/boards?workspace_id={}&pinned_only=true", workspace_id),
+        &format!(
+            "/api/v1/boards?workspace_id={}&pinned_only=true",
+            workspace_id
+        ),
         &token,
         None,
     );
@@ -442,7 +441,10 @@ async fn test_pin_board() {
     // Unpin
     let unpin_request = auth_request(
         Method::PUT,
-        &format!("/api/v1/boards/{}/pin?workspace_id={}", board_id, workspace_id),
+        &format!(
+            "/api/v1/boards/{}/pin?workspace_id={}",
+            board_id, workspace_id
+        ),
         &token,
         Some(json!({ "pinned": false })),
     );

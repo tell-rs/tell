@@ -119,7 +119,10 @@ impl<'a> InviteRepo<'a> {
     }
 
     /// List pending invites for a workspace
-    pub async fn list_pending_for_workspace(&self, workspace_id: &str) -> Result<Vec<WorkspaceInvite>> {
+    pub async fn list_pending_for_workspace(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Vec<WorkspaceInvite>> {
         let conn = self.db.connect()?;
 
         let mut rows = conn
@@ -282,8 +285,10 @@ mod tests {
         let db = setup_db().await;
         let repo = InviteRepo::new(&db);
 
-        let invite1 = WorkspaceInvite::new("user1@example.com", "ws_1", MemberRole::Viewer, "admin");
-        let invite2 = WorkspaceInvite::new("user2@example.com", "ws_1", MemberRole::Editor, "admin");
+        let invite1 =
+            WorkspaceInvite::new("user1@example.com", "ws_1", MemberRole::Viewer, "admin");
+        let invite2 =
+            WorkspaceInvite::new("user2@example.com", "ws_1", MemberRole::Editor, "admin");
         let invite3 = WorkspaceInvite::new("user3@example.com", "ws_2", MemberRole::Admin, "admin");
 
         repo.create(&invite1).await.unwrap();

@@ -12,17 +12,17 @@
 //! ```
 
 use std::net::IpAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use tell_protocol::{
-    decode_event_data, decode_log_data, decode_metric_data, decode_snapshot_data, decode_trace_data,
-    Batch, BatchType, FlatBatch, LogLevel, MetricType, SchemaType, SpanStatus,
-};
 use chrono::{TimeZone, Utc};
-use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
 use owo_colors::{OwoColorize, Style};
+use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
+use tell_protocol::{
+    Batch, BatchType, FlatBatch, LogLevel, MetricType, SchemaType, SpanStatus, decode_event_data,
+    decode_log_data, decode_metric_data, decode_snapshot_data, decode_trace_data,
+};
 use tokio::sync::mpsc;
 
 /// Stdout sink for debug output
@@ -612,7 +612,10 @@ impl StdoutSink {
                 let value_str = match metric.metric_type {
                     MetricType::Histogram => {
                         if let Some(h) = &metric.histogram {
-                            format!("count={} sum={:.3} min={:.3} max={:.3}", h.count, h.sum, h.min, h.max)
+                            format!(
+                                "count={} sum={:.3} min={:.3} max={:.3}",
+                                h.count, h.sum, h.min, h.max
+                            )
                         } else {
                             String::from("-")
                         }
@@ -629,7 +632,12 @@ impl StdoutSink {
                         .iter()
                         .map(|l| format!("{}={}", l.key, l.value))
                         .collect();
-                    parts.extend(metric.int_labels.iter().map(|l| format!("{}={}", l.key, l.value)));
+                    parts.extend(
+                        metric
+                            .int_labels
+                            .iter()
+                            .map(|l| format!("{}={}", l.key, l.value)),
+                    );
                     format!("{{{}}}", parts.join(","))
                 };
 

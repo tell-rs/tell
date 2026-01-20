@@ -59,7 +59,10 @@ impl SyslogUdpTestClient {
     /// After connecting, you can use `send()` instead of `send_to()`.
     pub async fn connect(&mut self, addr: &str) -> io::Result<()> {
         let addr: SocketAddr = addr.parse().map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidInput, format!("invalid address: {}", e))
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid address: {}", e),
+            )
         })?;
         self.socket.connect(addr).await?;
         self.target = Some(addr);

@@ -199,15 +199,43 @@ impl<'a> BoardRepo<'a> {
     // =========================================================================
 
     fn row_to_board(row: &turso::Row) -> Result<Board> {
-        let id = row.get_value(0)?.as_text().unwrap_or(&String::new()).clone();
-        let workspace_id = row.get_value(1)?.as_text().unwrap_or(&String::new()).clone();
-        let owner_id = row.get_value(2)?.as_text().unwrap_or(&String::new()).clone();
-        let title = row.get_value(3)?.as_text().unwrap_or(&String::new()).clone();
+        let id = row
+            .get_value(0)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let workspace_id = row
+            .get_value(1)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let owner_id = row
+            .get_value(2)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let title = row
+            .get_value(3)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
         let description_raw = row.get_value(4)?.as_text().cloned();
-        let settings_json = row.get_value(5)?.as_text().unwrap_or(&String::from("{}")).clone();
+        let settings_json = row
+            .get_value(5)?
+            .as_text()
+            .unwrap_or(&String::from("{}"))
+            .clone();
         let is_pinned_int = *row.get_value(6)?.as_integer().unwrap_or(&0);
-        let created_at_str = row.get_value(7)?.as_text().unwrap_or(&String::new()).clone();
-        let updated_at_str = row.get_value(8)?.as_text().unwrap_or(&String::new()).clone();
+        let created_at_str = row
+            .get_value(7)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
+        let updated_at_str = row
+            .get_value(8)?
+            .as_text()
+            .unwrap_or(&String::new())
+            .clone();
 
         let description = description_raw.filter(|s| !s.is_empty());
         let settings: BoardSettings = serde_json::from_str(&settings_json).unwrap_or_default();

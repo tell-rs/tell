@@ -153,13 +153,7 @@ mod tests {
 
     #[test]
     fn test_verify_wrong_key() {
-        let (key, api_key) = UserApiKey::new(
-            "user_123",
-            "workspace_456",
-            "Test Key",
-            vec![],
-            None,
-        );
+        let (key, api_key) = UserApiKey::new("user_123", "workspace_456", "Test Key", vec![], None);
 
         assert!(api_key.verify_key(&key));
         assert!(!api_key.verify_key("tell_wrongkey12345678901234567890"));
@@ -167,13 +161,7 @@ mod tests {
 
     #[test]
     fn test_expired_key() {
-        let (_, mut api_key) = UserApiKey::new(
-            "user_123",
-            "",
-            "Test Key",
-            vec![],
-            None,
-        );
+        let (_, mut api_key) = UserApiKey::new("user_123", "", "Test Key", vec![], None);
 
         // Set expiration to past
         api_key.expires_at = Some(Utc::now() - chrono::Duration::hours(1));
@@ -183,13 +171,7 @@ mod tests {
 
     #[test]
     fn test_inactive_key() {
-        let (_, mut api_key) = UserApiKey::new(
-            "user_123",
-            "",
-            "Test Key",
-            vec![],
-            None,
-        );
+        let (_, mut api_key) = UserApiKey::new("user_123", "", "Test Key", vec![], None);
 
         api_key.active = false;
         assert!(!api_key.is_valid());

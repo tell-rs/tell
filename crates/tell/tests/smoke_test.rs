@@ -12,7 +12,9 @@ use tell_client::event::{EventBuilder, EventDataBuilder};
 use tell_client::test::{SyslogTcpTestClient, SyslogUdpTestClient, TcpTestClient};
 use tell_protocol::{Batch, BatchType};
 use tell_sources::tcp::{TcpSource, TcpSourceConfig};
-use tell_sources::{ShardedSender, SyslogTcpSource, SyslogTcpSourceConfig, SyslogUdpSource, SyslogUdpSourceConfig};
+use tell_sources::{
+    ShardedSender, SyslogTcpSource, SyslogTcpSourceConfig, SyslogUdpSource, SyslogUdpSourceConfig,
+};
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 

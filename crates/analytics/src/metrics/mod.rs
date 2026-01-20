@@ -11,7 +11,10 @@ pub mod logs;
 pub mod product;
 
 // Re-exports for convenience
-pub use engagement::{ActiveUsersMetric, ActiveUsersType, SessionsMetric, SessionsType, StickinessMetric, StickinessType};
+pub use engagement::{
+    ActiveUsersMetric, ActiveUsersType, SessionsMetric, SessionsType, StickinessMetric,
+    StickinessType,
+};
 pub use logs::{LogVolumeMetric, TopLogsMetric};
 pub use product::{EventCountMetric, TopEventsMetric};
 
@@ -62,7 +65,9 @@ impl MetricsEngine {
         filter: &Filter,
         workspace_id: u64,
     ) -> Result<TimeSeriesData> {
-        metric.execute(self.backend.as_ref(), filter, workspace_id).await
+        metric
+            .execute(self.backend.as_ref(), filter, workspace_id)
+            .await
     }
 
     // Engagement metrics
@@ -92,19 +97,31 @@ impl MetricsEngine {
     }
 
     /// Get unique sessions
-    pub async fn unique_sessions(&self, filter: &Filter, workspace_id: u64) -> Result<TimeSeriesData> {
+    pub async fn unique_sessions(
+        &self,
+        filter: &Filter,
+        workspace_id: u64,
+    ) -> Result<TimeSeriesData> {
         let metric = SessionsMetric::unique();
         self.execute(&metric, filter, workspace_id).await
     }
 
     /// Get daily stickiness (DAU/MAU)
-    pub async fn daily_stickiness(&self, filter: &Filter, workspace_id: u64) -> Result<TimeSeriesData> {
+    pub async fn daily_stickiness(
+        &self,
+        filter: &Filter,
+        workspace_id: u64,
+    ) -> Result<TimeSeriesData> {
         let metric = StickinessMetric::daily();
         self.execute(&metric, filter, workspace_id).await
     }
 
     /// Get weekly stickiness (WAU/MAU)
-    pub async fn weekly_stickiness(&self, filter: &Filter, workspace_id: u64) -> Result<TimeSeriesData> {
+    pub async fn weekly_stickiness(
+        &self,
+        filter: &Filter,
+        workspace_id: u64,
+    ) -> Result<TimeSeriesData> {
         let metric = StickinessMetric::weekly();
         self.execute(&metric, filter, workspace_id).await
     }
@@ -129,7 +146,12 @@ impl MetricsEngine {
     }
 
     /// Get top events
-    pub async fn top_events(&self, filter: &Filter, workspace_id: u64, limit: u32) -> Result<TimeSeriesData> {
+    pub async fn top_events(
+        &self,
+        filter: &Filter,
+        workspace_id: u64,
+        limit: u32,
+    ) -> Result<TimeSeriesData> {
         let metric = TopEventsMetric::new(limit);
         self.execute(&metric, filter, workspace_id).await
     }
@@ -154,7 +176,12 @@ impl MetricsEngine {
     }
 
     /// Get top logs by level
-    pub async fn top_logs_by_level(&self, filter: &Filter, workspace_id: u64, limit: u32) -> Result<TimeSeriesData> {
+    pub async fn top_logs_by_level(
+        &self,
+        filter: &Filter,
+        workspace_id: u64,
+        limit: u32,
+    ) -> Result<TimeSeriesData> {
         let metric = TopLogsMetric::by_level(limit);
         self.execute(&metric, filter, workspace_id).await
     }
@@ -178,7 +205,9 @@ impl MetricsEngine {
         workspace_id: u64,
     ) -> Result<TimeSeriesData> {
         // Get current period data
-        let current = metric.execute(self.backend.as_ref(), filter, workspace_id).await?;
+        let current = metric
+            .execute(self.backend.as_ref(), filter, workspace_id)
+            .await?;
 
         // If no comparison mode, return current data only
         let compare_mode = match &filter.compare {
@@ -192,8 +221,7 @@ impl MetricsEngine {
             crate::filter::CompareMode::PreviousYear => filter.time_range.previous_year(),
         };
 
-        let comparison_filter = Filter::new(comparison_range)
-            .with_granularity(filter.granularity);
+        let comparison_filter = Filter::new(comparison_range).with_granularity(filter.granularity);
 
         // Copy conditions
         let mut comparison_filter = comparison_filter;
@@ -212,8 +240,9 @@ impl MetricsEngine {
             .await?;
 
         // Build comparison data
-        let comparison = crate::timeseries::ComparisonData::calculate(current.total, previous.total)
-            .with_points(previous.points);
+        let comparison =
+            crate::timeseries::ComparisonData::calculate(current.total, previous.total)
+                .with_points(previous.points);
 
         Ok(current.with_comparison(comparison))
     }
@@ -225,7 +254,8 @@ impl MetricsEngine {
         workspace_id: u64,
     ) -> Result<TimeSeriesData> {
         let metric = ActiveUsersMetric::new(ActiveUsersType::Daily);
-        self.execute_with_comparison(&metric, filter, workspace_id).await
+        self.execute_with_comparison(&metric, filter, workspace_id)
+            .await
     }
 
     /// Execute WAU with comparison
@@ -235,7 +265,8 @@ impl MetricsEngine {
         workspace_id: u64,
     ) -> Result<TimeSeriesData> {
         let metric = ActiveUsersMetric::new(ActiveUsersType::Weekly);
-        self.execute_with_comparison(&metric, filter, workspace_id).await
+        self.execute_with_comparison(&metric, filter, workspace_id)
+            .await
     }
 
     /// Execute MAU with comparison
@@ -245,7 +276,8 @@ impl MetricsEngine {
         workspace_id: u64,
     ) -> Result<TimeSeriesData> {
         let metric = ActiveUsersMetric::new(ActiveUsersType::Monthly);
-        self.execute_with_comparison(&metric, filter, workspace_id).await
+        self.execute_with_comparison(&metric, filter, workspace_id)
+            .await
     }
 
     /// Execute event count with comparison
@@ -255,7 +287,8 @@ impl MetricsEngine {
         workspace_id: u64,
     ) -> Result<TimeSeriesData> {
         let metric = EventCountMetric::all();
-        self.execute_with_comparison(&metric, filter, workspace_id).await
+        self.execute_with_comparison(&metric, filter, workspace_id)
+            .await
     }
 
     /// Execute log volume with comparison
@@ -265,7 +298,8 @@ impl MetricsEngine {
         workspace_id: u64,
     ) -> Result<TimeSeriesData> {
         let metric = LogVolumeMetric::all();
-        self.execute_with_comparison(&metric, filter, workspace_id).await
+        self.execute_with_comparison(&metric, filter, workspace_id)
+            .await
     }
 
     // Drill-down queries (raw data)
@@ -281,13 +315,8 @@ impl MetricsEngine {
         limit: u32,
     ) -> Result<tell_query::QueryResult> {
         let table = table_name(workspace_id, "context_v1");
-        let sql = crate::builder::distinct_values_query(
-            &table,
-            "device_id",
-            filter,
-            "timestamp",
-            limit,
-        );
+        let sql =
+            crate::builder::distinct_values_query(&table, "device_id", filter, "timestamp", limit);
         Ok(self.backend.execute(&sql).await?)
     }
 
@@ -331,13 +360,8 @@ impl MetricsEngine {
         limit: u32,
     ) -> Result<tell_query::QueryResult> {
         let table = table_name(workspace_id, "context_v1");
-        let sql = crate::builder::distinct_values_query(
-            &table,
-            "session_id",
-            filter,
-            "timestamp",
-            limit,
-        );
+        let sql =
+            crate::builder::distinct_values_query(&table, "session_id", filter, "timestamp", limit);
         Ok(self.backend.execute(&sql).await?)
     }
 }
@@ -379,10 +403,8 @@ pub(crate) fn parse_timeseries(result: &tell_query::QueryResult) -> Result<TimeS
             .and_then(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
             .unwrap_or(0.0);
 
-        let dimension = dim_idx.and_then(|idx| {
-            row.get(idx)
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
-        });
+        let dimension =
+            dim_idx.and_then(|idx| row.get(idx).and_then(|v| v.as_str().map(|s| s.to_string())));
 
         let point = if let Some(dim) = dimension {
             TimeSeriesPoint::with_dimension(date, value, dim)

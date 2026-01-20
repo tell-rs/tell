@@ -60,6 +60,7 @@
 //! - `breakdown` - Dimension to group by (e.g., "device_type", "country")
 //! - `compare` - Comparison mode ("previous", "yoy")
 
+pub mod audit;
 pub mod auth;
 pub mod error;
 pub mod ratelimit;
@@ -68,9 +69,10 @@ pub mod state;
 pub mod types;
 
 // Re-exports
+pub use audit::{AuditAction, audit_layer};
 pub use auth::{
-    require_permission, AuthUser, OptionalAuthUser, Permission, Role, RouterExt, UserInfo,
-    WorkspaceId,
+    AuthUser, OptionalAuthUser, Permission, Role, RouterExt, UserInfo, WorkspaceId,
+    require_permission,
 };
 pub use error::{ApiError, Result};
 pub use ratelimit::{RateLimitConfig, RateLimitLayer};

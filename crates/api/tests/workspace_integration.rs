@@ -5,15 +5,15 @@
 use std::sync::Arc;
 
 use axum::{
-    body::Body,
-    http::{header, Method, Request, StatusCode},
     Router,
+    body::Body,
+    http::{Method, Request, StatusCode, header},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use tell_api::{routes::build_router, state::AppState};
-use tell_auth::{test_utils, LocalJwtProvider, Role};
+use tell_auth::{LocalJwtProvider, Role, test_utils};
 use tell_control::ControlPlane;
 
 /// Create a test app with in-memory control plane
@@ -45,9 +45,7 @@ fn create_mock_metrics_engine() -> tell_analytics::MetricsEngine {
 
     let config = ClickHouseBackendConfig::new("http://localhost:8123", "test");
 
-    tell_analytics::MetricsEngine::new(Box::new(
-        tell_query::ClickHouseBackend::new(&config),
-    ))
+    tell_analytics::MetricsEngine::new(Box::new(tell_query::ClickHouseBackend::new(&config)))
 }
 
 /// Helper to make authenticated requests
@@ -59,9 +57,7 @@ fn auth_request(method: Method, uri: &str, token: &str, body: Option<Value>) -> 
         .header(header::CONTENT_TYPE, "application/json");
 
     if let Some(json_body) = body {
-        builder
-            .body(Body::from(json_body.to_string()))
-            .unwrap()
+        builder.body(Body::from(json_body.to_string())).unwrap()
     } else {
         builder.body(Body::empty()).unwrap()
     }
@@ -220,7 +216,12 @@ async fn test_admin_list_with_platform_permission() {
         None,
     );
 
-    let request = auth_request(Method::GET, "/api/v1/admin/workspaces", &platform_token, None);
+    let request = auth_request(
+        Method::GET,
+        "/api/v1/admin/workspaces",
+        &platform_token,
+        None,
+    );
 
     let response = app.oneshot(request).await.unwrap();
 

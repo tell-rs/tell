@@ -22,8 +22,8 @@
 //! table TraceData { spans:[Span] (required); }
 //! ```
 
-use crate::{ProtocolError, Result};
 use super::table::{FlatTable, read_u32};
+use crate::{ProtocolError, Result};
 
 // =============================================================================
 // Span Types
@@ -160,7 +160,9 @@ pub fn decode_trace_data(buf: &[u8]) -> Result<Vec<DecodedSpan<'_>>> {
 
     let root_offset = read_u32(buf, 0)? as usize;
     if root_offset >= buf.len() {
-        return Err(ProtocolError::invalid_flatbuffer("root offset out of bounds"));
+        return Err(ProtocolError::invalid_flatbuffer(
+            "root offset out of bounds",
+        ));
     }
 
     let table = FlatTable::parse(buf, root_offset)?;

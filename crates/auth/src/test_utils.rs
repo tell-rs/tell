@@ -4,10 +4,10 @@
 //! Use these instead of mocking - they test the real validation code path.
 
 use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{EncodingKey, Header, encode};
 
-use crate::claims::{TokenClaims, TOKEN_PREFIX};
 use crate::Role;
+use crate::claims::{TOKEN_PREFIX, TokenClaims};
 
 /// Test secret for JWT signing (32 bytes for HS256)
 pub const TEST_SECRET: &[u8] = b"test-secret-key-32-bytes-long!!!";
@@ -101,8 +101,8 @@ pub fn platform_token(user_id: &str, email: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider::AuthProvider;
     use crate::LocalJwtProvider;
+    use crate::provider::AuthProvider;
 
     #[tokio::test]
     async fn test_create_test_token() {
@@ -153,7 +153,12 @@ mod tests {
     #[tokio::test]
     async fn test_workspace_id() {
         let provider = LocalJwtProvider::new(TEST_SECRET);
-        let token = create_test_token("user-1", "test@example.com", Role::Editor, Some("workspace-42"));
+        let token = create_test_token(
+            "user-1",
+            "test@example.com",
+            Role::Editor,
+            Some("workspace-42"),
+        );
 
         let user = provider.validate(&token).await.unwrap();
         assert_eq!(

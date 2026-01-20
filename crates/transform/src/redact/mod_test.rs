@@ -1,8 +1,8 @@
 //! Tests for redact transformer
 
 use super::*;
-use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use std::sync::atomic::Ordering;
+use tell_protocol::{BatchBuilder, BatchType, SourceId};
 
 fn make_json_batch(messages: &[&str]) -> Batch {
     let mut builder = BatchBuilder::new(BatchType::Log, SourceId::new("test"));
@@ -14,8 +14,7 @@ fn make_json_batch(messages: &[&str]) -> Batch {
 
 #[tokio::test]
 async fn test_redact_transformer_new() {
-    let config = RedactConfig::new()
-        .with_pattern(PatternType::Email);
+    let config = RedactConfig::new().with_pattern(PatternType::Email);
     let transformer = RedactTransformer::new(config).unwrap();
     assert_eq!(transformer.name(), "redact");
     assert!(transformer.enabled());
@@ -37,9 +36,7 @@ async fn test_redact_email_default_strategy() {
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"email": "user@example.com", "name": "John"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"email": "user@example.com", "name": "John"}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -58,9 +55,7 @@ async fn test_redact_email_hash_strategy() {
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"email": "user@example.com", "name": "John"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"email": "user@example.com", "name": "John"}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -100,7 +95,11 @@ async fn test_redact_multiple_patterns() {
     let config = RedactConfig::new()
         .with_strategy(RedactStrategy::Hash)
         .with_hash_key("test-key")
-        .with_patterns(vec![PatternType::Email, PatternType::Phone, PatternType::Ipv4])
+        .with_patterns(vec![
+            PatternType::Email,
+            PatternType::Phone,
+            PatternType::Ipv4,
+        ])
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
@@ -119,17 +118,14 @@ async fn test_redact_multiple_patterns() {
 
 #[tokio::test]
 async fn test_redact_targeted_field() {
-    let config = RedactConfig::new()
-        .with_field(TargetedField {
-            path: "user.email".to_string(),
-            pattern: "email".to_string(),
-            strategy: None,
-        });
+    let config = RedactConfig::new().with_field(TargetedField {
+        path: "user.email".to_string(),
+        pattern: "email".to_string(),
+        strategy: None,
+    });
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"user": {"email": "user@example.com", "name": "John"}}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"user": {"email": "user@example.com", "name": "John"}}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -142,21 +138,19 @@ async fn test_redact_targeted_field() {
 #[tokio::test]
 async fn test_redact_targeted_field_with_strategy_override() {
     let config = RedactConfig::new()
-        .with_strategy(RedactStrategy::Redact)  // Default is redact
-        .with_hash_key("test-key")  // But we have a key for overrides
+        .with_strategy(RedactStrategy::Redact) // Default is redact
+        .with_hash_key("test-key") // But we have a key for overrides
         .with_field(TargetedField {
             path: "email".to_string(),
             pattern: "email".to_string(),
-            strategy: Some(RedactStrategy::Hash),  // Override to hash
+            strategy: Some(RedactStrategy::Hash), // Override to hash
         });
 
     // Need to manually set hasher since strategy is Redact but field uses Hash
     let mut transformer = RedactTransformer::new(config).unwrap();
     transformer.hasher = Some(PseudonymHasher::new("test-key"));
 
-    let batch = make_json_batch(&[
-        r#"{"email": "user@example.com"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"email": "user@example.com"}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -172,9 +166,7 @@ async fn test_redact_ssn_us() {
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"ssn": "123-45-6789", "name": "John"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"ssn": "123-45-6789", "name": "John"}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -190,9 +182,7 @@ async fn test_redact_cpr_dk() {
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"cpr": "010190-1234"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"cpr": "010190-1234"}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -208,9 +198,7 @@ async fn test_redact_credit_card() {
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"card": "4111-1111-1111-1111"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"card": "4111-1111-1111-1111"}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -226,9 +214,7 @@ async fn test_redact_no_match_passthrough() {
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"name": "John", "age": 30}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"name": "John", "age": 30}"#]);
 
     let result = transformer.transform(batch).await.unwrap();
     let msg = result.get_message(0).unwrap();
@@ -245,10 +231,7 @@ async fn test_redact_metrics() {
         .with_scan_all();
     let transformer = RedactTransformer::new(config).unwrap();
 
-    let batch = make_json_batch(&[
-        r#"{"email": "a@b.com"}"#,
-        r#"{"email": "c@d.com"}"#,
-    ]);
+    let batch = make_json_batch(&[r#"{"email": "a@b.com"}"#, r#"{"email": "c@d.com"}"#]);
 
     let _result = transformer.transform(batch).await.unwrap();
 
@@ -287,8 +270,7 @@ async fn test_redact_non_json_scan() {
 
 #[tokio::test]
 async fn test_redact_empty_batch() {
-    let config = RedactConfig::new()
-        .with_pattern(PatternType::Email);
+    let config = RedactConfig::new().with_pattern(PatternType::Email);
     let transformer = RedactTransformer::new(config).unwrap();
 
     let batch = make_json_batch(&[]);

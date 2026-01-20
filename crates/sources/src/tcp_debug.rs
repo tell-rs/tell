@@ -41,20 +41,20 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::{Buf, BytesMut};
+use socket2::{Socket, TcpKeepalive};
 use tell_auth::ApiKeyStore;
 use tell_protocol::{
-    BatchBuilder, BatchType, FlatBatch, SchemaType, SourceId, MAX_REASONABLE_SIZE,
+    BatchBuilder, BatchType, FlatBatch, MAX_REASONABLE_SIZE, SchemaType, SourceId,
     decode_event_data, decode_log_data,
 };
-use socket2::{Socket, TcpKeepalive};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 
+use crate::ShardedSender;
 use crate::common::{ConnectionInfo, SourceMetrics};
 use crate::tcp::{TcpSourceError, bytes_to_ip};
-use crate::ShardedSender;
 
 // =============================================================================
 // Constants
@@ -269,7 +269,11 @@ impl TcpDebugSource {
     }
 
     /// Accept loop
-    async fn accept_loop(&self, listener: TcpListener, cancel: CancellationToken) -> Result<(), TcpSourceError> {
+    async fn accept_loop(
+        &self,
+        listener: TcpListener,
+        cancel: CancellationToken,
+    ) -> Result<(), TcpSourceError> {
         loop {
             tokio::select! {
                 biased;
@@ -445,7 +449,13 @@ impl TcpDebugSource {
             // ASCII representation
             let ascii: String = chunk
                 .iter()
-                .map(|&b| if (32..=126).contains(&b) { b as char } else { '.' })
+                .map(|&b| {
+                    if (32..=126).contains(&b) {
+                        b as char
+                    } else {
+                        '.'
+                    }
+                })
                 .collect();
 
             // Pad hex to consistent width
@@ -472,7 +482,10 @@ impl TcpDebugSource {
                     flat_batch.api_key().map(|k| k.len()).unwrap_or(0)
                 );
                 tracing::info!("  - batch_id: {}", flat_batch.batch_id());
-                tracing::info!("  - schema_type: {}", schema_type_name(flat_batch.schema_type()));
+                tracing::info!(
+                    "  - schema_type: {}",
+                    schema_type_name(flat_batch.schema_type())
+                );
                 tracing::info!("  - version: {}", flat_batch.version());
 
                 match flat_batch.source_ip() {
@@ -590,7 +603,10 @@ impl TcpDebugSource {
                 }
             }
             other => {
-                tracing::info!("  ⚠️ Unsupported schema type for inner parsing: {:?}", other);
+                tracing::info!(
+                    "  ⚠️ Unsupported schema type for inner parsing: {:?}",
+                    other
+                );
             }
         }
     }
@@ -758,12 +774,14 @@ impl TcpDebugSource {
                 count = event_batch.count(),
                 "🚀 [DEBUG] Flushing event batch"
             );
-            self.send_batch(event_batch, &source_id, connection_id).await?;
+            self.send_batch(event_batch, &source_id, connection_id)
+                .await?;
         }
 
         if !log_batch.is_empty() {
             tracing::debug!(count = log_batch.count(), "🚀 [DEBUG] Flushing log batch");
-            self.send_batch(log_batch, &source_id, connection_id).await?;
+            self.send_batch(log_batch, &source_id, connection_id)
+                .await?;
         }
 
         Ok(())
@@ -810,7 +828,9 @@ impl TcpDebugSource {
         let socket = unsafe { Socket::from_raw_fd(fd) };
 
         // TCP_NODELAY - disable Nagle's algorithm
-        if self.config.nodelay && let Err(e) = socket.set_tcp_nodelay(true) {
+        if self.config.nodelay
+            && let Err(e) = socket.set_tcp_nodelay(true)
+        {
             tracing::warn!(error = %e, "Failed to set TCP_NODELAY");
         }
 

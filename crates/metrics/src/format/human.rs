@@ -11,7 +11,7 @@
 //! [metrics] transforms: pattern (2.4K batches, 1.2ms avg)
 //! ```
 
-use super::{format_bytes, format_bytes_per_sec, format_count, format_rate, MetricsFormatter};
+use super::{MetricsFormatter, format_bytes, format_bytes_per_sec, format_count, format_rate};
 use crate::{CollectedMetrics, MetricsRates, SinkMetricsSnapshot};
 use std::fmt::Write;
 use std::time::Duration;
@@ -79,7 +79,12 @@ impl HumanFormatter {
                 output.push_str(" |");
             }
 
-            let _ = write!(output, " {} ({}", sink.id, format_rate(sink.messages_per_sec),);
+            let _ = write!(
+                output,
+                " {} ({}",
+                sink.id,
+                format_rate(sink.messages_per_sec),
+            );
 
             if sink.errors > 0 {
                 let _ = write!(output, ", {} err", sink.errors);
@@ -191,8 +196,8 @@ pub fn format_duration(d: Duration) -> String {
 mod tests {
     use super::*;
     use crate::{
-        CollectedMetrics, MetricsRates, PipelineRates, SinkMetricsSnapshot, SinkRates,
-        SourceRates, TransformerRates,
+        CollectedMetrics, MetricsRates, PipelineRates, SinkMetricsSnapshot, SinkRates, SourceRates,
+        TransformerRates,
     };
 
     fn make_test_rates() -> MetricsRates {

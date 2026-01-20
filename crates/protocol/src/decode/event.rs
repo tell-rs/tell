@@ -16,8 +16,8 @@
 //! table EventData { events:[Event] (required); }
 //! ```
 
-use crate::{ProtocolError, Result};
 use super::table::{FlatTable, read_u32};
+use crate::{ProtocolError, Result};
 
 // =============================================================================
 // Event Types
