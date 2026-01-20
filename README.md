@@ -1,8 +1,4 @@
 <p align="center">
-  <img src="assets/hero.png" alt="Tell" width="600">
-</p>
-
-<p align="center">
   <strong>Analytics that tell the whole story.</strong><br> 
   <sub>Events, logs, business data — one platform. The full picture.</sub>
 </p>
