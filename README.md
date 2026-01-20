@@ -10,7 +10,7 @@
 Product analytics, logs, and business data — unified. Track events and funnels. Ingest structured logs. Connect sources like GitHub and Shopify. Query everything. Build dashboards.
 
 - **Stupid fast.** 64M events/sec on batched TCP. High-performance Rust pipeline with sub-millisecond latency.
-- **Connect everything.** Product events, structured logs, GitHub (stars, PRs, commits), Shopify (orders, customers). More coming.
+- **Connect everything.** Product events, structured logs, business data (GitHub, Shopify, more). Query them together — that's the point.
 - **One binary.** No containers. No Docker Compose. Runs on a Raspberry Pi or your enterprise cluster.
 - **Yours forever.** Self-hosted. Your data never leaves your servers. No cloud dependency.
 
