@@ -36,6 +36,7 @@ configs/apikeys.conf
 
 # Logs and data
 logs/
+data/
 parquet/
 *.log
 *.bin
