@@ -15,6 +15,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use crossfire::mpsc::bounded_async;
 use tell_auth::ApiKeyStore;
 use tell_bench::SCENARIOS;
 use tell_client::test::{SyslogTcpTestClient, SyslogUdpTestClient, TcpTestClient};
@@ -23,13 +24,12 @@ use tell_pipeline::{Router, SinkHandle};
 use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tell_routing::RoutingTable;
 use tell_sinks::disk_binary::{DiskBinaryConfig, DiskBinarySink};
+use tell_sources::ShardedSender;
 use tell_sources::{
     SyslogTcpSource, SyslogTcpSourceConfig, SyslogUdpSource, SyslogUdpSourceConfig, TcpSource,
     TcpSourceConfig,
 };
 use tempfile::TempDir;
-use crossfire::mpsc::bounded_async;
-use tell_sources::ShardedSender;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
