@@ -109,6 +109,7 @@ See [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for full results.
 
 | | Tell | PostHog | Mixpanel | Vector |
 |--|------|---------|----------|--------|
+| SDKs (track, identify) | ✓ | ✓ | ✓ | ✗ |
 | Events | ✓ | ✓ | ✓ | ✓ |
 | Logs | ✓ | ✗ | ✗ | ✓ |
 | Business connectors | ✓ | ✗ | ✗ | ✗ |
