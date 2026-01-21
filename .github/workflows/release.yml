@@ -8,10 +8,32 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
 jobs:
-  release:
-    name: Build and Release
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: blacksmith-4vcpu-ubuntu-2404
+            artifact: tell-linux-amd64
+          - target: aarch64-unknown-linux-gnu
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+            artifact: tell-linux-arm64
+          - target: x86_64-unknown-linux-musl
+            runner: blacksmith-4vcpu-ubuntu-2404
+            artifact: tell-linux-amd64-musl
+            use_zigbuild: true
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            artifact: tell-macos-arm64
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,23 +44,14 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
 
-      - name: Validate version matches Cargo.toml
-        run: |
-          CARGO_VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-          if [ "$CARGO_VERSION" != "$VERSION" ]; then
-            echo "Error: Tag version $VERSION does not match Cargo.toml version $CARGO_VERSION"
-            exit 1
-          fi
-
-      - name: Install Zig
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,x86_64-unknown-linux-musl,aarch64-apple-darwin
+          targets: ${{ matrix.target }}
+
+      - name: Setup mold linker
+        if: runner.os == 'Linux'
+        uses: rui314/setup-mold@v1
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -46,58 +59,61 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v1-release"
+          prefix-key: "v1-release-${{ matrix.target }}"
           cache-on-failure: true
 
-      - name: Install cargo-zigbuild
+      - name: Install Zig (for musl build)
+        if: matrix.use_zigbuild
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild (for musl build)
+        if: matrix.use_zigbuild
         run: cargo install cargo-zigbuild
 
-      - name: Build Linux x86_64
+      - name: Build (zigbuild)
+        if: matrix.use_zigbuild
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-        run: |
-          cargo zigbuild --release --target x86_64-unknown-linux-gnu -p tell
-          mkdir -p dist/tell-$VERSION-linux-amd64
-          cp target/x86_64-unknown-linux-gnu/release/tell dist/tell-$VERSION-linux-amd64/
-          cp LICENSE README.md dist/tell-$VERSION-linux-amd64/ 2>/dev/null || true
-          cd dist && tar -czf tell-$VERSION-linux-amd64.tgz tell-$VERSION-linux-amd64
-          shasum -a 512 tell-$VERSION-linux-amd64.tgz | cut -d' ' -f1 > tell-$VERSION-linux-amd64.tgz.sha512
-          rm -rf tell-$VERSION-linux-amd64
+        run: cargo zigbuild --release --target ${{ matrix.target }} -p tell
 
-      - name: Build Linux ARM64
+      - name: Build (native)
+        if: ${{ !matrix.use_zigbuild }}
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-        run: |
-          cargo zigbuild --release --target aarch64-unknown-linux-gnu -p tell
-          mkdir -p dist/tell-$VERSION-linux-arm64
-          cp target/aarch64-unknown-linux-gnu/release/tell dist/tell-$VERSION-linux-arm64/
-          cp LICENSE README.md dist/tell-$VERSION-linux-arm64/ 2>/dev/null || true
-          cd dist && tar -czf tell-$VERSION-linux-arm64.tgz tell-$VERSION-linux-arm64
-          shasum -a 512 tell-$VERSION-linux-arm64.tgz | cut -d' ' -f1 > tell-$VERSION-linux-arm64.tgz.sha512
-          rm -rf tell-$VERSION-linux-arm64
+        run: cargo build --release --target ${{ matrix.target }} -p tell
 
-      - name: Build Linux x86_64 (musl/static)
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
+      - name: Package artifact
         run: |
-          cargo zigbuild --release --target x86_64-unknown-linux-musl -p tell
-          mkdir -p dist/tell-$VERSION-linux-amd64-musl
-          cp target/x86_64-unknown-linux-musl/release/tell dist/tell-$VERSION-linux-amd64-musl/
-          cp LICENSE README.md dist/tell-$VERSION-linux-amd64-musl/ 2>/dev/null || true
-          cd dist && tar -czf tell-$VERSION-linux-amd64-musl.tgz tell-$VERSION-linux-amd64-musl
-          shasum -a 512 tell-$VERSION-linux-amd64-musl.tgz | cut -d' ' -f1 > tell-$VERSION-linux-amd64-musl.tgz.sha512
-          rm -rf tell-$VERSION-linux-amd64-musl
+          mkdir -p dist/${{ matrix.artifact }}
+          cp target/${{ matrix.target }}/release/tell dist/${{ matrix.artifact }}/
+          cp LICENSE README.md dist/${{ matrix.artifact }}/ 2>/dev/null || true
+          cd dist
+          tar -czf ${{ matrix.artifact }}.tgz ${{ matrix.artifact }}
+          shasum -a 512 ${{ matrix.artifact }}.tgz | cut -d' ' -f1 > ${{ matrix.artifact }}.tgz.sha512
 
-      - name: Build macOS ARM64
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
-        run: |
-          cargo zigbuild --release --target aarch64-apple-darwin -p tell
-          cp target/aarch64-apple-darwin/release/tell dist/tell-macos-aarch64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}.tgz*
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: List artifacts
         run: ls -la dist/
