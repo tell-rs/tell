@@ -22,17 +22,17 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             runner: blacksmith-4vcpu-ubuntu-2404
-            artifact: tell-linux-amd64
+            os_arch: linux-amd64
           - target: aarch64-unknown-linux-gnu
             runner: blacksmith-4vcpu-ubuntu-2404-arm
-            artifact: tell-linux-arm64
+            os_arch: linux-arm64
           - target: x86_64-unknown-linux-musl
             runner: blacksmith-4vcpu-ubuntu-2404
-            artifact: tell-linux-amd64-musl
+            os_arch: linux-amd64-musl
             use_zigbuild: true
           - target: aarch64-apple-darwin
             runner: macos-latest
-            artifact: tell-macos-arm64
+            os_arch: macos-arm64
 
     steps:
       - name: Checkout
@@ -88,18 +88,20 @@ jobs:
 
       - name: Package artifact
         run: |
-          mkdir -p dist/${{ matrix.artifact }}
-          cp target/${{ matrix.target }}/release/tell dist/${{ matrix.artifact }}/
-          cp LICENSE README.md dist/${{ matrix.artifact }}/ 2>/dev/null || true
+          ARTIFACT_NAME="tell-${VERSION}-${{ matrix.os_arch }}"
+          mkdir -p dist/${ARTIFACT_NAME}
+          cp target/${{ matrix.target }}/release/tell dist/${ARTIFACT_NAME}/
+          cp LICENSE README.md dist/${ARTIFACT_NAME}/ 2>/dev/null || true
           cd dist
-          tar -czf ${{ matrix.artifact }}.tgz ${{ matrix.artifact }}
-          shasum -a 512 ${{ matrix.artifact }}.tgz | cut -d' ' -f1 > ${{ matrix.artifact }}.tgz.sha512
+          tar -czf ${ARTIFACT_NAME}.tgz ${ARTIFACT_NAME}
+          shasum -a 512 ${ARTIFACT_NAME}.tgz | cut -d' ' -f1 > ${ARTIFACT_NAME}.tgz.sha512
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}.tgz*
+          name: ${{ matrix.os_arch }}
+          path: dist/tell-${{ env.VERSION }}-${{ matrix.os_arch }}.tgz*
 
   release:
     name: Create Release
