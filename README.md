@@ -109,10 +109,10 @@ See [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for full results.
 
 | | Tell | PostHog | Mixpanel | Vector |
 |--|------|---------|----------|--------|
-| SDKs (track, identify) | ✓ | ✓ | ✓ | ✗ |
-| Events | ✓ | ✓ | ✓ | ✓ |
+| Events | ✓ | ✓ | ✓ | ✗ |
 | Logs | ✓ | ✗ | ✗ | ✓ |
 | Business connectors | ✓ | ✗ | ✗ | ✗ |
+| SDKs (track, identify) | ✓ | ✓ | ✓ | ✗ |
 | Dashboards | ✓ | ✓ | ✓ | ✗ |
 | Multi-source pipeline | ✓ | ✗ | ✗ | ✓ |
 | Routing + transforms | ✓ | ✗ | ✗ | ✓ |
