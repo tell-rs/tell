@@ -16,7 +16,7 @@ async-trait = "0.1"
 polars = { version = "0.46", features = ["sql", "ipc", "lazy", "parquet"] }
 
 # ClickHouse client (HTTP interface)
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Serialization
 serde = { workspace = true }
