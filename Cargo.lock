@@ -5543,7 +5543,7 @@ dependencies = [
 
 [[package]]
 name = "tell"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "anyhow",
  "atty",
@@ -5591,7 +5591,7 @@ dependencies = [
 
 [[package]]
 name = "tell-analytics"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5606,7 +5606,7 @@ dependencies = [
 
 [[package]]
 name = "tell-api"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "axum",
  "chrono",
@@ -5632,7 +5632,7 @@ dependencies = [
 
 [[package]]
 name = "tell-auth"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "argon2",
  "async-trait",
@@ -5675,7 +5675,7 @@ dependencies = [
 
 [[package]]
 name = "tell-client"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "bytes",
  "proptest",
@@ -5686,7 +5686,7 @@ dependencies = [
 
 [[package]]
 name = "tell-config"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "dirs",
  "humantime",
@@ -5699,7 +5699,7 @@ dependencies = [
 
 [[package]]
 name = "tell-connectors"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "bytes",
  "chrono",
@@ -5717,7 +5717,7 @@ dependencies = [
 
 [[package]]
 name = "tell-control"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "chrono",
  "hex",
@@ -5734,7 +5734,7 @@ dependencies = [
 
 [[package]]
 name = "tell-metrics"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "parking_lot",
  "serde",
@@ -5748,7 +5748,7 @@ dependencies = [
 
 [[package]]
 name = "tell-pipeline"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "criterion",
  "crossfire",
@@ -5765,7 +5765,7 @@ dependencies = [
 
 [[package]]
 name = "tell-protocol"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "bytes",
  "criterion",
@@ -5775,7 +5775,7 @@ dependencies = [
 
 [[package]]
 name = "tell-query"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "arrow",
  "async-trait",
@@ -5793,7 +5793,7 @@ dependencies = [
 
 [[package]]
 name = "tell-routing"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "proptest",
  "tell-protocol",
@@ -5802,7 +5802,7 @@ dependencies = [
 
 [[package]]
 name = "tell-sinks"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "arc-swap",
  "arrow",
@@ -5835,7 +5835,7 @@ dependencies = [
 
 [[package]]
 name = "tell-sources"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "axum",
  "bytes",
@@ -5860,7 +5860,7 @@ dependencies = [
 
 [[package]]
 name = "tell-tap"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "bytes",
  "parking_lot",
@@ -5874,7 +5874,7 @@ dependencies = [
 
 [[package]]
 name = "tell-transform"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "base62",
  "hmac",
