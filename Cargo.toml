@@ -92,6 +92,9 @@ futures-util = "0.3"
 # UUID
 uuid = { version = "1.11", features = ["v4", "v5"] }
 
+# Random number generation
+rand = "0.8"
+
 # Enum repr serialization (for ClickHouse Enum8/Enum16)
 serde_repr = "0.1"
 
@@ -114,6 +117,11 @@ dirs = "6.0"
 
 # Terminal password reading
 rpassword = "7.3"
+
+# TUI
+ratatui = "0.30"
+crossterm = "0.29"
+tui-input = "0.12"
 
 # Testing
 criterion = "0.5"
@@ -140,8 +148,9 @@ tell-api = { path = "crates/api" }
 tell-control = { path = "crates/control" }
 
 [profile.release]
-lto = true
-codegen-units = 1
+codegen-units = 1  # Better cross-crate optimization
+lto = "thin"       # Cross-crate inlining (use "fat" for max optimization, slower build)
+opt-level = 3      # Maximum speed (use "s" for smaller binary)
 panic = "abort"
 strip = true
 

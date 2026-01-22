@@ -10,6 +10,7 @@ use tell_auth::{AuthProvider, LocalJwtProvider, LocalUserStore};
 use tell_control::ControlPlane;
 
 use crate::auth::HasAuthProvider;
+use crate::routes::ops::ServerMetrics;
 
 /// Shared application state
 #[derive(Clone)]
@@ -26,6 +27,8 @@ pub struct AppState {
     pub jwt_secret: Option<Vec<u8>>,
     /// JWT expiration time
     pub jwt_expires_in: Duration,
+    /// Server metrics (populated when running `tell serve`)
+    pub server_metrics: Option<Arc<ServerMetrics>>,
 }
 
 impl AppState {
@@ -46,6 +49,7 @@ impl AppState {
             user_store: None,
             jwt_secret: Some(secret.to_vec()),
             jwt_expires_in: Duration::from_secs(24 * 60 * 60),
+            server_metrics: None,
         }
     }
 
@@ -64,6 +68,7 @@ impl AppState {
             user_store: Some(Arc::new(user_store)),
             jwt_secret: Some(jwt_secret.to_vec()),
             jwt_expires_in,
+            server_metrics: None,
         }
     }
 
@@ -76,12 +81,19 @@ impl AppState {
             user_store: None,
             jwt_secret: None,
             jwt_expires_in: Duration::from_secs(24 * 60 * 60),
+            server_metrics: None,
         }
     }
 
     /// Set the control plane database
     pub fn with_control(mut self, control: ControlPlane) -> Self {
         self.control = Some(Arc::new(control));
+        self
+    }
+
+    /// Set server metrics (for `tell serve` mode)
+    pub fn with_server_metrics(mut self, server_metrics: ServerMetrics) -> Self {
+        self.server_metrics = Some(Arc::new(server_metrics));
         self
     }
 }

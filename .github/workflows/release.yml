@@ -23,6 +23,7 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             runner: blacksmith-4vcpu-ubuntu-2404
             os_arch: linux-amd64
+            rustflags: "-C target-cpu=x86-64-v3"
           - target: aarch64-unknown-linux-gnu
             runner: blacksmith-4vcpu-ubuntu-2404-arm
             os_arch: linux-arm64
@@ -30,18 +31,32 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404
             os_arch: linux-amd64-musl
             use_zigbuild: true
+            rustflags: "-C target-cpu=x86-64-v3"
           - target: aarch64-apple-darwin
             runner: macos-latest
             os_arch: macos-arm64
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            os_arch: windows-amd64
+            rustflags: "-C target-cpu=x86-64-v3"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get version from tag
+      - name: Get version from tag (Unix)
+        if: runner.os != 'Windows'
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
+
+      - name: Get version from tag (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ github.ref_name }}" -replace '^v', ''
+          echo "VERSION=$VERSION" >> $env:GITHUB_ENV
           echo "Building version: $VERSION"
 
       - name: Install Rust
@@ -77,6 +92,7 @@ jobs:
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo zigbuild --release --target ${{ matrix.target }} -p tell
 
       - name: Build (native)
@@ -84,9 +100,11 @@ jobs:
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo build --release --target ${{ matrix.target }} -p tell
 
-      - name: Package artifact
+      - name: Package artifact (Unix)
+        if: runner.os != 'Windows'
         run: |
           ARTIFACT_NAME="tell-${VERSION}-${{ matrix.os_arch }}"
           mkdir -p dist/${ARTIFACT_NAME}
@@ -97,11 +115,32 @@ jobs:
           shasum -a 512 ${ARTIFACT_NAME}.tgz | cut -d' ' -f1 > ${ARTIFACT_NAME}.tgz.sha512
           echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
 
-      - name: Upload artifact
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ARTIFACT_NAME = "tell-${{ env.VERSION }}-${{ matrix.os_arch }}"
+          New-Item -ItemType Directory -Force -Path "dist\$ARTIFACT_NAME"
+          Copy-Item "target\${{ matrix.target }}\release\tell.exe" "dist\$ARTIFACT_NAME\"
+          Copy-Item "LICENSE", "README.md" "dist\$ARTIFACT_NAME\" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist\$ARTIFACT_NAME" -DestinationPath "dist\$ARTIFACT_NAME.zip"
+          $hash = (Get-FileHash "dist\$ARTIFACT_NAME.zip" -Algorithm SHA512).Hash.ToLower()
+          Set-Content -Path "dist\$ARTIFACT_NAME.zip.sha512" -Value $hash
+          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $env:GITHUB_ENV
+
+      - name: Upload artifact (Unix)
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os_arch }}
           path: dist/tell-${{ env.VERSION }}-${{ matrix.os_arch }}.tgz*
+
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os_arch }}
+          path: dist/tell-${{ env.VERSION }}-${{ matrix.os_arch }}.zip*
 
   release:
     name: Create Release

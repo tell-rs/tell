@@ -12,9 +12,11 @@ use axum::{
 use chrono::{Duration, Utc};
 use jsonwebtoken::{EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use tell_auth::{Role, TOKEN_PREFIX, TokenClaims};
 
+use crate::audit::AuditAction;
 use crate::ratelimit::RateLimitLayer;
 use crate::state::AppState;
 
@@ -65,11 +67,30 @@ async fn login(
         .ok_or(AuthApiError::LocalAuthNotConfigured)?;
 
     // Verify credentials
-    let user = user_store
+    let user = match user_store
         .verify_credentials(&req.email, &req.password)
         .await
-        .map_err(|e| AuthApiError::Internal(e.to_string()))?
-        .ok_or(AuthApiError::InvalidCredentials)?;
+    {
+        Ok(Some(user)) => user,
+        Ok(None) => {
+            info!(
+                target: "audit",
+                action = AuditAction::LoginFailure.as_str(),
+                email = %req.email,
+                reason = "invalid_credentials"
+            );
+            return Err(AuthApiError::InvalidCredentials);
+        }
+        Err(e) => {
+            info!(
+                target: "audit",
+                action = AuditAction::LoginFailure.as_str(),
+                email = %req.email,
+                reason = "internal_error"
+            );
+            return Err(AuthApiError::Internal(e.to_string()));
+        }
+    };
 
     // Generate JWT
     let jwt_secret = state
@@ -104,6 +125,14 @@ async fn login(
     .map_err(|e| AuthApiError::Internal(format!("failed to encode JWT: {}", e)))?;
 
     let token = format!("{}{}", TOKEN_PREFIX, jwt);
+
+    info!(
+        target: "audit",
+        action = AuditAction::LoginSuccess.as_str(),
+        user_id = %user.id,
+        email = %user.email,
+        role = %user.role.as_str()
+    );
 
     Ok(Json(LoginResponse {
         token,

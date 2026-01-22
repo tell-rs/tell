@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 /// Pipeline router metrics snapshot
 ///
 /// Matches the fields from `pipeline::RouterMetrics`.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
 pub struct PipelineSnapshot {
     /// Total batches received from sources
     pub batches_received: u64,

@@ -21,5 +21,8 @@ humantime = { workspace = true }
 # Duration serde support
 humantime-serde = "1.1"
 
+# Home directory detection
+dirs = { workspace = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }

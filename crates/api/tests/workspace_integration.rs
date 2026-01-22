@@ -32,6 +32,7 @@ async fn test_app() -> Router {
         user_store: None,
         jwt_secret: Some(test_utils::TEST_SECRET.to_vec()),
         jwt_expires_in: std::time::Duration::from_secs(3600),
+        server_metrics: None,
     };
 
     build_router(state)

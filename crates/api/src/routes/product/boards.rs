@@ -20,10 +20,12 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use tell_auth::Permission;
 use tell_control::{Board, BoardSettings, ControlPlane, ResourceType, SharedLink};
 
+use crate::audit::AuditAction;
 use crate::auth::AuthUser;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -270,6 +272,15 @@ async fn create_board(
         .await
         .map_err(|e| ApiError::internal(format!("Failed to create board: {}", e)))?;
 
+    info!(
+        target: "audit",
+        action = AuditAction::Create.as_str(),
+        resource_type = "board",
+        resource_id = %board.id,
+        user_id = %user.id,
+        workspace_id = %req.workspace_id
+    );
+
     Ok((StatusCode::CREATED, Json(BoardResponse::from(board))))
 }
 
@@ -332,6 +343,15 @@ async fn update_board(
         .await
         .map_err(|e| ApiError::internal(format!("Failed to update board: {}", e)))?;
 
+    info!(
+        target: "audit",
+        action = AuditAction::Update.as_str(),
+        resource_type = "board",
+        resource_id = %board.id,
+        user_id = %user.id,
+        workspace_id = %query.workspace_id
+    );
+
     Ok(Json(BoardResponse::from(board)))
 }
 
@@ -372,6 +392,15 @@ async fn delete_board(
     repo.delete(&id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to delete board: {}", e)))?;
+
+    info!(
+        target: "audit",
+        action = AuditAction::Delete.as_str(),
+        resource_type = "board",
+        resource_id = %id,
+        user_id = %user.id,
+        workspace_id = %query.workspace_id
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -481,6 +510,15 @@ async fn share_board(
         .await
         .map_err(|e| ApiError::internal(format!("Failed to create share link: {}", e)))?;
 
+    info!(
+        target: "audit",
+        action = AuditAction::Share.as_str(),
+        resource_type = "board",
+        resource_id = %id,
+        user_id = %user.id,
+        workspace_id = %query.workspace_id
+    );
+
     Ok((StatusCode::CREATED, Json(ShareBoardResponse::from(link))))
 }
 
@@ -568,6 +606,15 @@ async fn unshare_board(
         .delete_for_resource(ResourceType::Board, &id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to delete share link: {}", e)))?;
+
+    info!(
+        target: "audit",
+        action = AuditAction::Unshare.as_str(),
+        resource_type = "board",
+        resource_id = %id,
+        user_id = %user.id,
+        workspace_id = %query.workspace_id
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

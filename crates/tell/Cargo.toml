@@ -27,7 +27,9 @@ tell-sinks = { workspace = true }
 tell-transform = { workspace = true }
 tell-metrics = { workspace = true }
 tell-connectors = { workspace = true }
+[target.'cfg(unix)'.dependencies]
 tell-tap = { workspace = true }
+libc = "0.2"
 
 # Async runtime
 tokio = { workspace = true }
@@ -67,8 +69,10 @@ tell-analytics = { workspace = true }
 
 # API server (for api command)
 tell-api = { workspace = true }
+tell-control = { workspace = true }
 axum = { workspace = true }
 tower-http = { workspace = true }
+rand = { workspace = true }
 
 # Config parsing (for query command)
 toml = { workspace = true }
@@ -84,6 +88,11 @@ rpassword = { workspace = true }
 
 # ClickHouse client (for clickhouse command)
 clickhouse = { workspace = true }
+
+# TUI
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+tui-input = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

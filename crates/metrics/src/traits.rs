@@ -61,7 +61,7 @@ impl SourceMetrics {
 }
 
 /// Point-in-time snapshot of source metrics
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
 pub struct SourceMetricsSnapshot {
     pub connections_active: u64,
     pub connections_total: u64,
@@ -164,7 +164,7 @@ impl SinkMetrics {
 }
 
 /// Point-in-time snapshot of sink metrics
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
 pub struct SinkMetricsSnapshot {
     pub batches_received: u64,
     pub batches_written: u64,
@@ -277,7 +277,7 @@ impl TransformerMetrics {
 }
 
 /// Point-in-time snapshot of transformer metrics
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
 pub struct TransformerMetricsSnapshot {
     pub batches_processed: u64,
     pub batches_modified: u64,

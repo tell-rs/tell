@@ -4,15 +4,29 @@
 
 pub mod admin;
 pub mod auth;
+pub mod ops;
 pub mod product;
 pub mod public;
 
-use axum::Router;
+use axum::{Router, middleware};
 
+use crate::audit::audit_layer;
 use crate::state::AppState;
+
+/// Options for building the router
+#[derive(Debug, Clone, Default)]
+pub struct RouterOptions {
+    /// Enable audit logging middleware
+    pub audit_logging: bool,
+}
 
 /// Build the complete API router
 pub fn build_router(state: AppState) -> Router {
+    build_router_with_options(state, RouterOptions::default())
+}
+
+/// Build the complete API router with options
+pub fn build_router_with_options(state: AppState, options: RouterOptions) -> Router {
     // Combine user routes (workspaces + api keys)
     let user_routes = admin::workspace_user_routes().merge(admin::apikey_user_routes());
 
@@ -22,7 +36,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(admin::user_admin_routes())
         .merge(admin::invite_admin_routes());
 
-    Router::new()
+    let router = Router::new()
+        // Operations routes (health, metrics - no auth)
+        .merge(ops::routes())
         // Auth routes (login, setup)
         .nest("/api/v1/auth", auth::routes())
         // User routes (own workspaces, own API keys)
@@ -36,6 +52,14 @@ pub fn build_router(state: AppState) -> Router {
         // Public invite routes (verify/accept - no auth required)
         .nest("/api/v1", admin::invite_public_routes())
         // Public routes (shared links - no auth)
-        .nest("/s", public::routes())
-        .with_state(state)
+        .nest("/s", public::routes());
+
+    // Conditionally add audit logging middleware
+    let router = if options.audit_logging {
+        router.layer(middleware::from_fn(audit_layer))
+    } else {
+        router
+    };
+
+    router.with_state(state)
 }

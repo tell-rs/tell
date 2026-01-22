@@ -32,13 +32,7 @@
 //! }
 //! ```
 
-use axum::{
-    body::Body,
-    extract::{ConnectInfo, Request},
-    middleware::Next,
-    response::Response,
-};
-use std::net::SocketAddr;
+use axum::{body::Body, extract::Request, middleware::Next, response::Response};
 use tracing::{Span, warn};
 
 /// Audit event action types
@@ -120,26 +114,28 @@ macro_rules! audit_fail {
 ///
 /// Adds a tracing span with:
 /// - Request method and path
-/// - Client IP address
-/// - Request ID (if present)
+/// - Client IP address (from X-Forwarded-For or X-Real-IP headers)
 ///
 /// Handlers can then use `audit!` macro to log specific events.
-pub async fn audit_layer(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    request: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn audit_layer(request: Request<Body>, next: Next) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_string();
 
-    // Extract client IP (prefer X-Forwarded-For for proxied requests)
+    // Extract client IP from headers (for proxied requests)
     let client_ip = request
         .headers()
         .get("x-forwarded-for")
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.split(',').next())
         .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| addr.ip().to_string());
+        .or_else(|| {
+            request
+                .headers()
+                .get("x-real-ip")
+                .and_then(|h| h.to_str().ok())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
 
     // Create audit span
     let span = tracing::info_span!(

@@ -14,6 +14,7 @@
 
 mod cmd;
 mod transformer_builder;
+mod tui;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -43,10 +44,12 @@ enum Command {
     /// Run the server
     Serve(cmd::serve::ServeArgs),
 
-    /// Run the analytics API server
-    Api(cmd::api::ApiArgs),
+    /// Interactive TUI mode
+    #[command(name = "i", alias = "interactive")]
+    Interactive(cmd::interactive::InteractiveArgs),
 
-    /// Stream live data from a running server
+    /// Stream live data from a running server (Unix only)
+    #[cfg(unix)]
     Tail(cmd::tail::TailArgs),
 
     /// Pull snapshot from external connector (GitHub, etc.)
@@ -63,6 +66,9 @@ enum Command {
 
     /// Send test events and logs to verify pipeline
     Test(cmd::test::TestArgs),
+
+    /// Check server status and metrics
+    Status(cmd::status::StatusArgs),
 
     /// ClickHouse schema management
     Clickhouse(cmd::clickhouse::ClickHouseArgs),
@@ -86,11 +92,15 @@ async fn main() -> Result<()> {
             init_logging(&log_level)?;
             cmd::serve::run(args).await
         }
-        Some(Command::Api(args)) => {
-            let log_level = cli.log_level.as_deref().unwrap_or("info");
-            init_logging(log_level)?;
-            cmd::api::run(args).await
+        Some(Command::Interactive(mut args)) => {
+            // CLI global --config overrides subcommand config if both specified
+            if args.config.is_none() && cli.config.is_some() {
+                args.config = cli.config;
+            }
+            // Interactive TUI doesn't need logging (uses alternate screen)
+            cmd::interactive::run(args).await
         }
+        #[cfg(unix)]
         Some(Command::Tail(args)) => {
             // Tail initializes its own logging
             cmd::tail::run(args).await
@@ -115,6 +125,10 @@ async fn main() -> Result<()> {
         Some(Command::Test(args)) => {
             // Test doesn't need logging - just outputs to stdout
             cmd::test::run(args).await
+        }
+        Some(Command::Status(args)) => {
+            // Status doesn't need logging - just outputs to stdout
+            cmd::status::run(args).await
         }
         Some(Command::Clickhouse(args)) => {
             // ClickHouse commands don't need logging - just outputs to stdout

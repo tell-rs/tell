@@ -21,7 +21,11 @@ use tell_connectors::GitHubConnectorConfig;
 #[cfg(feature = "connector-shopify")]
 use tell_connectors::ShopifyConnectorConfig;
 use tell_connectors::{ConnectorScheduler, ScheduledConnector};
-use tell_metrics::{SinkMetricsProvider, SourceMetricsProvider, UnifiedReporter};
+use tell_metrics::{
+    PipelineMetricsProvider, SinkMetricsProvider, SourceMetricsProvider, UnifiedReporter,
+};
+
+use crate::cmd::api_server::{ServerMetricsConfig, start_api_server_with_metrics};
 use tell_pipeline::{Router, RouterMetricsHandle, SinkHandle};
 use tell_protocol::Batch;
 use tell_routing::{RoutingTable, SinkId};
@@ -256,6 +260,29 @@ async fn run_server(config: Config) -> Result<()> {
     // Start connector scheduler if connectors are configured
     let connector_task = start_connector_scheduler(&config, sharded_sender).await;
 
+    // Create server metrics config for API server
+    let server_metrics = {
+        let router_handle = metrics_handles.router.clone();
+        let pipeline_snapshot: Option<
+            Box<dyn Fn() -> tell_metrics::PipelineSnapshot + Send + Sync>,
+        > = router_handle.map(|h| {
+            Box::new(move || h.pipeline_snapshot())
+                as Box<dyn Fn() -> tell_metrics::PipelineSnapshot + Send + Sync>
+        });
+
+        ServerMetricsConfig::new(
+            pipeline_snapshot,
+            metrics_handles.sources.clone(),
+            metrics_handles.sinks.clone(),
+        )
+    };
+
+    // Start API server with server metrics (provides /health and /metrics endpoints)
+    let api_server_task =
+        start_api_server_with_metrics(&config, cancel.clone(), Some(server_metrics))
+            .await
+            .context("failed to start API server")?;
+
     // Start metrics reporter if enabled
     let metrics_task = if config.metrics.enabled {
         let reporter = build_metrics_reporter(&config, metrics_handles);
@@ -272,6 +299,7 @@ async fn run_server(config: Config) -> Result<()> {
         source_count = source_tasks.len(),
         connector_count = config.connectors.len(),
         metrics_enabled = config.metrics.enabled,
+        api_port = config.api_server.port,
         "Tell server running"
     );
 
@@ -324,6 +352,7 @@ async fn run_server(config: Config) -> Result<()> {
     // Clean up remaining tasks
     tap_server_task.abort();
     tap_maintenance.abort();
+    api_server_task.abort();
     if let Some(task) = metrics_task {
         task.abort();
     }

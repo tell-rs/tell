@@ -76,6 +76,7 @@ pub use auth::{
 };
 pub use error::{ApiError, Result};
 pub use ratelimit::{RateLimitConfig, RateLimitLayer};
-pub use routes::build_router;
+pub use routes::ops::ServerMetrics;
+pub use routes::{RouterOptions, build_router, build_router_with_options};
 pub use state::AppState;
 pub use types::{ApiResponse, MetricParams};

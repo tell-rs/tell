@@ -387,8 +387,9 @@ fn extract_workspace_from_query(parts: &Parts) -> Option<u64> {
 
 /// Public paths that don't require authentication
 pub fn is_public_path(path: &str) -> bool {
-    const PUBLIC_PATHS: [&str; 7] = [
+    const PUBLIC_PATHS: [&str; 8] = [
         "/health",
+        "/metrics",
         "/api/v1/auth/login",
         "/api/v1/auth/setup",
         "/api/v1/auth/refresh",
@@ -407,6 +408,7 @@ mod tests {
     #[test]
     fn test_is_public_path() {
         assert!(is_public_path("/health"));
+        assert!(is_public_path("/metrics"));
         assert!(is_public_path("/api/v1/auth/login"));
         assert!(is_public_path("/api/v1/auth/setup"));
         assert!(is_public_path("/api/v1/auth/setup/status"));
@@ -414,7 +416,6 @@ mod tests {
         assert!(is_public_path("/api/v1/invites/abc123"));
         assert!(is_public_path("/api/v1/invites/abc123/accept"));
         assert!(!is_public_path("/api/v1/metrics/dau"));
-        assert!(!is_public_path("/metrics"));
     }
 
     #[test]

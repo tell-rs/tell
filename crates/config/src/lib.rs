@@ -31,12 +31,15 @@
 //! See `configs/example.toml` for all available options.
 
 mod api;
+mod api_server;
 mod auth;
 mod connectors;
+mod control;
 mod error;
 mod global;
 mod logging;
 mod metrics;
+mod query;
 mod routing;
 mod sinks;
 mod sources;
@@ -48,12 +51,15 @@ use std::path::Path;
 use std::str::FromStr;
 
 pub use api::ApiConfig;
+pub use api_server::ApiServerConfig;
 pub use auth::{AuthConfig, LocalAuthConfig, WorkOsConfig};
 pub use connectors::{ConnectorsConfig, RawConnectorConfig};
+pub use control::ControlConfig;
 pub use error::{ConfigError, Result};
 pub use global::GlobalConfig;
 pub use logging::LogConfig;
 pub use metrics::{MetricsConfig, MetricsFormat};
+pub use query::{QueryBackend, QueryConfig};
 pub use routing::{MatchCondition, RoutingConfig, RoutingRule};
 pub use sinks::{
     ArrowIpcSinkConfig, ClickHouseNativeSinkConfig, ClickHouseSinkConfig, Compression,
@@ -91,6 +97,15 @@ pub struct Config {
 
     /// API client configuration (for CLI commands)
     pub api: ApiConfig,
+
+    /// API server configuration
+    pub api_server: ApiServerConfig,
+
+    /// Control/admin endpoint configuration (health checks, metrics)
+    pub control: ControlConfig,
+
+    /// Query backend configuration (for analytics API)
+    pub query: QueryConfig,
 
     /// Data sources (TCP, Syslog, etc.)
     pub sources: SourcesConfig,

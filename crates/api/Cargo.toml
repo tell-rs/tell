@@ -10,6 +10,7 @@ description = "HTTP API for Tell analytics queries"
 # Internal
 tell-analytics = { workspace = true }
 tell-auth = { workspace = true }
+tell-metrics = { workspace = true }
 tell-query = { workspace = true }
 tell-control = { workspace = true }
 
