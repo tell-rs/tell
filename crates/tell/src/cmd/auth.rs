@@ -260,7 +260,7 @@ fn auth_file_path() -> Result<PathBuf> {
 }
 
 /// Save credentials to the auth file
-fn save_credentials(credentials: &AuthCredentials) -> Result<()> {
+pub fn save_credentials(credentials: &AuthCredentials) -> Result<()> {
     let auth_file = auth_file_path()?;
 
     // Create .tell directory if it doesn't exist
@@ -290,6 +290,15 @@ pub fn load_credentials() -> Result<AuthCredentials> {
     let credentials: AuthCredentials =
         serde_json::from_str(&content).context("invalid auth file format")?;
     Ok(credentials)
+}
+
+/// Clear stored credentials (logout)
+pub fn clear_credentials() -> Result<()> {
+    let auth_file = auth_file_path()?;
+    if auth_file.exists() {
+        fs::remove_file(&auth_file).context("failed to remove auth file")?;
+    }
+    Ok(())
 }
 
 /// Read password from terminal (hides input)

@@ -1,11 +1,15 @@
-//! Tell - High-performance data streaming engine
+//! Tell - Analytics that tell the whole story
 //!
 //! # Usage
 //!
 //! ```bash
-//! # Run the server (default)
+//! # Open TUI (default)
 //! tell
 //! tell --config configs/config.toml
+//!
+//! # Run the server (daemon mode)
+//! tell run
+//! tell run --config configs/config.toml
 //!
 //! # Stream live data from a running server
 //! tell tail
@@ -21,7 +25,7 @@ use clap::{Parser, Subcommand};
 use tell_config::Config;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
-/// Tell - High-performance data streaming engine
+/// Analytics that tell the whole story
 #[derive(Parser, Debug)]
 #[command(name = "tell")]
 #[command(version, about, long_about = None)]
@@ -41,12 +45,8 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Run the server
-    Serve(cmd::serve::ServeArgs),
-
-    /// Interactive TUI mode
-    #[command(name = "i", alias = "interactive")]
-    Interactive(cmd::interactive::InteractiveArgs),
+    /// Run the server (daemon mode)
+    Run(cmd::serve::ServeArgs),
 
     /// Stream live data from a running server (Unix only)
     #[cfg(unix)]
@@ -82,8 +82,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        // Explicit subcommand
-        Some(Command::Serve(mut args)) => {
+        // Run server in daemon mode
+        Some(Command::Run(mut args)) => {
             // CLI global --config overrides subcommand config if both specified
             if args.config.is_none() && cli.config.is_some() {
                 args.config = cli.config;
@@ -91,14 +91,6 @@ async fn main() -> Result<()> {
             let log_level = resolve_log_level(cli.log_level.as_deref(), args.config.as_deref());
             init_logging(&log_level)?;
             cmd::serve::run(args).await
-        }
-        Some(Command::Interactive(mut args)) => {
-            // CLI global --config overrides subcommand config if both specified
-            if args.config.is_none() && cli.config.is_some() {
-                args.config = cli.config;
-            }
-            // Interactive TUI doesn't need logging (uses alternate screen)
-            cmd::interactive::run(args).await
         }
         #[cfg(unix)]
         Some(Command::Tail(args)) => {
@@ -138,12 +130,11 @@ async fn main() -> Result<()> {
             // Auth commands don't need logging - just outputs to stdout
             cmd::auth::run(args).await
         }
-        // No subcommand = run server (default behavior)
+        // No subcommand = open TUI (default behavior)
         None => {
-            let log_level = resolve_log_level(cli.log_level.as_deref(), cli.config.as_deref());
-            init_logging(&log_level)?;
-            let args = cmd::serve::ServeArgs { config: cli.config };
-            cmd::serve::run(args).await
+            // TUI doesn't need logging (uses alternate screen)
+            let args = cmd::interactive::InteractiveArgs { config: cli.config };
+            cmd::interactive::run(args).await
         }
     }
 }

@@ -24,7 +24,9 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
 
-use super::action::{Action, InitState, InitStep, ServerStatus, SinkType, SourceType, View};
+use super::action::{
+    Action, InitState, InitStep, ServerStatus, SinkType, SourceType, TimeRange, View,
+};
 use super::event::{Event, EventHandler as TellEventHandler};
 use super::theme::Theme;
 
@@ -134,6 +136,56 @@ pub struct App {
     prev_metrics: Option<ServerMetrics>,
     /// Last metrics fetch time
     last_metrics_fetch: Option<Instant>,
+    /// Auth credentials (if logged in)
+    auth: Option<crate::cmd::auth::AuthCredentials>,
+    /// Login state
+    login_state: LoginState,
+    /// Boards list
+    boards: Vec<super::action::BoardInfo>,
+    /// Currently selected board for detail view
+    current_board: Option<super::action::BoardData>,
+    /// Last board metrics fetch time (for periodic refresh)
+    last_board_fetch: Option<Instant>,
+    /// Query view state
+    query_state: super::action::QueryState,
+    /// Current time range for metrics
+    time_range: super::action::TimeRange,
+    /// Whether to show comparison with previous period
+    show_comparison: bool,
+    /// Breakdown dimension (e.g., "device_type", "country")
+    breakdown: Option<String>,
+    /// Top events data
+    top_events: Vec<super::action::TopEvent>,
+    /// Stickiness data
+    stickiness: Option<super::action::StickinessData>,
+    /// Board create/edit mode
+    board_edit_mode: Option<BoardEditMode>,
+}
+
+/// Login form state
+#[derive(Debug, Clone, Default)]
+pub struct LoginState {
+    /// Email input
+    pub email: Input,
+    /// Password input
+    pub password: String,
+    /// Which field is focused (0 = email, 1 = password)
+    pub focus: usize,
+    /// Whether login is in progress
+    pub loading: bool,
+    /// Error message
+    pub error: Option<String>,
+}
+
+/// Board edit mode state
+#[derive(Debug, Clone)]
+pub enum BoardEditMode {
+    /// Creating a new board
+    Create { title: Input },
+    /// Editing an existing board's title
+    Edit { board_id: String, title: Input },
+    /// Confirming deletion
+    Delete { board_id: String, title: String },
 }
 
 impl App {
@@ -159,6 +211,9 @@ impl App {
         } else {
             View::Welcome
         };
+
+        // Try to load existing auth credentials
+        let auth = crate::cmd::auth::load_credentials().ok();
 
         Ok(Self {
             terminal,
@@ -187,6 +242,18 @@ impl App {
             server_metrics: None,
             prev_metrics: None,
             last_metrics_fetch: None,
+            auth,
+            login_state: LoginState::default(),
+            boards: Vec::new(),
+            current_board: None,
+            last_board_fetch: None,
+            query_state: super::action::QueryState::default(),
+            time_range: super::action::TimeRange::default(),
+            show_comparison: true,
+            breakdown: None,
+            top_events: Vec::new(),
+            stickiness: None,
+            board_edit_mode: None,
         })
     }
 
@@ -297,6 +364,14 @@ impl App {
         let tail_connected = self.tail_connected;
         let tail_scroll = self.tail_scroll;
         let server_metrics = self.server_metrics.clone();
+        let auth = self.auth.clone();
+        let login_state = self.login_state.clone();
+        let boards = self.boards.clone();
+        let current_board = self.current_board.clone();
+        let query_state = self.query_state.clone();
+        let time_range = self.time_range;
+        let show_comparison = self.show_comparison;
+        let board_edit_mode = self.board_edit_mode.clone();
 
         self.terminal.draw(|frame| {
             let area = frame.area();
@@ -339,11 +414,18 @@ impl App {
                 tail_scroll,
                 content_area.height as usize,
                 server_metrics.as_ref(),
+                auth.as_ref(),
+                &login_state,
+                &boards,
+                current_board.as_ref(),
+                &query_state,
+                time_range,
+                show_comparison,
             );
             let paragraph = Paragraph::new(content).wrap(Wrap { trim: false });
             frame.render_widget(paragraph, content_area);
 
-            // === FOOTER (shortcuts) ===
+            // === FOOTER (shortcuts + auth status) ===
             let shortcuts = if command_focused {
                 vec![("Enter", "execute"), ("Esc", "cancel"), ("↑↓", "navigate")]
             } else {
@@ -359,7 +441,28 @@ impl App {
                 footer_spans.push(Span::raw(" "));
                 footer_spans.push(Span::styled(*desc, theme.muted_style()));
             }
-            frame.render_widget(Paragraph::new(Line::from(footer_spans)), footer_area);
+
+            // Auth status on the right
+            let auth_status = if let Some(a) = &auth {
+                Span::styled(format!("  {} ", a.email), theme.muted_style())
+            } else {
+                Span::styled("  not logged in ", theme.muted_style())
+            };
+
+            // Use a layout to split footer into left (shortcuts) and right (auth)
+            let footer_layout = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Min(1),
+                    Constraint::Length(auth_status.width() as u16),
+                ])
+                .split(footer_area);
+
+            frame.render_widget(Paragraph::new(Line::from(footer_spans)), footer_layout[0]);
+            frame.render_widget(
+                Paragraph::new(Line::from(auth_status)).alignment(Alignment::Right),
+                footer_layout[1],
+            );
 
             // === COMMAND POPUP (overlay when / is pressed) ===
             if command_focused {
@@ -371,6 +474,11 @@ impl App {
                     cursor_pos,
                     selected_cmd_index,
                 );
+            }
+
+            // === BOARD EDIT DIALOG (overlay for create/delete) ===
+            if let Some(ref edit_mode) = board_edit_mode {
+                Self::render_board_edit_dialog(frame, area, &theme, edit_mode);
             }
         })?;
 
@@ -392,17 +500,22 @@ impl App {
         tail_scroll: usize,
         visible_lines: usize,
         server_metrics: Option<&ServerMetrics>,
+        auth: Option<&'a crate::cmd::auth::AuthCredentials>,
+        login_state: &LoginState,
+        boards: &[super::action::BoardInfo],
+        current_board: Option<&'a super::action::BoardData>,
+        query_state: &'a super::action::QueryState,
+        time_range: TimeRange,
+        show_comparison: bool,
     ) -> Vec<Line<'a>> {
         let mut lines = match view {
             View::Welcome => {
                 vec![
                     Line::from(""),
-                    Line::from(vec![
-                        Span::styled("  Welcome to ", Style::default()),
-                        Span::styled("Tell", theme.brand_style().bold()),
-                    ]),
-                    Line::from(""),
-                    Line::from("  High-performance data streaming engine"),
+                    Line::from(vec![Span::styled(
+                        "  Analytics that tell the whole story.",
+                        theme.muted_style(),
+                    )]),
                     Line::from(""),
                     Line::from(""),
                     Line::from(vec![Span::styled(
@@ -703,15 +816,150 @@ impl App {
                 ]
             }
             View::Query => {
-                vec![
-                    Line::from(""),
-                    Line::from("  Query"),
-                    Line::from(""),
-                    Line::from(vec![Span::styled(
-                        "  SQL interface coming soon.",
+                let mut lines = vec![Line::from(""), Line::from("  SQL Query"), Line::from("")];
+
+                // Query input area
+                lines.push(Line::from(vec![
+                    Span::styled("  > ", theme.brand_style()),
+                    Span::raw(&query_state.query),
+                    Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK)),
+                ]));
+                lines.push(Line::from(""));
+
+                // Show loading or error
+                if query_state.loading {
+                    lines.push(Line::from(vec![Span::styled(
+                        "  Executing query...",
                         theme.muted_style(),
-                    )]),
-                ]
+                    )]));
+                } else if let Some(ref err) = query_state.error {
+                    lines.push(Line::from(vec![Span::styled(
+                        format!("  Error: {}", err),
+                        theme.error_style(),
+                    )]));
+                } else if let Some(ref result) = query_state.result {
+                    // Show result summary
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            format!("  {} rows", result.row_count),
+                            theme.success_style(),
+                        ),
+                        Span::styled(
+                            format!(" ({} ms)", result.execution_time_ms),
+                            theme.muted_style(),
+                        ),
+                    ]));
+                    lines.push(Line::from(""));
+
+                    if !result.columns.is_empty() {
+                        // Column headers
+                        let header: Vec<Span> = result
+                            .columns
+                            .iter()
+                            .enumerate()
+                            .flat_map(|(i, col)| {
+                                let mut spans = vec![Span::styled(
+                                    format!("{:<15}", col),
+                                    Style::default().bold(),
+                                )];
+                                if i < result.columns.len() - 1 {
+                                    spans.push(Span::raw(" │ "));
+                                }
+                                spans
+                            })
+                            .collect();
+                        lines.push(Line::from(vec![Span::raw("  ")]).patch_style(Style::default()));
+                        lines.push(Line::from(
+                            std::iter::once(Span::raw("  "))
+                                .chain(header)
+                                .collect::<Vec<_>>(),
+                        ));
+
+                        // Separator
+                        let sep_len = result.columns.len() * 18;
+                        lines.push(Line::from(vec![
+                            Span::raw("  "),
+                            Span::styled("─".repeat(sep_len.min(60)), theme.muted_style()),
+                        ]));
+
+                        // Data rows (limited by scroll and visible lines)
+                        let max_rows = visible_lines.saturating_sub(12);
+                        let start = query_state.scroll;
+                        let end = (start + max_rows).min(result.rows.len());
+
+                        for row in &result.rows[start..end] {
+                            let row_spans: Vec<Span> = row
+                                .iter()
+                                .enumerate()
+                                .flat_map(|(i, val)| {
+                                    let display = if val.len() > 15 {
+                                        format!("{}…", &val[..14])
+                                    } else {
+                                        format!("{:<15}", val)
+                                    };
+                                    let mut spans = vec![Span::raw(display)];
+                                    if i < row.len() - 1 {
+                                        spans.push(Span::styled(" │ ", theme.muted_style()));
+                                    }
+                                    spans
+                                })
+                                .collect();
+                            lines.push(Line::from(
+                                std::iter::once(Span::raw("  "))
+                                    .chain(row_spans)
+                                    .collect::<Vec<_>>(),
+                            ));
+                        }
+
+                        // Scroll indicator
+                        if result.rows.len() > max_rows {
+                            lines.push(Line::from(""));
+                            lines.push(Line::from(vec![Span::styled(
+                                format!(
+                                    "  [{}-{}/{}] ↑↓ scroll",
+                                    start + 1,
+                                    end,
+                                    result.rows.len()
+                                ),
+                                theme.muted_style(),
+                            )]));
+                        }
+                    }
+                } else {
+                    // Help text
+                    lines.push(Line::from(vec![Span::styled(
+                        "  Type a SQL query and press Enter to execute.",
+                        theme.muted_style(),
+                    )]));
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(vec![Span::styled(
+                        "  Examples:",
+                        theme.muted_style(),
+                    )]));
+                    lines.push(Line::from(vec![
+                        Span::raw("    "),
+                        Span::styled("SELECT * FROM events_v1 LIMIT 10", theme.brand_style()),
+                    ]));
+                    lines.push(Line::from(vec![
+                        Span::raw("    "),
+                        Span::styled(
+                            "SELECT event_name, COUNT(*) FROM events_v1 GROUP BY event_name",
+                            theme.brand_style(),
+                        ),
+                    ]));
+                }
+
+                lines.push(Line::from(""));
+                lines.push(Line::from(vec![
+                    Span::styled("  Enter", Style::default().bold()),
+                    Span::styled(" run  ", theme.muted_style()),
+                    Span::styled("Esc", Style::default().bold()),
+                    Span::styled(" back  ", theme.muted_style()),
+                    Span::styled("Ctrl+C", Style::default().bold()),
+                    Span::styled(" clear", theme.muted_style()),
+                ]));
+
+                lines
             }
             View::Tail => {
                 let mut lines = vec![
@@ -772,6 +1020,222 @@ impl App {
                         )]));
                     }
                 }
+
+                lines
+            }
+            View::Login => {
+                let mut lines = vec![Line::from(""), Line::from("  Login"), Line::from("")];
+
+                if login_state.loading {
+                    lines.push(Line::from(vec![Span::styled(
+                        "  Logging in...",
+                        theme.muted_style(),
+                    )]));
+                } else {
+                    // Email field
+                    let email_style = if login_state.focus == 0 {
+                        theme.selected_style()
+                    } else {
+                        Style::default()
+                    };
+                    let email_indicator = if login_state.focus == 0 { "▸" } else { " " };
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("  {} Email:    ", email_indicator), email_style),
+                        Span::styled(login_state.email.value().to_string(), email_style),
+                        if login_state.focus == 0 {
+                            Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK))
+                        } else {
+                            Span::raw("")
+                        },
+                    ]));
+
+                    // Password field
+                    let password_style = if login_state.focus == 1 {
+                        theme.selected_style()
+                    } else {
+                        Style::default()
+                    };
+                    let password_indicator = if login_state.focus == 1 { "▸" } else { " " };
+                    let masked_password = "*".repeat(login_state.password.len());
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            format!("  {} Password: ", password_indicator),
+                            password_style,
+                        ),
+                        Span::styled(masked_password, password_style),
+                        if login_state.focus == 1 {
+                            Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK))
+                        } else {
+                            Span::raw("")
+                        },
+                    ]));
+
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(vec![
+                        Span::styled("  Tab", Style::default().bold()),
+                        Span::styled(" switch field  ", theme.muted_style()),
+                        Span::styled("Enter", Style::default().bold()),
+                        Span::styled(" login  ", theme.muted_style()),
+                        Span::styled("Esc", Style::default().bold()),
+                        Span::styled(" cancel", theme.muted_style()),
+                    ]));
+
+                    if let Some(ref err) = login_state.error {
+                        lines.push(Line::from(""));
+                        lines.push(Line::from(vec![Span::styled(
+                            format!("  {}", err),
+                            theme.error_style(),
+                        )]));
+                    }
+                }
+
+                lines
+            }
+            View::Boards => {
+                let mut lines = vec![
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::raw("  Boards "),
+                        if let Some(a) = auth {
+                            Span::styled(format!("({})", a.email), theme.muted_style())
+                        } else {
+                            Span::raw("")
+                        },
+                    ]),
+                    Line::from(""),
+                ];
+
+                if boards.is_empty() {
+                    lines.push(Line::from(vec![Span::styled(
+                        "  No boards found.",
+                        theme.muted_style(),
+                    )]));
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(vec![Span::styled(
+                        "  Create boards in the web dashboard.",
+                        theme.muted_style(),
+                    )]));
+                } else {
+                    for (i, board) in boards.iter().enumerate() {
+                        let marker = if i == selected_index { "▸" } else { " " };
+                        let style = if i == selected_index {
+                            theme.selected_style()
+                        } else {
+                            Style::default()
+                        };
+                        let pin_marker = if board.is_pinned { "📌 " } else { "" };
+                        let share_marker = if board.share_hash.is_some() {
+                            " 🔗"
+                        } else {
+                            ""
+                        };
+                        lines.push(Line::from(vec![
+                            Span::styled(
+                                format!("    {} {}{}", marker, pin_marker, board.title),
+                                style,
+                            ),
+                            Span::styled(share_marker, Style::default().fg(Color::Cyan)),
+                            Span::styled(
+                                format!("  ({} blocks)", board.block_count),
+                                theme.muted_style(),
+                            ),
+                        ]));
+                        if let Some(ref desc) = board.description {
+                            lines.push(Line::from(vec![Span::styled(
+                                format!("        {}", desc),
+                                theme.muted_style(),
+                            )]));
+                        }
+                    }
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(vec![
+                        Span::styled("  Enter", Style::default().bold()),
+                        Span::styled(" view  ", theme.muted_style()),
+                        Span::styled("n", Style::default().bold()),
+                        Span::styled(" new  ", theme.muted_style()),
+                        Span::styled("d", Style::default().bold()),
+                        Span::styled(" delete  ", theme.muted_style()),
+                        Span::styled("p", Style::default().bold()),
+                        Span::styled(" pin  ", theme.muted_style()),
+                        Span::styled("s", Style::default().bold()),
+                        Span::styled(" share", theme.muted_style()),
+                    ]));
+                }
+
+                lines
+            }
+            View::BoardDetail => {
+                let mut lines = vec![Line::from("")];
+
+                if let Some(board) = current_board {
+                    lines.push(Line::from(vec![
+                        Span::raw("  "),
+                        Span::styled(&board.title, theme.brand_style().bold()),
+                    ]));
+
+                    // Time range and comparison indicator
+                    let comparison_indicator = if show_comparison { " vs prev" } else { "" };
+                    lines.push(Line::from(vec![Span::styled(
+                        format!("  {} {}", time_range.label(), comparison_indicator),
+                        theme.muted_style(),
+                    )]));
+                    lines.push(Line::from(""));
+
+                    if board.metrics.is_empty() {
+                        lines.push(Line::from(vec![Span::styled(
+                            "  No metrics in this board.",
+                            theme.muted_style(),
+                        )]));
+                    } else {
+                        for metric in &board.metrics {
+                            let change_span = if show_comparison {
+                                if let Some(pct) = metric.change_percent {
+                                    let (sign, color) = if pct >= 0.0 {
+                                        ("+", Color::Green)
+                                    } else {
+                                        ("", Color::Red)
+                                    };
+                                    Span::styled(
+                                        format!("  {}{:.1}%", sign, pct),
+                                        Style::default().fg(color),
+                                    )
+                                } else {
+                                    Span::raw("")
+                                }
+                            } else {
+                                Span::raw("")
+                            };
+
+                            lines.push(Line::from(vec![
+                                Span::styled(format!("    {} ", metric.title), theme.muted_style()),
+                                Span::styled(
+                                    format!("{:.0}", metric.value),
+                                    Style::default().bold(),
+                                ),
+                                change_span,
+                            ]));
+                        }
+                    }
+                } else {
+                    lines.push(Line::from(vec![Span::styled(
+                        "  Loading board...",
+                        theme.muted_style(),
+                    )]));
+                }
+
+                lines.push(Line::from(""));
+                lines.push(Line::from(vec![
+                    Span::styled("  1-3", Style::default().bold()),
+                    Span::styled(" range  ", theme.muted_style()),
+                    Span::styled("c", Style::default().bold()),
+                    Span::styled(" compare  ", theme.muted_style()),
+                    Span::styled("r", Style::default().bold()),
+                    Span::styled(" refresh  ", theme.muted_style()),
+                    Span::styled("s", Style::default().bold()),
+                    Span::styled(" share  ", theme.muted_style()),
+                    Span::styled("Esc", Style::default().bold()),
+                    Span::styled(" back", theme.muted_style()),
+                ]));
 
                 lines
             }
@@ -859,6 +1323,61 @@ impl App {
                             self.selected_cmd_index = 0;
                         }
                     }
+                } else if self.board_edit_mode.is_some() {
+                    // Board edit dialog key handling
+                    match (&mut self.board_edit_mode, key.code) {
+                        (Some(BoardEditMode::Create { title }), KeyCode::Enter) => {
+                            let new_title = title.value().to_string();
+                            if !new_title.trim().is_empty() {
+                                self.action_tx.send(Action::CreateBoard(new_title))?;
+                            }
+                            self.board_edit_mode = None;
+                        }
+                        (Some(BoardEditMode::Create { .. }), KeyCode::Esc) => {
+                            self.board_edit_mode = None;
+                        }
+                        (Some(BoardEditMode::Create { title }), KeyCode::Backspace) => {
+                            // Handle backspace for title input
+                            let mut val = title.value().to_string();
+                            val.pop();
+                            *title = Input::new(val);
+                        }
+                        (Some(BoardEditMode::Create { title }), KeyCode::Char(c)) => {
+                            // Type into title
+                            let mut val = title.value().to_string();
+                            val.push(c);
+                            *title = Input::new(val);
+                        }
+                        (Some(BoardEditMode::Edit { board_id, title }), KeyCode::Enter) => {
+                            let new_title = title.value().to_string();
+                            if !new_title.trim().is_empty() {
+                                self.action_tx
+                                    .send(Action::UpdateBoard(board_id.clone(), new_title))?;
+                            }
+                            self.board_edit_mode = None;
+                        }
+                        (Some(BoardEditMode::Edit { .. }), KeyCode::Esc) => {
+                            self.board_edit_mode = None;
+                        }
+                        (Some(BoardEditMode::Edit { title, .. }), KeyCode::Backspace) => {
+                            let mut val = title.value().to_string();
+                            val.pop();
+                            *title = Input::new(val);
+                        }
+                        (Some(BoardEditMode::Edit { title, .. }), KeyCode::Char(c)) => {
+                            let mut val = title.value().to_string();
+                            val.push(c);
+                            *title = Input::new(val);
+                        }
+                        (Some(BoardEditMode::Delete { board_id, .. }), KeyCode::Char('y')) => {
+                            self.action_tx.send(Action::DeleteBoard(board_id.clone()))?;
+                            // board_edit_mode will be cleared by the action handler
+                        }
+                        (Some(BoardEditMode::Delete { .. }), KeyCode::Char('n') | KeyCode::Esc) => {
+                            self.board_edit_mode = None;
+                        }
+                        _ => {}
+                    }
                 } else {
                     // Normal mode key handling
                     match key.code {
@@ -921,6 +1440,173 @@ impl App {
                         KeyCode::End if self.view == View::Tail => {
                             self.tail_scroll = self.tail_events.len().saturating_sub(20);
                         }
+                        // Login view handling
+                        KeyCode::Tab if self.view == View::Login => {
+                            self.login_state.focus = (self.login_state.focus + 1) % 2;
+                        }
+                        KeyCode::BackTab if self.view == View::Login => {
+                            self.login_state.focus =
+                                if self.login_state.focus == 0 { 1 } else { 0 };
+                        }
+                        KeyCode::Enter if self.view == View::Login => {
+                            self.submit_login()?;
+                        }
+                        KeyCode::Backspace if self.view == View::Login => {
+                            if self.login_state.focus == 0 {
+                                // Delete from email Input
+                                let event = crossterm::event::Event::Key(key);
+                                self.login_state.email.handle_event(&event);
+                            } else {
+                                // Delete from password
+                                self.login_state.password.pop();
+                            }
+                        }
+                        KeyCode::Char(c) if self.view == View::Login => {
+                            if self.login_state.focus == 0 {
+                                // Type into email Input
+                                let event = crossterm::event::Event::Key(key);
+                                self.login_state.email.handle_event(&event);
+                            } else {
+                                // Type into password
+                                self.login_state.password.push(c);
+                            }
+                        }
+                        // Boards view navigation
+                        KeyCode::Up if self.view == View::Boards => {
+                            if self.selected_index > 0 {
+                                self.selected_index -= 1;
+                            }
+                        }
+                        KeyCode::Down if self.view == View::Boards => {
+                            if self.selected_index < self.boards.len().saturating_sub(1) {
+                                self.selected_index += 1;
+                            }
+                        }
+                        KeyCode::Enter if self.view == View::Boards => {
+                            if let Some(board) = self.boards.get(self.selected_index) {
+                                let board_id = board.id.clone();
+                                self.load_board_detail(&board_id)?;
+                                self.action_tx.send(Action::Navigate(View::BoardDetail))?;
+                            }
+                        }
+                        // Board management keys
+                        KeyCode::Char('n') if self.view == View::Boards => {
+                            // Start creating new board
+                            self.board_edit_mode = Some(BoardEditMode::Create {
+                                title: Input::default(),
+                            });
+                        }
+                        KeyCode::Char('d') if self.view == View::Boards => {
+                            // Delete selected board (with confirmation)
+                            if let Some(board) = self.boards.get(self.selected_index) {
+                                self.board_edit_mode = Some(BoardEditMode::Delete {
+                                    board_id: board.id.clone(),
+                                    title: board.title.clone(),
+                                });
+                            }
+                        }
+                        KeyCode::Char('p') if self.view == View::Boards => {
+                            // Pin/unpin selected board
+                            if let Some(board) = self.boards.get(self.selected_index) {
+                                self.action_tx
+                                    .send(Action::TogglePinBoard(board.id.clone()))?;
+                            }
+                        }
+                        KeyCode::Char('s') if self.view == View::Boards => {
+                            // Share/unshare selected board
+                            if let Some(board) = self.boards.get(self.selected_index) {
+                                if board.share_hash.is_some() {
+                                    self.action_tx
+                                        .send(Action::UnshareBoard(board.id.clone()))?;
+                                } else {
+                                    self.action_tx.send(Action::ShareBoard(board.id.clone()))?;
+                                }
+                            }
+                        }
+                        // BoardDetail view keys
+                        KeyCode::Char('1') if self.view == View::BoardDetail => {
+                            self.action_tx.send(Action::SetTimeRange(TimeRange::Week))?;
+                        }
+                        KeyCode::Char('2') if self.view == View::BoardDetail => {
+                            self.action_tx
+                                .send(Action::SetTimeRange(TimeRange::Month))?;
+                        }
+                        KeyCode::Char('3') if self.view == View::BoardDetail => {
+                            self.action_tx
+                                .send(Action::SetTimeRange(TimeRange::Quarter))?;
+                        }
+                        KeyCode::Char('c') if self.view == View::BoardDetail => {
+                            self.action_tx.send(Action::ToggleComparison)?;
+                        }
+                        KeyCode::Char('r') if self.view == View::BoardDetail => {
+                            self.action_tx.send(Action::RefreshMetrics)?;
+                        }
+                        KeyCode::Char('s') if self.view == View::BoardDetail => {
+                            // Share the current board
+                            if let Some(ref board) = self.current_board {
+                                // Check if already shared
+                                let is_shared = self
+                                    .boards
+                                    .iter()
+                                    .find(|b| b.id == board.id)
+                                    .map(|b| b.share_hash.is_some())
+                                    .unwrap_or(false);
+                                if is_shared {
+                                    self.action_tx
+                                        .send(Action::UnshareBoard(board.id.clone()))?;
+                                } else {
+                                    self.action_tx.send(Action::ShareBoard(board.id.clone()))?;
+                                }
+                            }
+                        }
+                        // Query view handling
+                        KeyCode::Enter if self.view == View::Query && !self.query_state.loading => {
+                            if !self.query_state.query.trim().is_empty() {
+                                self.execute_query()?;
+                            }
+                        }
+                        KeyCode::Backspace if self.view == View::Query => {
+                            self.query_state.query.pop();
+                            self.query_state.cursor = self.query_state.query.len();
+                        }
+                        KeyCode::Char('c')
+                            if self.view == View::Query
+                                && key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            // Clear query and results
+                            self.query_state = super::action::QueryState::default();
+                        }
+                        KeyCode::Char(c) if self.view == View::Query => {
+                            self.query_state.query.push(c);
+                            self.query_state.cursor = self.query_state.query.len();
+                        }
+                        KeyCode::Up
+                            if self.view == View::Query && self.query_state.result.is_some() =>
+                        {
+                            self.query_state.scroll = self.query_state.scroll.saturating_sub(1);
+                        }
+                        KeyCode::Down
+                            if self.view == View::Query && self.query_state.result.is_some() =>
+                        {
+                            if let Some(ref result) = self.query_state.result
+                                && self.query_state.scroll < result.rows.len().saturating_sub(1)
+                            {
+                                self.query_state.scroll += 1;
+                            }
+                        }
+                        KeyCode::PageUp
+                            if self.view == View::Query && self.query_state.result.is_some() =>
+                        {
+                            self.query_state.scroll = self.query_state.scroll.saturating_sub(10);
+                        }
+                        KeyCode::PageDown
+                            if self.view == View::Query && self.query_state.result.is_some() =>
+                        {
+                            if let Some(ref result) = self.query_state.result {
+                                self.query_state.scroll = (self.query_state.scroll + 10)
+                                    .min(result.rows.len().saturating_sub(1));
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -942,6 +1628,20 @@ impl App {
                     if should_fetch {
                         self.last_metrics_fetch = Some(Instant::now());
                         self.spawn_metrics_fetch();
+                    }
+                }
+
+                // Refresh board metrics every ~10 seconds when viewing BoardDetail
+                if self.view == View::BoardDetail {
+                    let should_refresh = self
+                        .last_board_fetch
+                        .map(|t| t.elapsed() > Duration::from_secs(10))
+                        .unwrap_or(false); // Don't refresh immediately on first view
+
+                    if should_refresh && let Some(ref board) = self.current_board {
+                        self.last_board_fetch = Some(Instant::now());
+                        let board_id = board.id.clone();
+                        let _ = self.load_board_detail(&board_id);
                     }
                 }
 
@@ -1331,7 +2031,8 @@ impl App {
         }
     }
 
-    /// Start tailing events from the tap socket.
+    /// Start tailing events from the tap socket (Unix only).
+    #[cfg(unix)]
     fn start_tail(&mut self) -> Result<()> {
         // Clear previous events
         self.tail_events.clear();
@@ -1444,6 +2145,823 @@ impl App {
     }
 
     /// Send test events to the running server via TCP (like `tell test`).
+    /// Submit login form.
+    fn submit_login(&mut self) -> Result<()> {
+        let email = self.login_state.email.value().to_string();
+        let password = self.login_state.password.clone();
+
+        if email.is_empty() || password.is_empty() {
+            self.login_state.error = Some("Email and password required".to_string());
+            return Ok(());
+        }
+
+        // Get API URL from config
+        let api_url = self.get_api_url();
+        let action_tx = self.action_tx.clone();
+
+        self.login_state.loading = true;
+        self.login_state.error = None;
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .post(format!("{}/api/v1/auth/login", api_url))
+                .json(&serde_json::json!({
+                    "email": email,
+                    "password": password,
+                }))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    #[derive(serde::Deserialize)]
+                    struct LoginResponse {
+                        access_token: String,
+                    }
+
+                    if let Ok(login_resp) = response.json::<LoginResponse>().await {
+                        // Save credentials
+                        let creds = crate::cmd::auth::AuthCredentials {
+                            access_token: login_resp.access_token,
+                            api_url: api_url.clone(),
+                            email: email.clone(),
+                        };
+                        let _ = crate::cmd::auth::save_credentials(&creds);
+                        let _ = action_tx.send(Action::LoginSuccess(email));
+                    } else {
+                        let _ = action_tx.send(Action::LoginFailed("Invalid response".to_string()));
+                    }
+                }
+                Ok(response) if response.status().as_u16() == 401 => {
+                    let _ = action_tx
+                        .send(Action::LoginFailed("Invalid email or password".to_string()));
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::LoginFailed(format!(
+                        "Login failed ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::LoginFailed(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Get API URL from config or use default.
+    fn get_api_url(&self) -> String {
+        // Try to read from config
+        if self.config_path.exists()
+            && let Ok(content) = std::fs::read_to_string(&self.config_path)
+            && let Ok(toml_value) = toml::from_str::<toml::Value>(&content)
+            && let Some(api_section) = toml_value.get("api")
+            && let Some(url) = api_section.get("url").and_then(|v| v.as_str())
+        {
+            return url.to_string();
+        }
+        "http://localhost:3000".to_string()
+    }
+
+    /// Load boards from API.
+    fn load_boards(&mut self) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .get(format!("{}/api/v1/boards", api_url))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    #[derive(serde::Deserialize)]
+                    struct BoardsResponse {
+                        boards: Vec<BoardApiInfo>,
+                    }
+
+                    #[derive(serde::Deserialize)]
+                    struct BoardApiInfo {
+                        id: String,
+                        title: String,
+                        description: Option<String>,
+                        is_pinned: bool,
+                        share_hash: Option<String>,
+                        settings: Option<BoardSettings>,
+                    }
+
+                    #[derive(serde::Deserialize)]
+                    struct BoardSettings {
+                        blocks: Option<Vec<serde_json::Value>>,
+                    }
+
+                    if let Ok(resp) = response.json::<BoardsResponse>().await {
+                        let boards: Vec<super::action::BoardInfo> = resp
+                            .boards
+                            .into_iter()
+                            .map(|b| super::action::BoardInfo {
+                                id: b.id,
+                                title: b.title,
+                                description: b.description,
+                                is_pinned: b.is_pinned,
+                                share_hash: b.share_hash,
+                                block_count: b
+                                    .settings
+                                    .and_then(|s| s.blocks)
+                                    .map(|b| b.len())
+                                    .unwrap_or(0),
+                            })
+                            .collect();
+                        let _ = action_tx.send(Action::BoardsLoaded(boards));
+                    }
+                }
+                Ok(response) if response.status().as_u16() == 401 => {
+                    let _ = action_tx.send(Action::Error(
+                        "Session expired. Please /login again.".to_string(),
+                    ));
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to load boards ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Load a specific board's details.
+    fn load_board_detail(&mut self, board_id: &str) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let board_id = board_id.to_string();
+        let action_tx = self.action_tx.clone();
+        let time_range = self.time_range;
+        let show_comparison = self.show_comparison;
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+
+            // First fetch the board to get metric blocks
+            let result = client
+                .get(format!("{}/api/v1/boards/{}", api_url, board_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            #[derive(serde::Deserialize)]
+            struct BoardResponse {
+                id: String,
+                title: String,
+                settings: Option<BoardSettings>,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct BoardSettings {
+                blocks: Option<Vec<BlockInfo>>,
+            }
+
+            #[derive(serde::Deserialize, Clone)]
+            struct BlockInfo {
+                #[serde(rename = "type")]
+                block_type: String,
+                metric: Option<MetricInfo>,
+            }
+
+            #[derive(serde::Deserialize, Clone)]
+            struct MetricInfo {
+                title: Option<String>,
+                metric_type: Option<String>,
+            }
+
+            // API response for metrics
+            #[derive(serde::Deserialize)]
+            struct ApiResponse<T> {
+                data: T,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct TimeSeriesData {
+                total: f64,
+                comparison: Option<ComparisonData>,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct ComparisonData {
+                percent_change: f64,
+            }
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    if let Ok(resp) = response.json::<BoardResponse>().await {
+                        let blocks = resp.settings.and_then(|s| s.blocks).unwrap_or_default();
+
+                        // Collect metric types we need to fetch
+                        let metric_blocks: Vec<_> = blocks
+                            .iter()
+                            .filter(|b| b.block_type == "metric")
+                            .filter_map(|b| b.metric.as_ref())
+                            .collect();
+
+                        // Fetch actual values for each metric type
+                        let mut metrics = Vec::new();
+                        for m in metric_blocks {
+                            let metric_type = m.metric_type.clone().unwrap_or_default();
+                            let title = m
+                                .title
+                                .clone()
+                                .or_else(|| Some(metric_type.to_uppercase()))
+                                .unwrap_or_else(|| "Metric".to_string());
+
+                            // Map metric_type to API endpoint
+                            let endpoint = match metric_type.as_str() {
+                                "dau" => "/api/v1/metrics/dau",
+                                "wau" => "/api/v1/metrics/wau",
+                                "mau" => "/api/v1/metrics/mau",
+                                "events" => "/api/v1/metrics/events",
+                                "logs" => "/api/v1/metrics/logs",
+                                "sessions" => "/api/v1/metrics/sessions",
+                                _ => continue, // Unknown metric type
+                            };
+
+                            // Build URL with range and optional comparison
+                            let mut url =
+                                format!("{}{}?range={}", api_url, endpoint, time_range.as_param());
+                            if show_comparison {
+                                url.push_str("&compare=previous");
+                            }
+
+                            // Fetch the metric value
+                            let metric_result = client
+                                .get(&url)
+                                .header("Authorization", format!("Bearer {}", token))
+                                .send()
+                                .await;
+
+                            let (value, change_percent) = match metric_result {
+                                Ok(resp) if resp.status().is_success() => {
+                                    if let Ok(data) =
+                                        resp.json::<ApiResponse<TimeSeriesData>>().await
+                                    {
+                                        let change = data.data.comparison.map(|c| c.percent_change);
+                                        (data.data.total, change)
+                                    } else {
+                                        (0.0, None)
+                                    }
+                                }
+                                _ => (0.0, None),
+                            };
+
+                            metrics.push(super::action::MetricValue {
+                                title,
+                                value,
+                                change_percent,
+                            });
+                        }
+
+                        let board_data = super::action::BoardData {
+                            id: resp.id,
+                            title: resp.title,
+                            metrics,
+                        };
+                        let _ = action_tx.send(Action::BoardDataLoaded(board_data));
+                    }
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to load board ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Execute a SQL query via the API.
+    fn execute_query(&mut self) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            self.query_state.error = Some("Login required. Use /login".to_string());
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let query = self.query_state.query.clone();
+        let action_tx = self.action_tx.clone();
+
+        self.query_state.loading = true;
+        self.query_state.error = None;
+        self.query_state.result = None;
+        self.query_state.scroll = 0;
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .post(format!("{}/api/v1/data/query", api_url))
+                .header("Authorization", format!("Bearer {}", token))
+                .json(&serde_json::json!({
+                    "query": query,
+                    "limit": 1000,
+                }))
+                .send()
+                .await;
+
+            #[derive(serde::Deserialize)]
+            struct ApiResponse<T> {
+                data: T,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct QueryResponse {
+                columns: Vec<ColumnInfo>,
+                rows: Vec<Vec<serde_json::Value>>,
+                row_count: usize,
+                execution_time_ms: u64,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct ColumnInfo {
+                name: String,
+            }
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    if let Ok(resp) = response.json::<ApiResponse<QueryResponse>>().await {
+                        let query_result = super::action::QueryResult {
+                            columns: resp.data.columns.into_iter().map(|c| c.name).collect(),
+                            rows: resp
+                                .data
+                                .rows
+                                .into_iter()
+                                .map(|row| {
+                                    row.into_iter()
+                                        .map(|v| match v {
+                                            serde_json::Value::Null => "NULL".to_string(),
+                                            serde_json::Value::String(s) => s,
+                                            other => other.to_string(),
+                                        })
+                                        .collect()
+                                })
+                                .collect(),
+                            row_count: resp.data.row_count,
+                            execution_time_ms: resp.data.execution_time_ms,
+                        };
+                        let _ = action_tx.send(Action::QueryResult(query_result));
+                    } else {
+                        let _ = action_tx.send(Action::QueryFailed("Invalid response".to_string()));
+                    }
+                }
+                Ok(response) if response.status().as_u16() == 401 => {
+                    let _ = action_tx.send(Action::QueryFailed(
+                        "Session expired. Please /login again.".to_string(),
+                    ));
+                }
+                Ok(response) if response.status().as_u16() == 400 => {
+                    // Try to get error message from response
+                    let body = response.text().await.unwrap_or_default();
+                    let msg = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+                        json["error"]["message"]
+                            .as_str()
+                            .or(json["message"].as_str())
+                            .unwrap_or("Invalid query")
+                            .to_string()
+                    } else {
+                        "Invalid query".to_string()
+                    };
+                    let _ = action_tx.send(Action::QueryFailed(msg));
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::QueryFailed(format!(
+                        "Query failed ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::QueryFailed(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Create a new board.
+    fn create_board(&mut self, title: &str) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            self.error_message = Some("Login required".to_string());
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let title = title.to_string();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .post(format!("{}/api/v1/boards", api_url))
+                .header("Authorization", format!("Bearer {}", token))
+                .json(&serde_json::json!({ "title": title }))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    let _ = action_tx.send(Action::BoardUpdated);
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to create board ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Update a board's title.
+    fn update_board(&mut self, board_id: &str, title: &str) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            self.error_message = Some("Login required".to_string());
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let board_id = board_id.to_string();
+        let title = title.to_string();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .put(format!("{}/api/v1/boards/{}", api_url, board_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .json(&serde_json::json!({ "title": title }))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    let _ = action_tx.send(Action::BoardUpdated);
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to update board ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Delete a board.
+    fn delete_board(&mut self, board_id: &str) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            self.error_message = Some("Login required".to_string());
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let board_id = board_id.to_string();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .delete(format!("{}/api/v1/boards/{}", api_url, board_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    let _ = action_tx.send(Action::BoardDeleted(board_id));
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to delete board ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Toggle pin status for a board.
+    fn toggle_pin_board(&mut self, board_id: &str) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            self.error_message = Some("Login required".to_string());
+            return Ok(());
+        };
+
+        // Find current pin status
+        let is_currently_pinned = self
+            .boards
+            .iter()
+            .find(|b| b.id == board_id)
+            .map(|b| b.is_pinned)
+            .unwrap_or(false);
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let board_id = board_id.to_string();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let endpoint = if is_currently_pinned {
+                format!("{}/api/v1/boards/{}/unpin", api_url, board_id)
+            } else {
+                format!("{}/api/v1/boards/{}/pin", api_url, board_id)
+            };
+
+            let result = client
+                .post(&endpoint)
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    let _ = action_tx.send(Action::BoardUpdated);
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to toggle pin ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Share a board (create public link).
+    fn share_board(&mut self, board_id: &str) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            self.error_message = Some("Login required".to_string());
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let board_id = board_id.to_string();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .post(format!("{}/api/v1/boards/{}/share", api_url, board_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            #[derive(serde::Deserialize)]
+            struct ShareResponse {
+                share_url: String,
+            }
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    if let Ok(resp) = response.json::<ShareResponse>().await {
+                        let _ = action_tx.send(Action::BoardShared(board_id, resp.share_url));
+                    }
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to share board ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Unshare a board (revoke public link).
+    fn unshare_board(&mut self, board_id: &str) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            self.error_message = Some("Login required".to_string());
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let board_id = board_id.to_string();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .delete(format!("{}/api/v1/boards/{}/share", api_url, board_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    let _ = action_tx.send(Action::BoardUnshared(board_id));
+                }
+                Ok(response) => {
+                    let _ = action_tx.send(Action::Error(format!(
+                        "Failed to unshare board ({})",
+                        response.status()
+                    )));
+                }
+                Err(e) => {
+                    let _ = action_tx.send(Action::Error(format!("Connection error: {}", e)));
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Load top events.
+    fn load_top_events(&mut self) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let time_range = self.time_range;
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let result = client
+                .get(format!(
+                    "{}/api/v1/metrics/events/top?range={}",
+                    api_url,
+                    time_range.as_param()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            #[derive(serde::Deserialize)]
+            struct ApiResponse {
+                data: TopEventsData,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct TopEventsData {
+                events: Vec<EventInfo>,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct EventInfo {
+                name: String,
+                count: u64,
+            }
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    if let Ok(resp) = response.json::<ApiResponse>().await {
+                        let events: Vec<super::action::TopEvent> = resp
+                            .data
+                            .events
+                            .into_iter()
+                            .map(|e| super::action::TopEvent {
+                                name: e.name,
+                                count: e.count,
+                            })
+                            .collect();
+                        let _ = action_tx.send(Action::TopEventsLoaded(events));
+                    }
+                }
+                _ => {}
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Load stickiness metrics.
+    fn load_stickiness(&mut self) -> Result<()> {
+        let Some(ref auth) = self.auth else {
+            return Ok(());
+        };
+
+        let api_url = auth.api_url.clone();
+        let token = auth.access_token.clone();
+        let time_range = self.time_range;
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+
+            #[derive(serde::Deserialize)]
+            struct ApiResponse {
+                data: StickinessResponse,
+            }
+
+            #[derive(serde::Deserialize)]
+            struct StickinessResponse {
+                ratio: f64,
+            }
+
+            // Fetch daily stickiness (DAU/MAU)
+            let daily_result = client
+                .get(format!(
+                    "{}/api/v1/metrics/stickiness/daily?range={}",
+                    api_url,
+                    time_range.as_param()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            let daily_ratio = match daily_result {
+                Ok(response) if response.status().is_success() => response
+                    .json::<ApiResponse>()
+                    .await
+                    .map(|r| r.data.ratio)
+                    .unwrap_or(0.0),
+                _ => 0.0,
+            };
+
+            // Fetch weekly stickiness (DAU/WAU)
+            let weekly_result = client
+                .get(format!(
+                    "{}/api/v1/metrics/stickiness/weekly?range={}",
+                    api_url,
+                    time_range.as_param()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            let weekly_ratio = match weekly_result {
+                Ok(response) if response.status().is_success() => response
+                    .json::<ApiResponse>()
+                    .await
+                    .map(|r| r.data.ratio)
+                    .unwrap_or(0.0),
+                _ => 0.0,
+            };
+
+            let _ = action_tx.send(Action::StickinessLoaded(super::action::StickinessData {
+                daily_ratio,
+                weekly_ratio,
+            }));
+        });
+
+        Ok(())
+    }
+
     fn send_test_events(&mut self, count: usize) -> Result<()> {
         // Check if server is running
         if self.server_process.is_none() {
@@ -1578,6 +3096,8 @@ impl App {
             ("stop", "Stop server"),
             ("test", "Send test events"),
             ("tail", "Live event stream"),
+            ("login", "Authenticate"),
+            ("boards", "View boards"),
             ("help", "Show help"),
             ("quit", "Exit"),
         ]
@@ -1682,6 +3202,109 @@ impl App {
 
         // Position cursor after the input text (accounting for leading space)
         frame.set_cursor_position((inner_chunks[1].x + 1 + cursor_pos as u16, inner_chunks[1].y));
+    }
+
+    /// Render board edit dialog overlay.
+    fn render_board_edit_dialog(
+        frame: &mut ratatui::Frame,
+        area: Rect,
+        theme: &Theme,
+        edit_mode: &BoardEditMode,
+    ) {
+        let (title, content_lines, show_input) = match edit_mode {
+            BoardEditMode::Create { title } => (
+                "New Board",
+                vec![
+                    Line::from(vec![
+                        Span::raw(" Title: "),
+                        Span::styled(title.value(), theme.brand_style()),
+                        Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK)),
+                    ]),
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled(" Enter", Style::default().bold()),
+                        Span::styled(" create  ", theme.muted_style()),
+                        Span::styled("Esc", Style::default().bold()),
+                        Span::styled(" cancel", theme.muted_style()),
+                    ]),
+                ],
+                true,
+            ),
+            BoardEditMode::Edit { title, .. } => (
+                "Edit Board",
+                vec![
+                    Line::from(vec![
+                        Span::raw(" Title: "),
+                        Span::styled(title.value(), theme.brand_style()),
+                        Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK)),
+                    ]),
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled(" Enter", Style::default().bold()),
+                        Span::styled(" save  ", theme.muted_style()),
+                        Span::styled("Esc", Style::default().bold()),
+                        Span::styled(" cancel", theme.muted_style()),
+                    ]),
+                ],
+                true,
+            ),
+            BoardEditMode::Delete { title, .. } => (
+                "Delete Board",
+                vec![
+                    Line::from(vec![Span::styled(
+                        format!(" Delete \"{}\"?", title),
+                        Style::default().fg(Color::Red),
+                    )]),
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled(" y", Style::default().bold().fg(Color::Red)),
+                        Span::styled(" delete  ", theme.muted_style()),
+                        Span::styled("n/Esc", Style::default().bold()),
+                        Span::styled(" cancel", theme.muted_style()),
+                    ]),
+                ],
+                false,
+            ),
+        };
+
+        // Calculate popup size - centered dialog
+        let popup_height = (content_lines.len() + 2) as u16; // +2 for border
+        let popup_width = 40.min(area.width.saturating_sub(4));
+
+        // Center the popup
+        let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+        let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+
+        let popup_area = Rect {
+            x: popup_x,
+            y: popup_y,
+            width: popup_width,
+            height: popup_height,
+        };
+
+        // Clear background
+        frame.render_widget(Clear, popup_area);
+
+        // Draw popup with border
+        let popup_block = Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_style(theme.brand_style());
+        let inner = popup_block.inner(popup_area);
+        frame.render_widget(popup_block, popup_area);
+
+        // Render content
+        frame.render_widget(Paragraph::new(content_lines), inner);
+
+        // Position cursor if input mode
+        if show_input {
+            let cursor_pos = match edit_mode {
+                BoardEditMode::Create { title } => title.visual_cursor(),
+                BoardEditMode::Edit { title, .. } => title.visual_cursor(),
+                _ => 0,
+            };
+            frame.set_cursor_position((inner.x + 8 + cursor_pos as u16, inner.y));
+        }
     }
 
     /// Handle an action.
@@ -1812,7 +3435,140 @@ impl App {
                     self.server_metrics = Some(metrics);
                 }
             }
-            _ => {}
+            Action::LoginSuccess(email) => {
+                // Reload credentials and navigate back
+                self.auth = crate::cmd::auth::load_credentials().ok();
+                self.login_state = LoginState::default();
+                self.error_message = Some(format!("Logged in as {}", email));
+                // Go back to previous view
+                if let Some(prev) = self.view_history.pop() {
+                    self.view = prev;
+                } else {
+                    self.view = View::Dashboard;
+                }
+            }
+            Action::LoginFailed(msg) => {
+                self.login_state.loading = false;
+                self.login_state.error = Some(msg);
+            }
+            Action::Logout => {
+                let _ = crate::cmd::auth::clear_credentials();
+                self.auth = None;
+                self.boards.clear();
+                self.current_board = None;
+            }
+            Action::BoardsLoaded(boards) => {
+                self.boards = boards;
+                self.selected_index = 0;
+            }
+            Action::SelectBoard(board_id) => {
+                let _ = self.load_board_detail(&board_id);
+                self.action_tx.send(Action::Navigate(View::BoardDetail))?;
+            }
+            Action::BoardDataLoaded(data) => {
+                self.current_board = Some(data);
+                self.last_board_fetch = Some(Instant::now());
+            }
+            // Query actions
+            Action::ExecuteQuery(query) => {
+                self.query_state.query = query;
+                let _ = self.execute_query();
+            }
+            Action::QueryResult(result) => {
+                self.query_state.loading = false;
+                self.query_state.result = Some(result);
+                self.query_state.error = None;
+            }
+            Action::QueryFailed(msg) => {
+                self.query_state.loading = false;
+                self.query_state.error = Some(msg);
+            }
+            // Board management actions
+            Action::CreateBoard(title) => {
+                self.create_board(&title)?;
+            }
+            Action::UpdateBoard(board_id, title) => {
+                self.update_board(&board_id, &title)?;
+            }
+            Action::DeleteBoard(board_id) => {
+                self.delete_board(&board_id)?;
+            }
+            Action::TogglePinBoard(board_id) => {
+                self.toggle_pin_board(&board_id)?;
+            }
+            Action::BoardUpdated => {
+                // Refresh boards list
+                self.board_edit_mode = None;
+                self.load_boards()?;
+            }
+            Action::BoardDeleted(board_id) => {
+                self.board_edit_mode = None;
+                self.boards.retain(|b| b.id != board_id);
+                if self.current_board.as_ref().map(|b| &b.id) == Some(&board_id) {
+                    self.current_board = None;
+                    self.action_tx.send(Action::Navigate(View::Boards))?;
+                }
+            }
+            // Board sharing actions
+            Action::ShareBoard(board_id) => {
+                self.share_board(&board_id)?;
+            }
+            Action::UnshareBoard(board_id) => {
+                self.unshare_board(&board_id)?;
+            }
+            Action::BoardShared(board_id, share_url) => {
+                // Update the board in our list
+                if let Some(board) = self.boards.iter_mut().find(|b| b.id == board_id) {
+                    // Extract hash from URL
+                    if let Some(hash) = share_url.rsplit('/').next() {
+                        board.share_hash = Some(hash.to_string());
+                    }
+                }
+                self.error_message = Some(format!("Shared: {}", share_url));
+            }
+            Action::BoardUnshared(board_id) => {
+                if let Some(board) = self.boards.iter_mut().find(|b| b.id == board_id) {
+                    board.share_hash = None;
+                }
+                self.error_message = Some("Board unshared".to_string());
+            }
+            // Enhanced metrics actions
+            Action::SetTimeRange(range) => {
+                self.time_range = range;
+                if self.current_board.is_some() {
+                    self.action_tx.send(Action::RefreshMetrics)?;
+                }
+            }
+            Action::ToggleComparison => {
+                self.show_comparison = !self.show_comparison;
+                if self.current_board.is_some() {
+                    self.action_tx.send(Action::RefreshMetrics)?;
+                }
+            }
+            Action::SetBreakdown(dim) => {
+                self.breakdown = dim;
+                if self.current_board.is_some() {
+                    self.action_tx.send(Action::RefreshMetrics)?;
+                }
+            }
+            Action::RefreshMetrics => {
+                if let Some(ref board) = self.current_board {
+                    let board_id = board.id.clone();
+                    self.load_board_detail(&board_id)?;
+                }
+            }
+            Action::TopEventsLoaded(events) => {
+                self.top_events = events;
+            }
+            Action::StickinessLoaded(data) => {
+                self.stickiness = Some(data);
+            }
+            // Unused actions in TUI context
+            Action::Render | Action::Tick | Action::FocusNext | Action::FocusPrevious => {}
+            Action::SelectPersona(_)
+            | Action::ToggleSource(_)
+            | Action::ToggleSink(_)
+            | Action::CompleteInit => {}
         }
 
         Ok(())
@@ -1855,11 +3611,61 @@ impl App {
                 self.action_tx.send(Action::StopServer)?;
             }
             "tail" | "t" => {
-                self.start_tail()?;
-                self.action_tx.send(Action::Navigate(View::Tail))?;
+                #[cfg(unix)]
+                {
+                    self.start_tail()?;
+                    self.action_tx.send(Action::Navigate(View::Tail))?;
+                }
+                #[cfg(not(unix))]
+                {
+                    self.action_tx.send(Action::Error(
+                        "Tail is not available on Windows (requires Unix sockets)".to_string(),
+                    ))?;
+                }
             }
             "test" => {
                 self.send_test_events(5)?; // Send 5 test events
+            }
+            "login" => {
+                if self.auth.is_some() {
+                    self.action_tx.send(Action::Error(format!(
+                        "Already logged in as {}",
+                        self.auth.as_ref().unwrap().email
+                    )))?;
+                } else {
+                    // Reset login state
+                    self.login_state = LoginState::default();
+                    self.action_tx.send(Action::Navigate(View::Login))?;
+                }
+            }
+            "logout" => {
+                if self.auth.is_some() {
+                    // Clear credentials from disk and memory
+                    let _ = crate::cmd::auth::clear_credentials();
+                    let email = self
+                        .auth
+                        .as_ref()
+                        .map(|a| a.email.clone())
+                        .unwrap_or_default();
+                    self.auth = None;
+                    self.boards.clear();
+                    self.current_board = None;
+                    self.action_tx
+                        .send(Action::Error(format!("Logged out from {}", email)))?;
+                } else {
+                    self.action_tx
+                        .send(Action::Error("Not logged in".to_string()))?;
+                }
+            }
+            "boards" | "b" => {
+                if self.auth.is_none() {
+                    self.action_tx
+                        .send(Action::Error("Login required. Use /login".to_string()))?;
+                } else {
+                    // Navigate to boards and trigger load
+                    self.action_tx.send(Action::Navigate(View::Boards))?;
+                    self.load_boards()?;
+                }
             }
             "quit" | "exit" => {
                 self.action_tx.send(Action::Quit)?;
@@ -2079,10 +3885,14 @@ impl App {
 }
 
 /// Batch type constants (aligned with SchemaType wire values)
+// Tap formatting helpers (Unix only)
+#[cfg(unix)]
 const BATCH_TYPE_EVENT: u8 = 1;
+#[cfg(unix)]
 const BATCH_TYPE_LOG: u8 = 2;
 
 /// Format a TapEnvelope into human-readable strings (one per decoded item)
+#[cfg(unix)]
 fn format_tap_envelope(envelope: &tell_tap::TapEnvelope) -> String {
     match envelope.batch_type {
         BATCH_TYPE_EVENT => format_events(envelope),
@@ -2104,6 +3914,7 @@ fn format_tap_envelope(envelope: &tell_tap::TapEnvelope) -> String {
 }
 
 /// Get a message from the envelope by index
+#[cfg(unix)]
 fn get_envelope_message(envelope: &tell_tap::TapEnvelope, index: usize) -> Option<&[u8]> {
     if index >= envelope.offsets.len() {
         return None;
@@ -2117,6 +3928,7 @@ fn get_envelope_message(envelope: &tell_tap::TapEnvelope, index: usize) -> Optio
 }
 
 /// Format events from envelope
+#[cfg(unix)]
 fn format_events(envelope: &tell_tap::TapEnvelope) -> String {
     use tell_protocol::{FlatBatch, decode_event_data};
 
@@ -2171,6 +3983,7 @@ fn format_events(envelope: &tell_tap::TapEnvelope) -> String {
 }
 
 /// Format logs from envelope
+#[cfg(unix)]
 fn format_logs(envelope: &tell_tap::TapEnvelope) -> String {
     use tell_protocol::{FlatBatch, decode_log_data};
 

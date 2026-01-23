@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "High-performance multi-protocol data streaming engine"
+description = "Analytics that tell the whole story"
 
 [features]
 default = ["connector-github", "connector-shopify"]
