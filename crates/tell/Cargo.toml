@@ -30,6 +30,7 @@ tell-connectors = { workspace = true }
 tell-tap = { workspace = true }
 libc = "0.2"
 
+[dependencies]
 # Async runtime
 tokio = { workspace = true }
 tokio-util = { workspace = true }

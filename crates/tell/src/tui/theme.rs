@@ -9,6 +9,8 @@ pub struct Theme {
     pub brand: Color,
     /// Success color (green)
     pub success: Color,
+    /// Warning color (amber/yellow)
+    pub warning: Color,
     /// Error color (red)
     pub error: Color,
     /// Muted/secondary text
@@ -27,6 +29,7 @@ impl Default for Theme {
             // Orange/coral brand color (matches installer)
             brand: Color::Rgb(255, 143, 115), // ~209 in 256-color
             success: Color::Green,
+            warning: Color::Yellow,
             error: Color::Red,
             muted: Color::DarkGray,
             bg: Color::Reset,
@@ -46,6 +49,11 @@ impl Theme {
     /// Style for success messages.
     pub fn success_style(&self) -> Style {
         Style::default().fg(self.success)
+    }
+
+    /// Style for warning messages.
+    pub fn warning_style(&self) -> Style {
+        Style::default().fg(self.warning)
     }
 
     /// Style for error messages.

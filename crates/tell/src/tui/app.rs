@@ -320,27 +320,58 @@ impl App {
             let footer_area = main_chunks[2];
 
             // Header with license status
+            // Format: "Tell v{version} · {license_info}"
             let version = env!("CARGO_PKG_VERSION");
-            let license_display = match &self.license_state {
-                LicenseState::Free => "Tell".to_string(),
+            let brand_part = format!("Tell v{}", version);
+
+            let header_spans: Vec<Span> = match &self.license_state {
+                LicenseState::Free | LicenseState::Invalid(_) => {
+                    vec![
+                        Span::raw(" "),
+                        Span::styled(brand_part, theme.brand_style()),
+                        Span::styled(" · ", theme.muted_style()),
+                        Span::styled("Unregistered", theme.muted_style()),
+                    ]
+                }
                 LicenseState::Licensed(lic) => {
-                    format!("{} ({})", lic.tier().display_name(), lic.customer_name())
+                    let days = lic.payload.days_until_expiry();
+                    let tier_name = match lic.tier() {
+                        tell_license::Tier::Pro => "Pro",
+                        tell_license::Tier::Enterprise => "Enterprise",
+                        _ => "Licensed",
+                    };
+                    let tier_part = format!("{} ({})", tier_name, lic.customer_name());
+
+                    if days <= 30 {
+                        // Expiring soon - show days in warning color
+                        vec![
+                            Span::raw(" "),
+                            Span::styled(brand_part, theme.brand_style().bold()),
+                            Span::styled(" · ", theme.muted_style()),
+                            Span::styled(tier_part, theme.brand_style().bold()),
+                            Span::styled(" · ", theme.muted_style()),
+                            Span::styled(format!("{}d", days), theme.warning_style()),
+                        ]
+                    } else {
+                        // Valid license
+                        vec![
+                            Span::raw(" "),
+                            Span::styled(brand_part, theme.brand_style().bold()),
+                            Span::styled(" · ", theme.muted_style()),
+                            Span::styled(tier_part, theme.brand_style().bold()),
+                        ]
+                    }
                 }
-                LicenseState::Expired(lic) => {
-                    format!("{} EXPIRED", lic.tier().display_name())
+                LicenseState::Expired(_) => {
+                    vec![
+                        Span::raw(" "),
+                        Span::styled(brand_part, theme.brand_style()),
+                        Span::styled(" · ", theme.muted_style()),
+                        Span::styled("Renew", theme.error_style()),
+                    ]
                 }
-                LicenseState::Invalid(_) => "Tell".to_string(),
             };
-            let license_style = match &self.license_state {
-                LicenseState::Expired(_) => Style::default().fg(ratatui::style::Color::Red).bold(),
-                LicenseState::Licensed(_) => theme.brand_style().bold(),
-                _ => theme.brand_style().bold(),
-            };
-            let header_line = Line::from(vec![
-                Span::raw(" "),
-                Span::styled(format!("{} v{}", license_display, version), license_style),
-            ]);
-            frame.render_widget(Paragraph::new(header_line), header_area);
+            frame.render_widget(Paragraph::new(Line::from(header_spans)), header_area);
 
             // Content
             let content = ui::render_view_content(
@@ -1854,10 +1885,10 @@ impl App {
             }
             "test" => self.send_test_events(5)?,
             "login" => {
-                if self.auth.is_some() {
+                if let Some(auth) = &self.auth {
                     self.action_tx.send(Action::Error(format!(
                         "Already logged in as {}",
-                        self.auth.as_ref().unwrap().email
+                        auth.email
                     )))?;
                 } else {
                     self.login_state = LoginState::default();
@@ -1865,12 +1896,8 @@ impl App {
                 }
             }
             "logout" => {
-                if self.auth.is_some() {
-                    let email = self
-                        .auth
-                        .as_ref()
-                        .map(|a| a.email.clone())
-                        .unwrap_or_default();
+                if let Some(auth) = &self.auth {
+                    let email = auth.email.clone();
                     let _ = crate::cmd::auth::clear_credentials();
                     self.auth = None;
                     self.boards.clear();
