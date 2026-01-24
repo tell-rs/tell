@@ -26,11 +26,7 @@ tell-sinks = { workspace = true }
 tell-transform = { workspace = true }
 tell-metrics = { workspace = true }
 tell-connectors = { workspace = true }
-[target.'cfg(unix)'.dependencies]
-tell-tap = { workspace = true }
-libc = "0.2"
 
-[dependencies]
 # Async runtime
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -95,6 +91,10 @@ clickhouse = { workspace = true }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 tui-input = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+tell-tap = { workspace = true }
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = { workspace = true }
