@@ -34,10 +34,13 @@
 //! {base_path}/
 //! └── {workspace_id}/
 //!     └── {date}/
-//!         └── {hour}/
-//!             ├── events.arrow
-//!             ├── logs.arrow
-//!             └── snapshots.arrow
+//!         ├── events_v1.arrow
+//!         ├── logs_v1.arrow
+//!         ├── snapshots_v1.arrow
+//!         ├── context_v1.arrow
+//!         ├── users_v1.arrow
+//!         ├── user_devices.arrow
+//!         └── user_traits.arrow
 //! ```
 //!
 //! # Compatibility
@@ -57,16 +60,21 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use crate::util::json::{extract_json_object, extract_json_string};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use parking_lot::Mutex;
 use tell_metrics::{SinkMetricsConfig, SinkMetricsProvider, SinkMetricsSnapshot};
-use tell_protocol::{Batch, BatchType, FlatBatch, SchemaType, decode_event_data, decode_log_data};
+use tell_protocol::{
+    Batch, BatchType, EventType, FlatBatch, SchemaType, decode_event_data, decode_log_data,
+};
 use tokio::sync::mpsc;
 
 pub use writer::ArrowIpcWriter;
 
 // Re-export shared types
-pub use crate::util::{EventRow, LogRow, SnapshotRow};
+pub use crate::util::{
+    ContextRow, EventRow, LogRow, SnapshotRow, UserDeviceRow, UserRow, UserTraitRow,
+};
 
 // =============================================================================
 // Configuration
@@ -92,7 +100,7 @@ impl Default for ArrowIpcConfig {
     fn default() -> Self {
         Self {
             path: PathBuf::from("arrow_ipc"),
-            rotation_interval: RotationInterval::Hourly,
+            rotation_interval: RotationInterval::Daily,
             buffer_size: 10_000,
             flush_interval: Duration::from_secs(60),
         }
@@ -153,6 +161,18 @@ pub struct ArrowIpcSinkMetrics {
     /// Total snapshot rows written
     pub snapshot_rows_written: AtomicU64,
 
+    /// Total context rows written
+    pub context_rows_written: AtomicU64,
+
+    /// Total user rows written
+    pub user_rows_written: AtomicU64,
+
+    /// Total user device rows written
+    pub user_device_rows_written: AtomicU64,
+
+    /// Total user trait rows written
+    pub user_trait_rows_written: AtomicU64,
+
     /// Total bytes written
     pub bytes_written: AtomicU64,
 
@@ -174,6 +194,10 @@ impl ArrowIpcSinkMetrics {
             event_rows_written: AtomicU64::new(0),
             log_rows_written: AtomicU64::new(0),
             snapshot_rows_written: AtomicU64::new(0),
+            context_rows_written: AtomicU64::new(0),
+            user_rows_written: AtomicU64::new(0),
+            user_device_rows_written: AtomicU64::new(0),
+            user_trait_rows_written: AtomicU64::new(0),
             bytes_written: AtomicU64::new(0),
             files_created: AtomicU64::new(0),
             write_errors: AtomicU64::new(0),
@@ -199,6 +223,29 @@ impl ArrowIpcSinkMetrics {
     #[inline]
     pub fn record_snapshot_rows(&self, count: u64) {
         self.snapshot_rows_written
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_context_rows(&self, count: u64) {
+        self.context_rows_written
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_user_rows(&self, count: u64) {
+        self.user_rows_written.fetch_add(count, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_user_device_rows(&self, count: u64) {
+        self.user_device_rows_written
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_user_trait_rows(&self, count: u64) {
+        self.user_trait_rows_written
             .fetch_add(count, Ordering::Relaxed);
     }
 
@@ -229,6 +276,10 @@ impl ArrowIpcSinkMetrics {
             event_rows_written: self.event_rows_written.load(Ordering::Relaxed),
             log_rows_written: self.log_rows_written.load(Ordering::Relaxed),
             snapshot_rows_written: self.snapshot_rows_written.load(Ordering::Relaxed),
+            context_rows_written: self.context_rows_written.load(Ordering::Relaxed),
+            user_rows_written: self.user_rows_written.load(Ordering::Relaxed),
+            user_device_rows_written: self.user_device_rows_written.load(Ordering::Relaxed),
+            user_trait_rows_written: self.user_trait_rows_written.load(Ordering::Relaxed),
             bytes_written: self.bytes_written.load(Ordering::Relaxed),
             files_created: self.files_created.load(Ordering::Relaxed),
             write_errors: self.write_errors.load(Ordering::Relaxed),
@@ -244,6 +295,10 @@ pub struct MetricsSnapshot {
     pub event_rows_written: u64,
     pub log_rows_written: u64,
     pub snapshot_rows_written: u64,
+    pub context_rows_written: u64,
+    pub user_rows_written: u64,
+    pub user_device_rows_written: u64,
+    pub user_trait_rows_written: u64,
     pub bytes_written: u64,
     pub files_created: u64,
     pub write_errors: u64,
@@ -276,7 +331,13 @@ impl SinkMetricsProvider for ArrowIpcSinkMetricsHandle {
         SinkMetricsSnapshot {
             batches_received: s.batches_received,
             batches_written: s.files_created,
-            messages_written: s.event_rows_written + s.log_rows_written + s.snapshot_rows_written,
+            messages_written: s.event_rows_written
+                + s.log_rows_written
+                + s.snapshot_rows_written
+                + s.context_rows_written
+                + s.user_rows_written
+                + s.user_device_rows_written
+                + s.user_trait_rows_written,
             bytes_written: s.bytes_written,
             write_errors: s.write_errors + s.decode_errors,
             flush_count: s.files_created,
@@ -329,6 +390,10 @@ struct RowBuffer {
     events: Vec<EventRow>,
     logs: Vec<LogRow>,
     snapshots: Vec<SnapshotRow>,
+    context: Vec<ContextRow>,
+    users: Vec<UserRow>,
+    user_devices: Vec<UserDeviceRow>,
+    user_traits: Vec<UserTraitRow>,
     buffer_size: usize,
 }
 
@@ -338,6 +403,10 @@ impl RowBuffer {
             events: Vec::with_capacity(buffer_size),
             logs: Vec::with_capacity(buffer_size),
             snapshots: Vec::with_capacity(buffer_size),
+            context: Vec::with_capacity(buffer_size),
+            users: Vec::with_capacity(buffer_size),
+            user_devices: Vec::with_capacity(buffer_size),
+            user_traits: Vec::with_capacity(buffer_size),
             buffer_size,
         }
     }
@@ -355,10 +424,30 @@ impl RowBuffer {
         self.snapshots.push(row);
     }
 
+    fn add_context(&mut self, row: ContextRow) {
+        self.context.push(row);
+    }
+
+    fn add_user(&mut self, row: UserRow) {
+        self.users.push(row);
+    }
+
+    fn add_user_device(&mut self, row: UserDeviceRow) {
+        self.user_devices.push(row);
+    }
+
+    fn add_user_trait(&mut self, row: UserTraitRow) {
+        self.user_traits.push(row);
+    }
+
     fn should_flush(&self) -> bool {
         self.events.len() >= self.buffer_size
             || self.logs.len() >= self.buffer_size
             || self.snapshots.len() >= self.buffer_size
+            || self.context.len() >= self.buffer_size
+            || self.users.len() >= self.buffer_size
+            || self.user_devices.len() >= self.buffer_size
+            || self.user_traits.len() >= self.buffer_size
     }
 
     fn take_events(&mut self) -> Vec<EventRow> {
@@ -373,8 +462,30 @@ impl RowBuffer {
         std::mem::take(&mut self.snapshots)
     }
 
+    fn take_context(&mut self) -> Vec<ContextRow> {
+        std::mem::take(&mut self.context)
+    }
+
+    fn take_users(&mut self) -> Vec<UserRow> {
+        std::mem::take(&mut self.users)
+    }
+
+    fn take_user_devices(&mut self) -> Vec<UserDeviceRow> {
+        std::mem::take(&mut self.user_devices)
+    }
+
+    fn take_user_traits(&mut self) -> Vec<UserTraitRow> {
+        std::mem::take(&mut self.user_traits)
+    }
+
     fn is_empty(&self) -> bool {
-        self.events.is_empty() && self.logs.is_empty() && self.snapshots.is_empty()
+        self.events.is_empty()
+            && self.logs.is_empty()
+            && self.snapshots.is_empty()
+            && self.context.is_empty()
+            && self.users.is_empty()
+            && self.user_devices.is_empty()
+            && self.user_traits.is_empty()
     }
 }
 
@@ -603,22 +714,143 @@ impl ArrowIpcSink {
                 .or_insert_with(|| RowBuffer::new(self.config.buffer_size));
 
             for event in events {
-                let row = EventRow {
-                    batch_timestamp,
-                    timestamp: event.timestamp as i64,
-                    event_type: event.event_type.as_str().to_string(),
-                    device_id: event.device_id.map(|b| b.to_vec()),
-                    session_id: event.session_id.map(|b| b.to_vec()),
-                    event_name: event.event_name.map(|s| s.to_string()),
-                    payload: event.payload.to_vec(),
-                    source_ip: source_ip.to_vec(),
-                    workspace_id: workspace_id as u64,
-                };
-                buffer.add_event(row);
+                match event.event_type {
+                    EventType::Track => {
+                        let row = EventRow {
+                            batch_timestamp,
+                            timestamp: event.timestamp as i64,
+                            event_type: event.event_type.as_str().to_string(),
+                            device_id: event.device_id.map(|b| b.to_vec()),
+                            session_id: event.session_id.map(|b| b.to_vec()),
+                            event_name: event.event_name.map(|s| s.to_string()),
+                            payload: event.payload.to_vec(),
+                            source_ip: source_ip.to_vec(),
+                            workspace_id: workspace_id as u64,
+                        };
+                        buffer.add_event(row);
+                    }
+                    EventType::Identify => {
+                        self.add_identify_event(
+                            buffer,
+                            &event,
+                            workspace_id as u64,
+                            batch_timestamp,
+                        );
+                    }
+                    EventType::Context => {
+                        self.add_context_event(
+                            buffer,
+                            &event,
+                            workspace_id as u64,
+                            source_ip,
+                            batch_timestamp,
+                        );
+                    }
+                    EventType::Group
+                    | EventType::Alias
+                    | EventType::Enrich
+                    | EventType::Unknown => {
+                        // Skip unsupported event types for now
+                        tracing::debug!(
+                            event_type = %event.event_type,
+                            "skipping unsupported event type"
+                        );
+                    }
+                }
             }
         }
 
         Ok(())
+    }
+
+    /// Add IDENTIFY event to users, user_devices, and user_traits buffers
+    fn add_identify_event(
+        &self,
+        buffer: &mut RowBuffer,
+        event: &tell_protocol::DecodedEvent<'_>,
+        workspace_id: u64,
+        batch_timestamp: i64,
+    ) {
+        let payload = event.payload;
+        let timestamp = event.timestamp as i64;
+
+        // Extract email - required for user identification
+        let email = extract_json_string(payload, "email");
+        if email.is_empty() {
+            tracing::debug!("IDENTIFY event missing email, skipping");
+            return;
+        }
+
+        // Generate user_id from email using UUID v5 (same as ClickHouse sink)
+        let user_id = generate_user_id_from_email(&email);
+
+        // 1. Add user row
+        let name = extract_json_string(payload, "name");
+        buffer.add_user(UserRow {
+            user_id: user_id.clone(),
+            workspace_id,
+            email: email.clone(),
+            name,
+            updated_at: timestamp,
+        });
+
+        // 2. Add user device if device_id present
+        if let Some(device_id) = event.device_id {
+            buffer.add_user_device(UserDeviceRow {
+                user_id: user_id.clone(),
+                workspace_id,
+                device_id: device_id.to_vec(),
+                linked_at: timestamp,
+            });
+        }
+
+        // 3. Extract traits from payload and add as user_traits
+        let traits = extract_json_object(payload, "traits");
+        for (key, value) in traits {
+            buffer.add_user_trait(UserTraitRow {
+                user_id: user_id.clone(),
+                workspace_id,
+                trait_key: key,
+                trait_value: value,
+                updated_at: batch_timestamp,
+            });
+        }
+    }
+
+    /// Add CONTEXT event to context buffer
+    fn add_context_event(
+        &self,
+        buffer: &mut RowBuffer,
+        event: &tell_protocol::DecodedEvent<'_>,
+        workspace_id: u64,
+        source_ip: [u8; 16],
+        batch_timestamp: i64,
+    ) {
+        let payload = event.payload;
+        let timestamp = event.timestamp as i64;
+
+        let device_id = event.device_id.map(|b| b.to_vec()).unwrap_or_default();
+        let session_id = event.session_id.map(|b| b.to_vec()).unwrap_or_default();
+
+        // Extract context fields from payload
+        let device_type = extract_json_string(payload, "device_type");
+        let os = extract_json_string(payload, "os");
+        let os_version = extract_json_string(payload, "os_version");
+        let country = extract_json_string(payload, "country");
+
+        buffer.add_context(ContextRow {
+            timestamp,
+            batch_timestamp,
+            workspace_id,
+            device_id,
+            session_id,
+            device_type,
+            os,
+            os_version,
+            country,
+            source_ip: source_ip.to_vec(),
+            properties: payload.to_vec(),
+        });
     }
 
     fn process_logs(
@@ -739,13 +971,17 @@ impl ArrowIpcSink {
     }
 
     fn flush_key(&self, key: &WriterKey) -> Result<(), ArrowIpcSinkError> {
-        let (events, logs, snapshots) = {
+        let (events, logs, snapshots, context, users, user_devices, user_traits) = {
             let mut buffers = self.buffers.lock();
             match buffers.get_mut(key) {
                 Some(buffer) if !buffer.is_empty() => (
                     buffer.take_events(),
                     buffer.take_logs(),
                     buffer.take_snapshots(),
+                    buffer.take_context(),
+                    buffer.take_users(),
+                    buffer.take_user_devices(),
+                    buffer.take_user_traits(),
                 ),
                 _ => return Ok(()),
             }
@@ -753,16 +989,26 @@ impl ArrowIpcSink {
 
         let dir = key.path(&self.config.path);
 
-        // Write events if any
-        if !events.is_empty() {
-            let path = dir.join("events.arrow");
-            let count = events.len();
+        // Ensure directory exists (once for all writes)
+        let has_data = !events.is_empty()
+            || !logs.is_empty()
+            || !snapshots.is_empty()
+            || !context.is_empty()
+            || !users.is_empty()
+            || !user_devices.is_empty()
+            || !user_traits.is_empty();
 
+        if has_data {
             std::fs::create_dir_all(&dir).map_err(|e| ArrowIpcSinkError::CreateDir {
                 path: dir.display().to_string(),
                 source: e,
             })?;
+        }
 
+        // Write events if any
+        if !events.is_empty() {
+            let path = dir.join("events_v1.arrow");
+            let count = events.len();
             let bytes = ArrowIpcWriter::write_events(&path, events)?;
 
             self.metrics.record_event_rows(count as u64);
@@ -773,20 +1019,14 @@ impl ArrowIpcSink {
                 path = %path.display(),
                 rows = count,
                 bytes = bytes,
-                "wrote events arrow file"
+                "wrote events_v1 arrow file"
             );
         }
 
         // Write logs if any
         if !logs.is_empty() {
-            let path = dir.join("logs.arrow");
+            let path = dir.join("logs_v1.arrow");
             let count = logs.len();
-
-            std::fs::create_dir_all(&dir).map_err(|e| ArrowIpcSinkError::CreateDir {
-                path: dir.display().to_string(),
-                source: e,
-            })?;
-
             let bytes = ArrowIpcWriter::write_logs(&path, logs)?;
 
             self.metrics.record_log_rows(count as u64);
@@ -797,20 +1037,14 @@ impl ArrowIpcSink {
                 path = %path.display(),
                 rows = count,
                 bytes = bytes,
-                "wrote logs arrow file"
+                "wrote logs_v1 arrow file"
             );
         }
 
         // Write snapshots if any
         if !snapshots.is_empty() {
-            let path = dir.join("snapshots.arrow");
+            let path = dir.join("snapshots_v1.arrow");
             let count = snapshots.len();
-
-            std::fs::create_dir_all(&dir).map_err(|e| ArrowIpcSinkError::CreateDir {
-                path: dir.display().to_string(),
-                source: e,
-            })?;
-
             let bytes = ArrowIpcWriter::write_snapshots(&path, snapshots)?;
 
             self.metrics.record_snapshot_rows(count as u64);
@@ -821,7 +1055,79 @@ impl ArrowIpcSink {
                 path = %path.display(),
                 rows = count,
                 bytes = bytes,
-                "wrote snapshots arrow file"
+                "wrote snapshots_v1 arrow file"
+            );
+        }
+
+        // Write context if any
+        if !context.is_empty() {
+            let path = dir.join("context_v1.arrow");
+            let count = context.len();
+            let bytes = ArrowIpcWriter::write_context(&path, context)?;
+
+            self.metrics.record_context_rows(count as u64);
+            self.metrics.record_bytes(bytes);
+            self.metrics.record_file_created();
+
+            tracing::debug!(
+                path = %path.display(),
+                rows = count,
+                bytes = bytes,
+                "wrote context_v1 arrow file"
+            );
+        }
+
+        // Write users if any
+        if !users.is_empty() {
+            let path = dir.join("users_v1.arrow");
+            let count = users.len();
+            let bytes = ArrowIpcWriter::write_users(&path, users)?;
+
+            self.metrics.record_user_rows(count as u64);
+            self.metrics.record_bytes(bytes);
+            self.metrics.record_file_created();
+
+            tracing::debug!(
+                path = %path.display(),
+                rows = count,
+                bytes = bytes,
+                "wrote users_v1 arrow file"
+            );
+        }
+
+        // Write user_devices if any
+        if !user_devices.is_empty() {
+            let path = dir.join("user_devices.arrow");
+            let count = user_devices.len();
+            let bytes = ArrowIpcWriter::write_user_devices(&path, user_devices)?;
+
+            self.metrics.record_user_device_rows(count as u64);
+            self.metrics.record_bytes(bytes);
+            self.metrics.record_file_created();
+
+            tracing::debug!(
+                path = %path.display(),
+                rows = count,
+                bytes = bytes,
+                "wrote user_devices arrow file"
+            );
+        }
+
+        // Write user_traits if any
+        if !user_traits.is_empty() {
+            let path = dir.join("user_traits_v1.arrow");
+            let count = user_traits.len();
+            let bytes = ArrowIpcWriter::write_user_traits(&path, user_traits)?;
+
+            self.metrics.record_user_trait_rows(count as u64);
+            self.metrics.record_bytes(bytes);
+            self.metrics.record_file_created();
+
+            tracing::debug!(
+                path = %path.display(),
+                rows = count,
+                bytes = bytes,
+                "wrote user_traits_v1 arrow file"
             );
         }
 
@@ -850,6 +1156,27 @@ fn extract_source_ip(batch: &Batch) -> [u8; 16] {
     }
 
     ip_bytes
+}
+
+/// Standard DNS namespace UUID (RFC 4122)
+const DNS_NAMESPACE: uuid::Uuid = uuid::Uuid::from_bytes([
+    0x6b, 0xa7, 0xb8, 0x10, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30, 0xc8,
+]);
+
+/// Generate deterministic user_id from email using UUID v5
+///
+/// Uses DNS namespace UUID and SHA-1 hashing, matching the ClickHouse sink.
+fn generate_user_id_from_email(email: &str) -> String {
+    if email.is_empty() {
+        return String::new();
+    }
+
+    let normalized = email.trim().to_lowercase();
+    if normalized.is_empty() {
+        return String::new();
+    }
+
+    uuid::Uuid::new_v5(&DNS_NAMESPACE, normalized.as_bytes()).to_string()
 }
 
 // =============================================================================

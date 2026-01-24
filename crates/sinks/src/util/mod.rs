@@ -32,8 +32,11 @@ pub mod json;
 pub mod rate_limited_logger;
 
 pub use arrow_rows::{
-    EventRow, LogRow, SnapshotRow, event_schema, events_to_record_batch, log_schema,
-    logs_to_record_batch, snapshot_schema, snapshots_to_record_batch,
+    ContextRow, EventRow, LogRow, SnapshotRow, UserDeviceRow, UserRow, UserTraitRow,
+    context_schema, context_to_record_batch, event_schema, events_to_record_batch, log_schema,
+    logs_to_record_batch, snapshot_schema, snapshots_to_record_batch, user_device_schema,
+    user_devices_to_record_batch, user_schema, user_trait_schema, user_traits_to_record_batch,
+    users_to_record_batch,
 };
 pub use atomic_rotation::{
     AtomicRotationMetrics, AtomicRotationSink, BufferChain, ChainMetrics, DEFAULT_RETRY_DELAY,

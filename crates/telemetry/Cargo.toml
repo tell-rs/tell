@@ -1,0 +1,21 @@
+[package]
+name = "tell-telemetry"
+version = "0.1.0"
+edition = "2024"
+description = "Product telemetry for Tell - opt-in, transparent, non-blocking"
+
+[dependencies]
+tokio = { workspace = true, features = ["sync", "time", "rt", "net"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+dirs = { workspace = true }
+hostname = { workspace = true }
+tell-client = { workspace = true }
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

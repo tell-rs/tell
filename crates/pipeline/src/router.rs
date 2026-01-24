@@ -12,6 +12,7 @@ use crossfire::AsyncRx;
 use tell_metrics::{PipelineMetricsProvider, PipelineSnapshot};
 use tell_protocol::{Batch, SourceId};
 use tell_routing::{RoutingTable, SinkId};
+#[cfg(unix)]
 use tell_tap::TapPoint;
 use tell_transform::Chain;
 use tokio::sync::mpsc;
@@ -64,7 +65,8 @@ pub struct Router {
     /// Per-source transformer chains (takes precedence over global)
     source_transformers: HashMap<SourceId, Chain>,
 
-    /// Optional tap point for live streaming to CLI clients
+    /// Optional tap point for live streaming to CLI clients (Unix only)
+    #[cfg(unix)]
     tap_point: Option<Arc<TapPoint>>,
 }
 
@@ -110,6 +112,7 @@ impl Router {
             backpressure_tracker: BackpressureTracker::new(),
             transformers: None,
             source_transformers: HashMap::new(),
+            #[cfg(unix)]
             tap_point: None,
         }
     }
@@ -177,25 +180,35 @@ impl Router {
             .unwrap_or_default()
     }
 
-    /// Set the tap point for live streaming to CLI clients
+    /// Set the tap point for live streaming to CLI clients (Unix only)
     ///
     /// The tap point receives all batches after transformation and broadcasts
     /// them to connected subscribers. It uses metadata-only filtering for
     /// minimal performance impact on the hot path.
+    #[cfg(unix)]
     pub fn set_tap_point(&mut self, tap_point: Arc<TapPoint>) {
         tracing::info!("tap point configured for live streaming");
         self.tap_point = Some(tap_point);
     }
 
     /// Get the tap point (if configured)
+    #[cfg(unix)]
     pub fn tap_point(&self) -> Option<&Arc<TapPoint>> {
         self.tap_point.as_ref()
     }
 
     /// Check if tap point is configured
+    #[cfg(unix)]
     #[inline]
     pub fn has_tap_point(&self) -> bool {
         self.tap_point.is_some()
+    }
+
+    /// Check if tap point is configured (always false on non-Unix)
+    #[cfg(not(unix))]
+    #[inline]
+    pub fn has_tap_point(&self) -> bool {
+        false
     }
 
     /// Register a sink with the router
@@ -295,8 +308,9 @@ impl Router {
         // This is the only allocation in the hot path
         let batch = Arc::new(batch);
 
-        // Tap the batch for live streaming (if configured)
+        // Tap the batch for live streaming (if configured, Unix only)
         // This is a no-op if no subscribers are connected
+        #[cfg(unix)]
         if let Some(ref tap_point) = self.tap_point {
             tap_point.tap(Arc::clone(&batch));
         }
@@ -392,7 +406,8 @@ impl Router {
 
         let batch = Arc::new(batch);
 
-        // Tap the batch for live streaming (if configured)
+        // Tap the batch for live streaming (if configured, Unix only)
+        #[cfg(unix)]
         if let Some(ref tap_point) = self.tap_point {
             tap_point.tap(Arc::clone(&batch));
         }
@@ -499,7 +514,7 @@ impl Router {
             route_count = self.routing_table.route_count(),
             global_transformers = ?self.transformer_names(),
             source_transformer_count = self.source_transformer_count(),
-            tap_enabled = self.tap_point.is_some(),
+            tap_enabled = self.has_tap_point(),
             "router starting"
         );
 
@@ -530,7 +545,7 @@ impl Router {
             sink_count = self.sink_count(),
             route_count = self.routing_table.route_count(),
             transformers = ?self.transformer_names(),
-            tap_enabled = self.tap_point.is_some(),
+            tap_enabled = self.has_tap_point(),
             "router starting (blocking mode)"
         );
 
@@ -567,7 +582,7 @@ impl Router {
             route_count = self.routing_table.route_count(),
             global_transformers = ?self.transformer_names(),
             source_transformer_count = self.source_transformer_count(),
-            tap_enabled = self.tap_point.is_some(),
+            tap_enabled = self.has_tap_point(),
             worker_count = worker_count,
             "router starting (sharded mode)"
         );

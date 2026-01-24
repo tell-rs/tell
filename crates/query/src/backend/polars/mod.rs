@@ -9,10 +9,13 @@
 //! {base_path}/
 //! └── {workspace_id}/
 //!     └── {date}/
-//!         └── {hour}/
-//!             ├── events.arrow
-//!             ├── logs.arrow
-//!             └── snapshots.arrow
+//!         ├── events.arrow
+//!         ├── logs.arrow
+//!         ├── snapshots.arrow
+//!         ├── context.arrow
+//!         ├── users.arrow
+//!         ├── user_devices.arrow
+//!         └── user_traits.arrow
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -20,13 +23,22 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use polars::prelude::*;
+use regex::Regex;
 
 use crate::backend::{QueryBackend, validate_sql};
 use crate::error::QueryError;
 use crate::result::{Column, DataType, QueryResult, TableInfo};
 
-/// Known table names that map to Arrow IPC files
-const KNOWN_TABLES: &[&str] = &["events", "logs", "snapshots"];
+/// Known table names that map to Arrow IPC files (matching ClickHouse naming)
+const KNOWN_TABLES: &[&str] = &[
+    "events_v1",
+    "logs_v1",
+    "snapshots_v1",
+    "context_v1",
+    "users_v1",
+    "user_devices",
+    "user_traits_v1",
+];
 
 /// Polars backend for querying Arrow IPC files
 #[derive(Debug, Clone)]
@@ -92,6 +104,29 @@ impl PolarsBackend {
         LazyFrame::scan_ipc_files(files.into(), args).map_err(QueryError::from)
     }
 
+    /// Strip workspace prefix from table names in SQL
+    ///
+    /// Analytics crate generates queries like `SELECT ... FROM 1.events_v1`
+    /// but Polars registers tables without the workspace prefix.
+    /// This converts `{workspace_id}.{table}` → `{table}`.
+    fn strip_workspace_prefix(&self, sql: &str) -> String {
+        // Match patterns like `1.events_v1`, `123.logs_v1`, etc.
+        // Using word boundary to avoid matching decimals or other patterns
+        let re = Regex::new(r"\b(\d+)\.([a-zA-Z_][a-zA-Z0-9_]*)\b").unwrap();
+
+        re.replace_all(sql, |caps: &regex::Captures| {
+            let table_name = &caps[2];
+            // Only strip prefix for known tables
+            if KNOWN_TABLES.contains(&table_name) {
+                table_name.to_string()
+            } else {
+                // Keep original for unknown patterns (might be something else)
+                caps[0].to_string()
+            }
+        })
+        .to_string()
+    }
+
     /// Register all available tables in the SQL context
     fn register_tables(&self, ctx: &mut polars::sql::SQLContext) -> Result<(), QueryError> {
         for table in KNOWN_TABLES {
@@ -146,13 +181,22 @@ impl QueryBackend for PolarsBackend {
 
         let start = Instant::now();
 
+        // Strip workspace prefix from table names (e.g., "1.events_v1" → "events_v1")
+        let processed_sql = self.strip_workspace_prefix(sql);
+
+        tracing::debug!(
+            original_sql = sql,
+            processed_sql = %processed_sql,
+            "preprocessed SQL for Polars"
+        );
+
         // Create SQL context and register tables
         let mut ctx = polars::sql::SQLContext::new();
         self.register_tables(&mut ctx)?;
 
         // Execute SQL
         let lf = ctx
-            .execute(sql)
+            .execute(&processed_sql)
             .map_err(|e| QueryError::Execution(format!("SQL execution failed: {}", e)))?;
 
         // Collect results

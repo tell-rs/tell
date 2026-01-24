@@ -3,7 +3,6 @@ name = "tell-tap"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 repository.workspace = true
 description = "Live streaming tap point for Tell - enables CLI tail functionality"
 

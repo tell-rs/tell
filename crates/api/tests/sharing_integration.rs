@@ -25,8 +25,10 @@ async fn test_app() -> (Router, Arc<ControlPlane>) {
     let state = AppState {
         metrics: Arc::new(create_mock_metrics_engine()),
         auth,
+        auth_service: None,
         control: Some(control.clone()),
         user_store: None,
+        local_user_store: None,
         jwt_secret: Some(test_utils::TEST_SECRET.to_vec()),
         jwt_expires_in: std::time::Duration::from_secs(3600),
         server_metrics: None,
@@ -47,6 +49,27 @@ fn auth_request(method: Method, uri: &str, token: &str, body: Option<Value>) -> 
         .uri(uri)
         .header(header::AUTHORIZATION, format!("Bearer {}", token))
         .header(header::CONTENT_TYPE, "application/json");
+
+    if let Some(json_body) = body {
+        builder.body(Body::from(json_body.to_string())).unwrap()
+    } else {
+        builder.body(Body::empty()).unwrap()
+    }
+}
+
+fn workspace_request(
+    method: Method,
+    uri: &str,
+    token: &str,
+    workspace_id: &str,
+    body: Option<Value>,
+) -> Request<Body> {
+    let builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("X-Workspace-ID", workspace_id);
 
     if let Some(json_body) = body {
         builder.body(Body::from(json_body.to_string())).unwrap()
@@ -100,13 +123,13 @@ async fn create_board(
     // Initialize workspace DB
     let _ = control.workspace_db(workspace_id).await.unwrap();
 
-    let request = auth_request(
+    let request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         token,
+        workspace_id,
         Some(json!({
-            "title": title,
-            "workspace_id": workspace_id
+            "title": title
         })),
     );
 
@@ -131,13 +154,11 @@ async fn test_share_board() {
     let board_id = create_board(&app, &control, &token, &workspace_id, "My Dashboard").await;
 
     // Share the board
-    let share_request = auth_request(
+    let share_request = workspace_request(
         Method::POST,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -159,13 +180,11 @@ async fn test_share_board_idempotent() {
     let board_id = create_board(&app, &control, &token, &workspace_id, "My Dashboard").await;
 
     // Share the board
-    let share_request1 = auth_request(
+    let share_request1 = workspace_request(
         Method::POST,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -175,13 +194,11 @@ async fn test_share_board_idempotent() {
     let hash1 = json1["hash"].as_str().unwrap();
 
     // Share again - should return existing link (OK, not CREATED)
-    let share_request2 = auth_request(
+    let share_request2 = workspace_request(
         Method::POST,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -214,13 +231,11 @@ async fn test_share_board_requires_ownership() {
     );
     control.workspaces().add_member(&membership).await.unwrap();
 
-    let share_request = auth_request(
+    let share_request = workspace_request(
         Method::POST,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &user2_token,
+        &workspace_id,
         None,
     );
 
@@ -237,25 +252,21 @@ async fn test_get_share_link() {
     let board_id = create_board(&app, &control, &token, &workspace_id, "My Dashboard").await;
 
     // Share the board
-    let share_request = auth_request(
+    let share_request = workspace_request(
         Method::POST,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
     let _ = app.clone().oneshot(share_request).await.unwrap();
 
     // Get the share link
-    let get_request = auth_request(
+    let get_request = workspace_request(
         Method::GET,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -275,13 +286,11 @@ async fn test_get_share_link_not_shared() {
     let board_id = create_board(&app, &control, &token, &workspace_id, "My Dashboard").await;
 
     // Try to get share link for unshared board
-    let get_request = auth_request(
+    let get_request = workspace_request(
         Method::GET,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -298,13 +307,11 @@ async fn test_unshare_board() {
     let board_id = create_board(&app, &control, &token, &workspace_id, "My Dashboard").await;
 
     // Share the board
-    let share_request = auth_request(
+    let share_request = workspace_request(
         Method::POST,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
     let share_response = app.clone().oneshot(share_request).await.unwrap();
@@ -312,13 +319,11 @@ async fn test_unshare_board() {
     let hash = share_json["hash"].as_str().unwrap();
 
     // Unshare the board
-    let unshare_request = auth_request(
+    let unshare_request = workspace_request(
         Method::DELETE,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -340,13 +345,11 @@ async fn test_view_shared_board_public() {
     let board_id = create_board(&app, &control, &token, &workspace_id, "Public Dashboard").await;
 
     // Share the board
-    let share_request = auth_request(
+    let share_request = workspace_request(
         Method::POST,
-        &format!(
-            "/api/v1/boards/{}/share?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/share", board_id),
         &token,
+        &workspace_id,
         None,
     );
     let share_response = app.clone().oneshot(share_request).await.unwrap();

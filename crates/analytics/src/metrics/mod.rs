@@ -13,7 +13,7 @@ pub mod product;
 // Re-exports for convenience
 pub use engagement::{
     ActiveUsersMetric, ActiveUsersType, SessionsMetric, SessionsType, StickinessMetric,
-    StickinessType,
+    StickinessType, TopSessionsMetric, UsersMetric,
 };
 pub use logs::{LogVolumeMetric, TopLogsMetric};
 pub use product::{EventCountMetric, TopEventsMetric};
@@ -221,10 +221,16 @@ impl MetricsEngine {
             crate::filter::CompareMode::PreviousYear => filter.time_range.previous_year(),
         };
 
-        let comparison_filter = Filter::new(comparison_range).with_granularity(filter.granularity);
+        let mut comparison_filter = Filter::new(comparison_range);
+
+        // Copy granularity (if set)
+        if let Some(granularity) = filter.granularity {
+            comparison_filter = comparison_filter.with_granularity(granularity);
+        } else {
+            comparison_filter = comparison_filter.with_rolling_window();
+        }
 
         // Copy conditions
-        let mut comparison_filter = comparison_filter;
         for condition in &filter.conditions {
             comparison_filter = comparison_filter.with_condition(condition.clone());
         }
@@ -300,6 +306,91 @@ impl MetricsEngine {
         let metric = LogVolumeMetric::all();
         self.execute_with_comparison(&metric, filter, workspace_id)
             .await
+    }
+
+    // Event property metrics
+
+    /// Get event property breakdown over time
+    ///
+    /// Returns counts grouped by property values within events matching the filter.
+    pub async fn event_property_breakdown(
+        &self,
+        event: &str,
+        property: &str,
+        filter: &Filter,
+        workspace_id: u64,
+    ) -> Result<TimeSeriesData> {
+        let table = table_name(workspace_id, "events_v1");
+
+        // Build filter with event condition
+        let mut event_filter = filter.clone();
+        event_filter =
+            event_filter.with_condition(crate::filter::Condition::eq("event_name", event));
+
+        // Format property for JSON extraction if needed
+        let property_expr = if property.starts_with("properties.") {
+            let path = property.strip_prefix("properties.").unwrap_or(property);
+            format!("JSONExtractString(properties, '{}')", path)
+        } else {
+            property.to_string()
+        };
+
+        let sql = crate::builder::breakdown_query(
+            &table,
+            "COUNT(*)",
+            &property_expr,
+            &event_filter,
+            "timestamp",
+        );
+
+        let result = self.backend.execute(&sql).await?;
+        parse_timeseries(&result)
+    }
+
+    /// Get custom event metric aggregation
+    ///
+    /// Allows running custom aggregations (sum, avg, min, max) on event properties.
+    pub async fn custom_event_metric(
+        &self,
+        event: &str,
+        property: &str,
+        metric_fn: &str,
+        filter: &Filter,
+        workspace_id: u64,
+    ) -> Result<TimeSeriesData> {
+        let table = table_name(workspace_id, "events_v1");
+
+        // Build filter with event condition
+        let mut event_filter = filter.clone();
+        event_filter =
+            event_filter.with_condition(crate::filter::Condition::eq("event_name", event));
+
+        // Format property for JSON extraction if needed
+        let property_expr = if property.starts_with("properties.") {
+            let path = property.strip_prefix("properties.").unwrap_or(property);
+            format!("toFloat64OrNull(JSONExtractString(properties, '{}'))", path)
+        } else {
+            property.to_string()
+        };
+
+        // Build aggregation expression
+        let agg_expr = match metric_fn.to_lowercase().as_str() {
+            "sum" => format!("sum({})", property_expr),
+            "avg" => format!("avg({})", property_expr),
+            "min" => format!("min({})", property_expr),
+            "max" => format!("max({})", property_expr),
+            "count" => format!("count({})", property_expr),
+            _ => format!("sum({})", property_expr), // default to sum
+        };
+
+        let sql = crate::builder::QueryBuilder::new(&table)
+            .with_optional_time_bucket(filter.granularity, "timestamp", "date")
+            .select_as(&agg_expr, "value")
+            .apply_filter(&event_filter, "timestamp")
+            .build();
+
+        let result = self.backend.execute(&sql).await?;
+        parse_timeseries(&result)
     }
 
     // Drill-down queries (raw data)

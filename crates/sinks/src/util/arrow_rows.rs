@@ -323,6 +323,301 @@ pub fn snapshots_to_record_batch(
 }
 
 // =============================================================================
+// Context Schema
+// =============================================================================
+
+/// Context row for device/session context (context_v1 table)
+///
+/// Stores device and session context information from CONTEXT events.
+/// Field order optimized for predicate pushdown.
+#[derive(Debug, Clone)]
+pub struct ContextRow {
+    /// Context timestamp in milliseconds since epoch
+    pub timestamp: i64,
+    /// Batch processing timestamp
+    pub batch_timestamp: i64,
+    /// Workspace ID for tenant isolation
+    pub workspace_id: u64,
+    /// Device UUID (16 bytes)
+    pub device_id: Vec<u8>,
+    /// Session UUID (16 bytes)
+    pub session_id: Vec<u8>,
+    /// Device type (mobile, desktop, tablet)
+    pub device_type: String,
+    /// Operating system (iOS, Android, Windows)
+    pub os: String,
+    /// OS version
+    pub os_version: String,
+    /// Country code
+    pub country: String,
+    /// Source IP address (16 bytes IPv6 format)
+    pub source_ip: Vec<u8>,
+    /// Additional properties as JSON bytes
+    pub properties: Vec<u8>,
+}
+
+/// Create the Arrow schema for context
+pub fn context_schema() -> Arc<Schema> {
+    Arc::new(Schema::new(vec![
+        Field::new("timestamp", DataType::Int64, false),
+        Field::new("batch_timestamp", DataType::Int64, false),
+        Field::new("workspace_id", DataType::UInt64, false),
+        Field::new("device_id", DataType::Binary, false),
+        Field::new("session_id", DataType::Binary, false),
+        Field::new("device_type", DataType::Utf8, false),
+        Field::new("os", DataType::Utf8, false),
+        Field::new("os_version", DataType::Utf8, false),
+        Field::new("country", DataType::Utf8, false),
+        Field::new("source_ip", DataType::Binary, false),
+        Field::new("properties", DataType::Binary, false),
+    ]))
+}
+
+/// Convert context rows to Arrow RecordBatch
+pub fn context_to_record_batch(
+    rows: Vec<ContextRow>,
+    schema: Arc<Schema>,
+) -> Result<RecordBatch, arrow::error::ArrowError> {
+    let len = rows.len();
+
+    let mut timestamps = Vec::with_capacity(len);
+    let mut batch_timestamps = Vec::with_capacity(len);
+    let mut workspace_ids = Vec::with_capacity(len);
+    let mut device_ids: Vec<&[u8]> = Vec::with_capacity(len);
+    let mut session_ids: Vec<&[u8]> = Vec::with_capacity(len);
+    let mut device_types = Vec::with_capacity(len);
+    let mut os_list = Vec::with_capacity(len);
+    let mut os_versions = Vec::with_capacity(len);
+    let mut countries = Vec::with_capacity(len);
+    let mut source_ips: Vec<&[u8]> = Vec::with_capacity(len);
+    let mut properties: Vec<&[u8]> = Vec::with_capacity(len);
+
+    let rows_ref: Vec<_> = rows.iter().collect();
+
+    for row in &rows_ref {
+        timestamps.push(row.timestamp);
+        batch_timestamps.push(row.batch_timestamp);
+        workspace_ids.push(row.workspace_id);
+        device_ids.push(row.device_id.as_slice());
+        session_ids.push(row.session_id.as_slice());
+        device_types.push(row.device_type.as_str());
+        os_list.push(row.os.as_str());
+        os_versions.push(row.os_version.as_str());
+        countries.push(row.country.as_str());
+        source_ips.push(row.source_ip.as_slice());
+        properties.push(row.properties.as_slice());
+    }
+
+    let columns: Vec<ArrayRef> = vec![
+        Arc::new(Int64Array::from(timestamps)),
+        Arc::new(Int64Array::from(batch_timestamps)),
+        Arc::new(UInt64Array::from(workspace_ids)),
+        Arc::new(BinaryArray::from(device_ids)),
+        Arc::new(BinaryArray::from(session_ids)),
+        Arc::new(StringArray::from(device_types)),
+        Arc::new(StringArray::from(os_list)),
+        Arc::new(StringArray::from(os_versions)),
+        Arc::new(StringArray::from(countries)),
+        Arc::new(BinaryArray::from(source_ips)),
+        Arc::new(BinaryArray::from(properties)),
+    ];
+
+    RecordBatch::try_new(schema, columns)
+}
+
+// =============================================================================
+// User Schema
+// =============================================================================
+
+/// User row for user profiles (users_v1 table)
+///
+/// Stores user identity information from IDENTIFY events.
+#[derive(Debug, Clone)]
+pub struct UserRow {
+    /// User ID (string identifier)
+    pub user_id: String,
+    /// Workspace ID for tenant isolation
+    pub workspace_id: u64,
+    /// User email address
+    pub email: String,
+    /// User display name
+    pub name: String,
+    /// Last update timestamp in milliseconds
+    pub updated_at: i64,
+}
+
+/// Create the Arrow schema for users
+pub fn user_schema() -> Arc<Schema> {
+    Arc::new(Schema::new(vec![
+        Field::new("user_id", DataType::Utf8, false),
+        Field::new("workspace_id", DataType::UInt64, false),
+        Field::new("email", DataType::Utf8, false),
+        Field::new("name", DataType::Utf8, false),
+        Field::new("updated_at", DataType::Int64, false),
+    ]))
+}
+
+/// Convert user rows to Arrow RecordBatch
+pub fn users_to_record_batch(
+    rows: Vec<UserRow>,
+    schema: Arc<Schema>,
+) -> Result<RecordBatch, arrow::error::ArrowError> {
+    let len = rows.len();
+
+    let mut user_ids = Vec::with_capacity(len);
+    let mut workspace_ids = Vec::with_capacity(len);
+    let mut emails = Vec::with_capacity(len);
+    let mut names = Vec::with_capacity(len);
+    let mut updated_ats = Vec::with_capacity(len);
+
+    let rows_ref: Vec<_> = rows.iter().collect();
+
+    for row in &rows_ref {
+        user_ids.push(row.user_id.as_str());
+        workspace_ids.push(row.workspace_id);
+        emails.push(row.email.as_str());
+        names.push(row.name.as_str());
+        updated_ats.push(row.updated_at);
+    }
+
+    let columns: Vec<ArrayRef> = vec![
+        Arc::new(StringArray::from(user_ids)),
+        Arc::new(UInt64Array::from(workspace_ids)),
+        Arc::new(StringArray::from(emails)),
+        Arc::new(StringArray::from(names)),
+        Arc::new(Int64Array::from(updated_ats)),
+    ];
+
+    RecordBatch::try_new(schema, columns)
+}
+
+// =============================================================================
+// User Device Schema
+// =============================================================================
+
+/// User device row for device-user mappings (user_devices table)
+///
+/// Links device IDs to user IDs from IDENTIFY events.
+#[derive(Debug, Clone)]
+pub struct UserDeviceRow {
+    /// User ID
+    pub user_id: String,
+    /// Workspace ID for tenant isolation
+    pub workspace_id: u64,
+    /// Device UUID (16 bytes)
+    pub device_id: Vec<u8>,
+    /// When the device was linked to the user
+    pub linked_at: i64,
+}
+
+/// Create the Arrow schema for user devices
+pub fn user_device_schema() -> Arc<Schema> {
+    Arc::new(Schema::new(vec![
+        Field::new("user_id", DataType::Utf8, false),
+        Field::new("workspace_id", DataType::UInt64, false),
+        Field::new("device_id", DataType::Binary, false),
+        Field::new("linked_at", DataType::Int64, false),
+    ]))
+}
+
+/// Convert user device rows to Arrow RecordBatch
+pub fn user_devices_to_record_batch(
+    rows: Vec<UserDeviceRow>,
+    schema: Arc<Schema>,
+) -> Result<RecordBatch, arrow::error::ArrowError> {
+    let len = rows.len();
+
+    let mut user_ids = Vec::with_capacity(len);
+    let mut workspace_ids = Vec::with_capacity(len);
+    let mut device_ids: Vec<&[u8]> = Vec::with_capacity(len);
+    let mut linked_ats = Vec::with_capacity(len);
+
+    let rows_ref: Vec<_> = rows.iter().collect();
+
+    for row in &rows_ref {
+        user_ids.push(row.user_id.as_str());
+        workspace_ids.push(row.workspace_id);
+        device_ids.push(row.device_id.as_slice());
+        linked_ats.push(row.linked_at);
+    }
+
+    let columns: Vec<ArrayRef> = vec![
+        Arc::new(StringArray::from(user_ids)),
+        Arc::new(UInt64Array::from(workspace_ids)),
+        Arc::new(BinaryArray::from(device_ids)),
+        Arc::new(Int64Array::from(linked_ats)),
+    ];
+
+    RecordBatch::try_new(schema, columns)
+}
+
+// =============================================================================
+// User Traits Schema
+// =============================================================================
+
+/// User trait row for user properties (user_traits table)
+///
+/// Stores key-value properties from IDENTIFY events.
+#[derive(Debug, Clone)]
+pub struct UserTraitRow {
+    /// User ID
+    pub user_id: String,
+    /// Workspace ID for tenant isolation
+    pub workspace_id: u64,
+    /// Trait key name
+    pub trait_key: String,
+    /// Trait value as string
+    pub trait_value: String,
+    /// Last update timestamp
+    pub updated_at: i64,
+}
+
+/// Create the Arrow schema for user traits
+pub fn user_trait_schema() -> Arc<Schema> {
+    Arc::new(Schema::new(vec![
+        Field::new("user_id", DataType::Utf8, false),
+        Field::new("workspace_id", DataType::UInt64, false),
+        Field::new("trait_key", DataType::Utf8, false),
+        Field::new("trait_value", DataType::Utf8, false),
+        Field::new("updated_at", DataType::Int64, false),
+    ]))
+}
+
+/// Convert user trait rows to Arrow RecordBatch
+pub fn user_traits_to_record_batch(
+    rows: Vec<UserTraitRow>,
+    schema: Arc<Schema>,
+) -> Result<RecordBatch, arrow::error::ArrowError> {
+    let len = rows.len();
+
+    let mut user_ids = Vec::with_capacity(len);
+    let mut workspace_ids = Vec::with_capacity(len);
+    let mut trait_keys = Vec::with_capacity(len);
+    let mut trait_values = Vec::with_capacity(len);
+    let mut updated_ats = Vec::with_capacity(len);
+
+    let rows_ref: Vec<_> = rows.iter().collect();
+
+    for row in &rows_ref {
+        user_ids.push(row.user_id.as_str());
+        workspace_ids.push(row.workspace_id);
+        trait_keys.push(row.trait_key.as_str());
+        trait_values.push(row.trait_value.as_str());
+        updated_ats.push(row.updated_at);
+    }
+
+    let columns: Vec<ArrayRef> = vec![
+        Arc::new(StringArray::from(user_ids)),
+        Arc::new(UInt64Array::from(workspace_ids)),
+        Arc::new(StringArray::from(trait_keys)),
+        Arc::new(StringArray::from(trait_values)),
+        Arc::new(Int64Array::from(updated_ats)),
+    ];
+
+    RecordBatch::try_new(schema, columns)
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 

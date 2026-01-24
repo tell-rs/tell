@@ -45,6 +45,7 @@
 //! ```
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+#[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -52,6 +53,7 @@ use std::time::Duration;
 
 use bytes::{Buf, BytesMut};
 use crossfire::TrySendError;
+#[cfg(unix)]
 use socket2::{Socket, TcpKeepalive};
 use tell_auth::ApiKeyStore;
 use tell_protocol::{BatchBuilder, BatchType, FlatBatch, ProtocolError, SchemaType, SourceId};
@@ -771,6 +773,7 @@ impl TcpSource {
     /// Configure socket with low-level options (buffer sizes, keepalive, nodelay)
     ///
     /// Uses socket2 to set options not directly exposed by tokio::net::TcpStream.
+    #[cfg(unix)]
     fn configure_socket(&self, stream: &TcpStream) -> Result<(), TcpSourceError> {
         // Get raw fd and wrap in socket2::Socket for configuration
         // Safety: We're borrowing the fd, not taking ownership
@@ -806,6 +809,14 @@ impl TcpSource {
         // IMPORTANT: Don't let socket2 close the fd - tokio still owns it
         std::mem::forget(socket);
 
+        Ok(())
+    }
+
+    /// Configure socket - no-op on Windows (tokio handles defaults)
+    #[cfg(not(unix))]
+    fn configure_socket(&self, _stream: &TcpStream) -> Result<(), TcpSourceError> {
+        // On Windows, we skip the advanced socket configuration.
+        // Tokio's defaults are generally sufficient.
         Ok(())
     }
 

@@ -3,7 +3,6 @@ name = "tell-query"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 repository.workspace = true
 description = "Query execution layer for Tell - supports ClickHouse and local Arrow IPC"
 
@@ -31,6 +30,7 @@ thiserror = { workspace = true }
 # Utilities
 chrono = { workspace = true }
 tracing = { workspace = true }
+regex = "1"
 
 [dev-dependencies]
 tempfile = { workspace = true }

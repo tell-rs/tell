@@ -4,11 +4,12 @@
 //! - Active users (DAU, WAU, MAU)
 //! - Session volume
 //! - Stickiness (engagement ratios)
+//! - User counts
 
 mod active_users;
 mod sessions;
 mod stickiness;
 
 pub use active_users::{ActiveUsersMetric, ActiveUsersType};
-pub use sessions::{SessionsMetric, SessionsType};
+pub use sessions::{SessionsMetric, SessionsType, TopSessionsMetric, UsersMetric};
 pub use stickiness::{StickinessMetric, StickinessType};

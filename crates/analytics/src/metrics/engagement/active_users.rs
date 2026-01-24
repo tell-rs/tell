@@ -57,7 +57,7 @@ impl ActiveUsersMetric {
         let table = table_name(workspace_id, "context_v1");
 
         let mut builder = QueryBuilder::new(table)
-            .with_time_bucket(filter.granularity, "timestamp", "date")
+            .with_optional_time_bucket(filter.granularity, "timestamp", "date")
             .select_as("COUNT(DISTINCT device_id)", "value")
             .apply_filter(filter, "timestamp");
 

@@ -115,6 +115,22 @@ pub enum Action {
     TopEventsLoaded(Vec<TopEvent>),
     /// Stickiness data loaded
     StickinessLoaded(StickinessData),
+
+    // API Keys
+    /// API keys loaded
+    ApiKeysLoaded(Vec<ApiKeyInfo>),
+    /// Create new API key
+    CreateApiKey(String), // name
+    /// Delete API key
+    DeleteApiKey(String), // name
+    /// API key created successfully
+    ApiKeyCreated(String, String), // name, hex_key
+    /// API key deleted successfully
+    ApiKeyDeleted(String), // name
+    /// Show full API key
+    ShowApiKey(String), // name
+    /// Full API key revealed
+    ApiKeyRevealed(String, String), // name, hex_key
 }
 
 /// Board info for list view
@@ -180,6 +196,8 @@ pub enum View {
     Boards,
     /// Single board detail
     BoardDetail,
+    /// API keys management
+    ApiKeys,
 }
 
 /// User persona for init wizard.
@@ -461,3 +479,11 @@ pub struct StickinessData {
 
 // Manual Eq impl since f64 doesn't impl Eq
 impl Eq for StickinessData {}
+
+/// API key info for list view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApiKeyInfo {
+    pub name: Option<String>,
+    pub key_preview: String, // First 8 chars
+    pub workspace_id: u32,
+}

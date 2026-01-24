@@ -6,11 +6,11 @@
 //!
 //! | Endpoint | Auth | Permission |
 //! |----------|------|------------|
-//! | `GET /user/workspaces` | Required | Any member |
-//! | `POST /user/workspaces` | Required | Any (if allowed) |
+//! | `GET /user/workspaces` | Required | Any authenticated |
+//! | `POST /user/workspaces` | Required | Editor+ |
 //! | `GET /admin/workspaces` | Required | Platform only |
-//! | `GET /admin/workspaces/{id}` | Required | Admin+ |
-//! | `PUT /admin/workspaces/{id}` | Required | Admin+ |
+//! | `GET /admin/workspaces/{id}` | Required | Admin in workspace |
+//! | `PUT /admin/workspaces/{id}` | Required | Admin in workspace |
 //! | `DELETE /admin/workspaces/{id}` | Required | Platform only |
 
 use axum::{
@@ -21,10 +21,9 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use tell_auth::Permission;
 use tell_control::{MemberRole, Workspace, WorkspaceMembership};
 
-use crate::auth::AuthUser;
+use crate::auth::{Auth, CanCreate, CanPlatform};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -90,7 +89,7 @@ pub fn user_routes() -> Router<AppState> {
 ///
 /// GET /api/v1/user/workspaces
 async fn list_user_workspaces(
-    user: AuthUser,
+    auth: Auth,
     State(state): State<AppState>,
 ) -> Result<Json<ListWorkspacesResponse>, ApiError> {
     let control = state
@@ -100,7 +99,7 @@ async fn list_user_workspaces(
 
     let workspaces = control
         .workspaces()
-        .list_for_user(&user.id)
+        .list_for_user(auth.user_id())
         .await
         .map_err(|e| ApiError::internal(format!("Failed to list workspaces: {}", e)))?;
 
@@ -116,9 +115,10 @@ async fn list_user_workspaces(
 ///
 /// POST /api/v1/user/workspaces
 ///
+/// Requires Editor+ permission.
 /// The creating user becomes an Admin of the new workspace.
 async fn create_workspace(
-    user: AuthUser,
+    auth: Auth<CanCreate>,
     State(state): State<AppState>,
     Json(req): Json<CreateWorkspaceRequest>,
 ) -> Result<(StatusCode, Json<WorkspaceResponse>), ApiError> {
@@ -162,7 +162,7 @@ async fn create_workspace(
         .map_err(|e| ApiError::internal(format!("Failed to create workspace: {}", e)))?;
 
     // Add creator as Admin
-    let membership = WorkspaceMembership::new(&user.id, &workspace.id, MemberRole::Admin);
+    let membership = WorkspaceMembership::new(auth.user_id(), &workspace.id, MemberRole::Admin);
     control
         .workspaces()
         .add_member(&membership)
@@ -191,15 +191,12 @@ pub fn admin_routes() -> Router<AppState> {
 /// List all workspaces (Platform admin only)
 ///
 /// GET /api/v1/admin/workspaces
+///
+/// Requires Platform permission.
 async fn list_all_workspaces(
-    user: AuthUser,
+    _auth: Auth<CanPlatform>,
     State(state): State<AppState>,
 ) -> Result<Json<ListWorkspacesResponse>, ApiError> {
-    // Require Platform permission
-    if !user.has_permission(Permission::Platform) {
-        return Err(ApiError::forbidden("Platform admin required"));
-    }
-
     let control = state
         .control
         .as_ref()
@@ -225,7 +222,7 @@ async fn list_all_workspaces(
 ///
 /// Requires Admin role in the workspace or Platform permission.
 async fn get_workspace(
-    user: AuthUser,
+    auth: Auth,
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<WorkspaceResponse>, ApiError> {
@@ -234,16 +231,9 @@ async fn get_workspace(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
-    // Check if user has access
-    let membership = control
-        .workspaces()
-        .get_member(&id, &user.id)
-        .await
-        .ok()
-        .flatten();
-
-    let has_access = user.has_permission(Permission::Platform)
-        || membership.map(|m| m.role.can_manage()).unwrap_or(false);
+    // Check if user has access (Platform or workspace Admin)
+    let has_access = auth.has_permission(tell_auth::Permission::Platform)
+        || is_workspace_admin(control, &id, auth.user_id()).await?;
 
     if !has_access {
         return Err(ApiError::forbidden("Admin access required"));
@@ -265,7 +255,7 @@ async fn get_workspace(
 ///
 /// Requires Admin role in the workspace or Platform permission.
 async fn update_workspace(
-    user: AuthUser,
+    auth: Auth,
     Path(id): Path<String>,
     State(state): State<AppState>,
     Json(req): Json<UpdateWorkspaceRequest>,
@@ -275,16 +265,9 @@ async fn update_workspace(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
-    // Check if user has access
-    let membership = control
-        .workspaces()
-        .get_member(&id, &user.id)
-        .await
-        .ok()
-        .flatten();
-
-    let has_access = user.has_permission(Permission::Platform)
-        || membership.map(|m| m.role.can_manage()).unwrap_or(false);
+    // Check if user has access (Platform or workspace Admin)
+    let has_access = auth.has_permission(tell_auth::Permission::Platform)
+        || is_workspace_admin(control, &id, auth.user_id()).await?;
 
     if !has_access {
         return Err(ApiError::forbidden("Admin access required"));
@@ -317,15 +300,10 @@ async fn update_workspace(
 ///
 /// Requires Platform permission.
 async fn delete_workspace(
-    user: AuthUser,
+    _auth: Auth<CanPlatform>,
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, ApiError> {
-    // Require Platform permission for deletion
-    if !user.has_permission(Permission::Platform) {
-        return Err(ApiError::forbidden("Platform admin required"));
-    }
-
     let control = state
         .control
         .as_ref()
@@ -338,4 +316,23 @@ async fn delete_workspace(
         .map_err(|e| ApiError::internal(format!("Failed to delete workspace: {}", e)))?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// =============================================================================
+// Helper functions
+// =============================================================================
+
+/// Check if user is an admin in the workspace
+async fn is_workspace_admin(
+    control: &tell_control::ControlPlane,
+    workspace_id: &str,
+    user_id: &str,
+) -> Result<bool, ApiError> {
+    let membership = control
+        .workspaces()
+        .get_member(workspace_id, user_id)
+        .await
+        .map_err(|e| ApiError::internal(format!("Failed to check membership: {}", e)))?;
+
+    Ok(membership.map(|m| m.role.can_manage()).unwrap_or(false))
 }

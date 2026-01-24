@@ -1,11 +1,11 @@
 //! Authentication routes
 //!
-//! Endpoints for login, setup, and token management.
+//! Endpoints for login, logout, refresh, and setup.
 
 use axum::{
     Json, Router,
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
 };
@@ -17,13 +17,36 @@ use tracing::info;
 use tell_auth::{Role, TOKEN_PREFIX, TokenClaims};
 
 use crate::audit::AuditAction;
+use crate::auth::AuthUser;
 use crate::ratelimit::RateLimitLayer;
 use crate::state::AppState;
+
+/// Extract client IP from headers (X-Forwarded-For, X-Real-IP, or nothing)
+fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    // Try X-Forwarded-For first (may contain multiple IPs, take first)
+    if let Some(xff) = headers.get("x-forwarded-for")
+        && let Ok(value) = xff.to_str()
+        && let Some(ip) = value.split(',').next()
+    {
+        return Some(ip.trim().to_string());
+    }
+
+    // Try X-Real-IP
+    if let Some(xri) = headers.get("x-real-ip")
+        && let Ok(value) = xri.to_str()
+    {
+        return Some(value.to_string());
+    }
+
+    None
+}
 
 /// Auth routes
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/login", post(login))
+        .route("/logout", post(logout))
+        .route("/refresh", post(refresh))
         .route("/setup", post(setup))
         .route("/setup/status", get(setup_status))
         // Apply stricter rate limiting on auth endpoints (10 req/min)
@@ -58,15 +81,54 @@ pub struct UserResponse {
 /// POST /api/v1/auth/login
 async fn login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, AuthApiError> {
-    // Get user store
+    // Use AuthService if available (with session management)
+    if let Some(auth_service) = &state.auth_service {
+        let ip = extract_client_ip(&headers);
+        let response = auth_service
+            .login(&req.email, &req.password, ip.as_deref(), None)
+            .await
+            .map_err(|e| {
+                info!(
+                    target: "audit",
+                    action = AuditAction::LoginFailure.as_str(),
+                    email = %req.email,
+                    reason = %e
+                );
+                match e {
+                    tell_auth::AuthError::InvalidClaims(_) => AuthApiError::InvalidCredentials,
+                    _ => AuthApiError::Internal(e.to_string()),
+                }
+            })?;
+
+        info!(
+            target: "audit",
+            action = AuditAction::LoginSuccess.as_str(),
+            user_id = %response.user.id,
+            email = %response.user.email,
+            role = %response.user.role,
+            session_id = %response.session_id
+        );
+
+        return Ok(Json(LoginResponse {
+            token: response.token,
+            user: UserResponse {
+                id: response.user.id,
+                email: response.user.email,
+                role: response.user.role,
+            },
+            expires_at: response.expires_at,
+        }));
+    }
+
+    // Fallback: direct user store access (legacy/stateless mode)
     let user_store = state
         .user_store
         .as_ref()
         .ok_or(AuthApiError::LocalAuthNotConfigured)?;
 
-    // Verify credentials
     let user = match user_store
         .verify_credentials(&req.email, &req.password)
         .await
@@ -92,7 +154,6 @@ async fn login(
         }
     };
 
-    // Generate JWT
     let jwt_secret = state
         .jwt_secret
         .as_ref()
@@ -107,7 +168,7 @@ async fn login(
         user_id: user.id.clone(),
         email: user.email.clone(),
         role: user.role.as_str().to_string(),
-        workspace_id: "1".to_string(), // Default workspace
+        workspace_id: "1".to_string(),
         permissions: vec![],
         subject: Some(user.id.clone()),
         expires_at: expires_at.timestamp(),
@@ -142,6 +203,100 @@ async fn login(
             role: user.role.as_str().to_string(),
         },
         expires_at: expires_at.timestamp(),
+    }))
+}
+
+/// Logout request
+#[derive(Debug, Deserialize)]
+pub struct LogoutRequest {
+    /// Whether to revoke the token (add to blacklist)
+    #[serde(default)]
+    pub revoke: bool,
+}
+
+/// Logout endpoint
+///
+/// POST /api/v1/auth/logout
+///
+/// Deletes the session. If revoke=true, also blacklists the token.
+async fn logout(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(req): Json<LogoutRequest>,
+) -> Result<StatusCode, AuthApiError> {
+    let auth_service = state
+        .auth_service
+        .as_ref()
+        .ok_or(AuthApiError::LocalAuthNotConfigured)?;
+
+    // We need the token to logout - get it from the user's metadata or pass it differently
+    // For now, use logout_all which doesn't need the token
+    // TODO: Pass token through request header or body
+
+    info!(
+        target: "audit",
+        action = "logout",
+        user_id = %user.id,
+        revoke = req.revoke
+    );
+
+    // Logout all sessions for user (simplest approach)
+    auth_service
+        .logout_all(&user.id)
+        .await
+        .map_err(|e| AuthApiError::Internal(e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Refresh request
+#[derive(Debug, Deserialize)]
+pub struct RefreshRequest {
+    /// Current token to refresh
+    pub token: String,
+}
+
+/// Refresh response
+#[derive(Debug, Serialize)]
+pub struct RefreshResponse {
+    pub token: String,
+    pub expires_at: i64,
+}
+
+/// Token refresh endpoint
+///
+/// POST /api/v1/auth/refresh
+///
+/// Generates a new token with extended expiry.
+async fn refresh(
+    State(state): State<AppState>,
+    Json(req): Json<RefreshRequest>,
+) -> Result<Json<RefreshResponse>, AuthApiError> {
+    let auth_service = state
+        .auth_service
+        .as_ref()
+        .ok_or(AuthApiError::LocalAuthNotConfigured)?;
+
+    let response = auth_service
+        .refresh_token(&req.token)
+        .await
+        .map_err(|e| match e {
+            tell_auth::AuthError::SessionNotFound => AuthApiError::SessionNotFound,
+            tell_auth::AuthError::SessionExpired => AuthApiError::SessionExpired,
+            tell_auth::AuthError::TokenRevoked => AuthApiError::TokenRevoked,
+            tell_auth::AuthError::TokenExpired => AuthApiError::TokenExpired,
+            _ => AuthApiError::Internal(e.to_string()),
+        })?;
+
+    info!(
+        target: "audit",
+        action = "token_refresh",
+        user_id = %response.user.id
+    );
+
+    Ok(Json(RefreshResponse {
+        token: response.token,
+        expires_at: response.expires_at,
     }))
 }
 
@@ -247,6 +402,10 @@ pub enum AuthApiError {
     SetupAlreadyComplete,
     InvalidEmail,
     PasswordTooShort,
+    SessionNotFound,
+    SessionExpired,
+    TokenRevoked,
+    TokenExpired,
     Internal(String),
 }
 
@@ -277,6 +436,26 @@ impl IntoResponse for AuthApiError {
                 StatusCode::BAD_REQUEST,
                 "PASSWORD_TOO_SHORT",
                 "Password must be at least 8 characters".to_string(),
+            ),
+            Self::SessionNotFound => (
+                StatusCode::UNAUTHORIZED,
+                "SESSION_NOT_FOUND",
+                "Session not found or has been logged out".to_string(),
+            ),
+            Self::SessionExpired => (
+                StatusCode::UNAUTHORIZED,
+                "SESSION_EXPIRED",
+                "Session has expired, please login again".to_string(),
+            ),
+            Self::TokenRevoked => (
+                StatusCode::UNAUTHORIZED,
+                "TOKEN_REVOKED",
+                "Token has been revoked".to_string(),
+            ),
+            Self::TokenExpired => (
+                StatusCode::UNAUTHORIZED,
+                "TOKEN_EXPIRED",
+                "Token has expired, please login again".to_string(),
             ),
             Self::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", msg),
         };

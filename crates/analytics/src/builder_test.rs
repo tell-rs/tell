@@ -272,3 +272,166 @@ fn test_distinct_values_with_time_filter() {
     assert!(sql.contains("timestamp <= '2024-01-31"));
     assert!(sql.contains("LIMIT 500"));
 }
+
+// =============================================================================
+// Rolling Window Mode Tests
+// =============================================================================
+
+#[test]
+fn test_rolling_window_count() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_rolling_window();
+
+    let sql = count_query("events_v1", &filter, "timestamp");
+
+    // Should NOT have date grouping
+    assert!(sql.contains("COUNT(*) AS value"));
+    assert!(!sql.contains("GROUP BY"));
+    assert!(!sql.contains("toDate"));
+}
+
+#[test]
+fn test_rolling_window_count_distinct() {
+    let range = TimeRange::parse("30d").unwrap();
+    let filter = Filter::new(range).with_rolling_window();
+
+    let sql = count_distinct_query("context_v1", "device_id", &filter, "timestamp");
+
+    // Should return single aggregate without time bucketing
+    assert!(sql.contains("COUNT(DISTINCT device_id) AS value"));
+    assert!(!sql.contains("GROUP BY"));
+}
+
+#[test]
+fn test_filter_is_rolling_window() {
+    let range = TimeRange::parse("7d").unwrap();
+
+    let filter_with_granularity = Filter::new(range.clone()).with_granularity(Granularity::Daily);
+    assert!(!filter_with_granularity.is_rolling_window());
+
+    let filter_rolling = Filter::new(range).with_rolling_window();
+    assert!(filter_rolling.is_rolling_window());
+}
+
+// =============================================================================
+// JSON Field Access Tests
+// =============================================================================
+
+#[test]
+fn test_json_field_access() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_condition(Condition::eq("properties.page", "/home"));
+
+    let sql = QueryBuilder::new("events_v1")
+        .select("*")
+        .apply_filter(&filter, "timestamp")
+        .build();
+
+    // Should use JSONExtractString for nested field access
+    assert!(sql.contains("JSONExtractString(properties, 'page')"));
+    assert!(sql.contains("'/home'"));
+}
+
+#[test]
+fn test_json_nested_field_access() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_condition(Condition::eq("properties.user.country", "US"));
+
+    let sql = QueryBuilder::new("events_v1")
+        .select("*")
+        .apply_filter(&filter, "timestamp")
+        .build();
+
+    // Should handle multi-level nesting
+    assert!(sql.contains("JSONExtractString(properties, 'user', 'country')"));
+}
+
+#[test]
+fn test_json_field_contains() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter =
+        Filter::new(range).with_condition(Condition::contains("properties.url", "checkout"));
+
+    let sql = QueryBuilder::new("events_v1")
+        .select("*")
+        .apply_filter(&filter, "timestamp")
+        .build();
+
+    assert!(sql.contains("JSONExtractString(properties, 'url')"));
+    assert!(sql.contains("LIKE '%checkout%'"));
+}
+
+// =============================================================================
+// IPv6 Normalization Tests
+// =============================================================================
+
+#[test]
+fn test_ipv6_source_ip_filter() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_condition(Condition::eq("source_ip", "192.168.1.1"));
+
+    let sql = QueryBuilder::new("context_v1")
+        .select("*")
+        .apply_filter(&filter, "timestamp")
+        .build();
+
+    // IPv4 should be converted to IPv4-mapped IPv6
+    assert!(sql.contains("IPv6StringToNum"));
+    assert!(sql.contains("::ffff:192.168.1.1"));
+}
+
+#[test]
+fn test_ipv6_native_address() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_condition(Condition::eq("source_ip", "2001:db8::1"));
+
+    let sql = QueryBuilder::new("context_v1")
+        .select("*")
+        .apply_filter(&filter, "timestamp")
+        .build();
+
+    // Native IPv6 should pass through unchanged
+    assert!(sql.contains("IPv6StringToNum('2001:db8::1')"));
+}
+
+#[test]
+fn test_ipv6_in_condition() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_condition(Condition::is_in(
+        "source_ip",
+        vec!["192.168.1.1".to_string(), "10.0.0.1".to_string()],
+    ));
+
+    let sql = QueryBuilder::new("context_v1")
+        .select("*")
+        .apply_filter(&filter, "timestamp")
+        .build();
+
+    assert!(sql.contains("source_ip IN ("));
+    assert!(sql.contains("IPv6StringToNum('::ffff:192.168.1.1')"));
+    assert!(sql.contains("IPv6StringToNum('::ffff:10.0.0.1')"));
+}
+
+// =============================================================================
+// Limit Validation Tests
+// =============================================================================
+
+#[test]
+fn test_limit_capped_at_max() {
+    use crate::filter::MAX_LIMIT;
+
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_limit(50_000); // Exceeds MAX_LIMIT
+
+    // Should be capped to MAX_LIMIT
+    assert_eq!(filter.limit, Some(MAX_LIMIT));
+}
+
+#[test]
+fn test_limit_under_max() {
+    let range = TimeRange::parse("7d").unwrap();
+    let filter = Filter::new(range).with_limit(500);
+
+    // Should keep the requested limit
+    assert_eq!(filter.limit, Some(500));
+}

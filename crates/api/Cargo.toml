@@ -3,7 +3,6 @@ name = "tell-api"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 description = "HTTP API for Tell analytics queries"
 
 [dependencies]
@@ -17,6 +16,7 @@ tell-control = { workspace = true }
 # Async
 tokio = { workspace = true }
 futures-util = "0.3"
+async-trait = "0.1"
 
 # Web framework
 axum = { workspace = true }

@@ -33,14 +33,20 @@
 //! - Contains user ID, workspace ID, role
 //! - API keys inherit creator's role
 
+mod apikey_provider;
 mod claims;
+mod context;
+mod control_plane_store;
 mod error;
+mod membership;
 pub mod password;
 mod provider;
 mod roles;
+mod service;
 mod store;
 mod user;
 mod user_store;
+mod user_store_trait;
 mod workspace;
 
 /// Test utilities for generating JWT tokens
@@ -60,10 +66,28 @@ pub use roles::{Permission, Role};
 pub use user::UserInfo;
 
 // Auth providers
+pub use apikey_provider::ApiKeyProvider;
 pub use provider::{AuthProvider, LocalJwtProvider};
 
 // Local user store
-pub use user_store::{LocalUserStore, StoredUser};
+pub use user_store::{LocalUserStore, Session, StoredUser, WorkspaceMembership};
+// Keep old MembershipStatus export for backwards compatibility
+pub use user_store::MembershipStatus as StoreMembershipStatus;
+
+// User store trait (for ControlPlane integration)
+pub use user_store_trait::UserStore;
+
+// ControlPlane-backed user store adapter
+pub use control_plane_store::ControlPlaneUserStore;
+
+// Auth service (orchestrates providers + sessions)
+pub use service::{AuthResponse, AuthService, AuthServiceConfig};
+
+// Auth context (unified auth + workspace context)
+pub use context::{AuthContext, WorkspaceAccess};
+
+// Membership provider (workspace access validation)
+pub use membership::{AllowAllMembership, Membership, MembershipProvider, MembershipStatus};
 
 /// Length of streaming API key in bytes
 pub const API_KEY_LENGTH: usize = 16;

@@ -10,8 +10,8 @@
 //! - `DELETE /api/v1/user/apikeys/{id}` - Revoke own API key
 //!
 //! ## Admin routes (manage all keys in workspace)
-//! - `GET /api/v1/admin/apikeys` - List all workspace API keys
-//! - `DELETE /api/v1/admin/apikeys/{id}` - Revoke any API key
+//! - `GET /api/v1/admin/apikeys` - List all workspace API keys (requires Admin in workspace)
+//! - `DELETE /api/v1/admin/apikeys/{id}` - Revoke any API key (requires Admin in workspace)
 
 use axum::{
     Json, Router,
@@ -22,10 +22,9 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use tell_auth::Permission;
 use tell_control::UserApiKey;
 
-use crate::auth::AuthUser;
+use crate::auth::{Auth, CanAdmin, Workspace};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -124,7 +123,7 @@ pub fn user_routes() -> Router<AppState> {
 ///
 /// GET /api/v1/user/apikeys?workspace_id={optional}
 async fn list_user_api_keys(
-    user: AuthUser,
+    auth: Auth,
     Query(query): Query<ListApiKeysQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
@@ -133,18 +132,20 @@ async fn list_user_api_keys(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
+    let user_id = auth.user_id();
+
     let api_keys = if let Some(workspace_id) = query.workspace_id {
         // Check user has access to workspace
-        check_workspace_membership(control, &workspace_id, &user.id).await?;
+        check_workspace_membership(control, &workspace_id, user_id).await?;
         control
             .api_keys()
-            .list_for_user_in_workspace(&user.id, &workspace_id)
+            .list_for_user_in_workspace(user_id, &workspace_id)
             .await
             .map_err(|e| ApiError::internal(format!("Failed to list API keys: {}", e)))?
     } else {
         control
             .api_keys()
-            .list_for_user(&user.id)
+            .list_for_user(user_id)
             .await
             .map_err(|e| ApiError::internal(format!("Failed to list API keys: {}", e)))?
     };
@@ -160,7 +161,7 @@ async fn list_user_api_keys(
 ///
 /// POST /api/v1/user/apikeys
 async fn create_user_api_key(
-    user: AuthUser,
+    auth: Auth,
     State(state): State<AppState>,
     Json(req): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
@@ -168,6 +169,8 @@ async fn create_user_api_key(
         .control
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
+
+    let user_id = auth.user_id();
 
     // Validate name
     if req.name.is_empty() || req.name.len() > 100 {
@@ -186,7 +189,7 @@ async fn create_user_api_key(
 
     // If workspace_id provided, check user has access
     let workspace_id = if let Some(ref ws_id) = req.workspace_id {
-        check_workspace_membership(control, ws_id, &user.id).await?;
+        check_workspace_membership(control, ws_id, user_id).await?;
         ws_id.clone()
     } else {
         String::new()
@@ -208,7 +211,7 @@ async fn create_user_api_key(
 
     // Create the API key
     let (key, mut api_key) = UserApiKey::new(
-        &user.id,
+        user_id,
         &workspace_id,
         &req.name,
         req.permissions,
@@ -238,7 +241,7 @@ async fn create_user_api_key(
 ///
 /// DELETE /api/v1/user/apikeys/{id}
 async fn revoke_user_api_key(
-    user: AuthUser,
+    auth: Auth,
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, ApiError> {
@@ -256,7 +259,7 @@ async fn revoke_user_api_key(
         .ok_or_else(|| ApiError::not_found("api_key", &id))?;
 
     // Check ownership
-    if api_key.user_id != user.id {
+    if api_key.user_id != auth.user_id() {
         return Err(ApiError::forbidden("Not the owner of this API key"));
     }
 
@@ -283,29 +286,22 @@ pub fn admin_routes() -> Router<AppState> {
 
 /// List all API keys in a workspace
 ///
-/// GET /api/v1/admin/apikeys?workspace_id={required}
+/// GET /api/v1/admin/apikeys
+/// Header: X-Workspace-ID: {workspace_id}
 ///
 /// Requires Admin+ permission in the workspace.
 async fn list_workspace_api_keys(
-    user: AuthUser,
-    Query(query): Query<ListApiKeysQuery>,
+    ws: Workspace<CanAdmin>,
     State(state): State<AppState>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
-    let workspace_id = query
-        .workspace_id
-        .ok_or_else(|| ApiError::validation("workspace_id", "is required"))?;
-
     let control = state
         .control
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
-    // Check user has admin access to workspace
-    check_workspace_admin(control, &workspace_id, &user).await?;
-
     let api_keys = control
         .api_keys()
-        .list_for_workspace(&workspace_id)
+        .list_for_workspace(ws.id())
         .await
         .map_err(|e| ApiError::internal(format!("Failed to list API keys: {}", e)))?;
 
@@ -318,26 +314,19 @@ async fn list_workspace_api_keys(
 
 /// Revoke any API key in a workspace (admin only)
 ///
-/// DELETE /api/v1/admin/apikeys/{id}?workspace_id={required}
+/// DELETE /api/v1/admin/apikeys/{id}
+/// Header: X-Workspace-ID: {workspace_id}
 ///
 /// Requires Admin+ permission in the workspace.
 async fn revoke_workspace_api_key(
-    user: AuthUser,
+    ws: Workspace<CanAdmin>,
     Path(id): Path<String>,
-    Query(query): Query<ListApiKeysQuery>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, ApiError> {
-    let workspace_id = query
-        .workspace_id
-        .ok_or_else(|| ApiError::validation("workspace_id", "is required"))?;
-
     let control = state
         .control
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
-
-    // Check user has admin access to workspace
-    check_workspace_admin(control, &workspace_id, &user).await?;
 
     // Get the API key
     let api_key = control
@@ -348,7 +337,7 @@ async fn revoke_workspace_api_key(
         .ok_or_else(|| ApiError::not_found("api_key", &id))?;
 
     // Verify the key belongs to this workspace
-    if api_key.workspace_id != workspace_id {
+    if api_key.workspace_id != ws.id() {
         return Err(ApiError::not_found("api_key", &id));
     }
 
@@ -383,28 +372,4 @@ async fn check_workspace_membership(
     }
 
     Ok(())
-}
-
-/// Check if user has admin access to the workspace
-async fn check_workspace_admin(
-    control: &tell_control::ControlPlane,
-    workspace_id: &str,
-    user: &AuthUser,
-) -> Result<(), ApiError> {
-    // Platform admins can access any workspace
-    if user.has_permission(Permission::Platform) {
-        return Ok(());
-    }
-
-    // Check workspace admin role
-    let membership = control
-        .workspaces()
-        .get_member(workspace_id, &user.id)
-        .await
-        .map_err(|e| ApiError::internal(format!("Failed to check membership: {}", e)))?;
-
-    match membership {
-        Some(m) if m.role.can_manage() => Ok(()),
-        _ => Err(ApiError::forbidden("Admin access required")),
-    }
 }

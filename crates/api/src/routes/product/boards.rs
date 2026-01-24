@@ -22,11 +22,15 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use tell_auth::Permission;
-use tell_control::{Board, BoardSettings, ControlPlane, ResourceType, SharedLink};
+use std::collections::HashSet;
+
+use tell_control::{
+    Block, Board, BoardSettings, ControlPlane, MAX_METRIC_BLOCKS, MAX_NOTE_BLOCKS,
+    MAX_SERIES_PER_BLOCK, ResourceType, SharedLink,
+};
 
 use crate::audit::AuditAction;
-use crate::auth::AuthUser;
+use crate::auth::{CanCreate, Workspace};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -39,7 +43,6 @@ use crate::state::AppState;
 pub struct CreateBoardRequest {
     pub title: String,
     pub description: Option<String>,
-    pub workspace_id: String,
 }
 
 /// Update board request
@@ -57,9 +60,8 @@ pub struct PinBoardRequest {
 }
 
 /// List boards query parameters
-#[derive(Debug, Deserialize)]
-pub struct ListBoardsQuery {
-    pub workspace_id: String,
+#[derive(Debug, Default, Deserialize)]
+pub struct ListBoardsFilter {
     /// Filter to only pinned boards
     #[serde(default)]
     pub pinned_only: bool,
@@ -145,34 +147,34 @@ pub fn routes() -> Router<AppState> {
 
 /// List boards in a workspace
 ///
-/// GET /api/v1/boards?workspace_id={workspace_id}&pinned_only={bool}
+/// GET /api/v1/boards?pinned_only={bool}
+/// Header: X-Workspace-ID: {workspace_id}
 async fn list_boards(
-    user: AuthUser,
-    Query(query): Query<ListBoardsQuery>,
+    ws: Workspace,
     State(state): State<AppState>,
+    Query(query): Query<ListBoardsFilter>,
 ) -> Result<Json<ListBoardsResponse>, ApiError> {
     let control = state
         .control
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
-    // Check user has access to workspace
-    check_workspace_membership(control, &query.workspace_id, &user.id).await?;
+    let workspace_id = ws.id();
 
     // Get workspace database
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(workspace_id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
     let repo = ControlPlane::boards(&ws_db);
 
     let boards = if query.pinned_only {
-        repo.list_pinned(&query.workspace_id)
+        repo.list_pinned(workspace_id)
             .await
             .map_err(|e| ApiError::internal(format!("Failed to list pinned boards: {}", e)))?
     } else {
-        repo.list_for_workspace(&query.workspace_id)
+        repo.list_for_workspace(workspace_id)
             .await
             .map_err(|e| ApiError::internal(format!("Failed to list boards: {}", e)))?
     };
@@ -185,10 +187,10 @@ async fn list_boards(
 /// Get a board by ID
 ///
 /// GET /api/v1/boards/{id}
+/// Header: X-Workspace-ID: {workspace_id}
 async fn get_board(
-    user: AuthUser,
+    ws: Workspace,
     Path(id): Path<String>,
-    Query(query): Query<WorkspaceQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<BoardResponse>, ApiError> {
     let control = state
@@ -196,11 +198,8 @@ async fn get_board(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
-    // Check user has access to workspace
-    check_workspace_membership(control, &query.workspace_id, &user.id).await?;
-
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(ws.id())
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -218,27 +217,21 @@ async fn get_board(
 /// Create a new board
 ///
 /// POST /api/v1/boards
+/// Header: X-Workspace-ID: {workspace_id}
 ///
-/// Requires Editor+ permission.
+/// Requires Editor+ permission in workspace.
 async fn create_board(
-    user: AuthUser,
+    ws: Workspace<CanCreate>,
     State(state): State<AppState>,
     Json(req): Json<CreateBoardRequest>,
 ) -> Result<(StatusCode, Json<BoardResponse>), ApiError> {
-    // Require Editor+ permission
-    if !user.has_permission(Permission::Create) {
-        return Err(ApiError::forbidden(
-            "Editor permission required to create boards",
-        ));
-    }
-
     let control = state
         .control
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
-    // Check user has access to workspace
-    check_workspace_membership(control, &req.workspace_id, &user.id).await?;
+    let workspace_id = ws.id();
+    let user_id = ws.user_id();
 
     // Validate title
     if req.title.is_empty() || req.title.len() > 200 {
@@ -246,7 +239,7 @@ async fn create_board(
     }
 
     let ws_db = control
-        .workspace_db(&req.workspace_id)
+        .workspace_db(workspace_id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -263,7 +256,7 @@ async fn create_board(
     }
 
     // Create board with user as owner
-    let mut board = Board::new(&req.workspace_id, &user.id, &req.title);
+    let mut board = Board::new(workspace_id, user_id, &req.title);
     if let Some(desc) = req.description {
         board = board.with_description(&desc);
     }
@@ -277,8 +270,8 @@ async fn create_board(
         action = AuditAction::Create.as_str(),
         resource_type = "board",
         resource_id = %board.id,
-        user_id = %user.id,
-        workspace_id = %req.workspace_id
+        user_id = %user_id,
+        workspace_id = %workspace_id
     );
 
     Ok((StatusCode::CREATED, Json(BoardResponse::from(board))))
@@ -287,12 +280,12 @@ async fn create_board(
 /// Update a board
 ///
 /// PUT /api/v1/boards/{id}
+/// Header: X-Workspace-ID: {workspace_id}
 ///
-/// Requires ownership or Admin role.
+/// Requires ownership or Admin role in workspace.
 async fn update_board(
-    user: AuthUser,
+    ws: Workspace,
     Path(id): Path<String>,
-    Query(query): Query<WorkspaceQuery>,
     State(state): State<AppState>,
     Json(req): Json<UpdateBoardRequest>,
 ) -> Result<Json<BoardResponse>, ApiError> {
@@ -301,8 +294,10 @@ async fn update_board(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
+    let workspace_id = ws.id();
+
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(workspace_id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -314,8 +309,8 @@ async fn update_board(
         .map_err(|e| ApiError::internal(format!("Failed to get board: {}", e)))?
         .ok_or_else(|| ApiError::not_found("board", &id))?;
 
-    // Check ownership or admin
-    if !can_modify_board(&board, &user, control).await? {
+    // Check ownership or admin (ws.is_admin() checks workspace role)
+    if board.owner_id != ws.user_id() && !ws.is_admin() {
         return Err(ApiError::forbidden("Not board owner or admin"));
     }
 
@@ -336,6 +331,7 @@ async fn update_board(
         board.description = Some(description);
     }
     if let Some(settings) = req.settings {
+        validate_board_settings(&settings)?;
         board.settings = settings;
     }
 
@@ -348,8 +344,8 @@ async fn update_board(
         action = AuditAction::Update.as_str(),
         resource_type = "board",
         resource_id = %board.id,
-        user_id = %user.id,
-        workspace_id = %query.workspace_id
+        user_id = %ws.user_id(),
+        workspace_id = %workspace_id
     );
 
     Ok(Json(BoardResponse::from(board)))
@@ -358,12 +354,12 @@ async fn update_board(
 /// Delete a board
 ///
 /// DELETE /api/v1/boards/{id}
+/// Header: X-Workspace-ID: {workspace_id}
 ///
-/// Requires ownership or Admin role.
+/// Requires ownership or Admin role in workspace.
 async fn delete_board(
-    user: AuthUser,
+    ws: Workspace,
     Path(id): Path<String>,
-    Query(query): Query<WorkspaceQuery>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, ApiError> {
     let control = state
@@ -371,8 +367,10 @@ async fn delete_board(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
+    let workspace_id = ws.id();
+
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(workspace_id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -385,7 +383,7 @@ async fn delete_board(
         .ok_or_else(|| ApiError::not_found("board", &id))?;
 
     // Check ownership or admin
-    if !can_modify_board(&board, &user, control).await? {
+    if board.owner_id != ws.user_id() && !ws.is_admin() {
         return Err(ApiError::forbidden("Not board owner or admin"));
     }
 
@@ -398,8 +396,8 @@ async fn delete_board(
         action = AuditAction::Delete.as_str(),
         resource_type = "board",
         resource_id = %id,
-        user_id = %user.id,
-        workspace_id = %query.workspace_id
+        user_id = %ws.user_id(),
+        workspace_id = %workspace_id
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -408,12 +406,12 @@ async fn delete_board(
 /// Pin or unpin a board
 ///
 /// PUT /api/v1/boards/{id}/pin
+/// Header: X-Workspace-ID: {workspace_id}
 ///
-/// Requires ownership or Admin role.
+/// Requires ownership or Admin role in workspace.
 async fn pin_board(
-    user: AuthUser,
+    ws: Workspace,
     Path(id): Path<String>,
-    Query(query): Query<WorkspaceQuery>,
     State(state): State<AppState>,
     Json(req): Json<PinBoardRequest>,
 ) -> Result<Json<BoardResponse>, ApiError> {
@@ -423,7 +421,7 @@ async fn pin_board(
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(ws.id())
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -436,8 +434,8 @@ async fn pin_board(
         .map_err(|e| ApiError::internal(format!("Failed to get board: {}", e)))?
         .ok_or_else(|| ApiError::not_found("board", &id))?;
 
-    // Check ownership or admin (same as update/delete)
-    if !can_modify_board(&board, &user, control).await? {
+    // Check ownership or admin
+    if board.owner_id != ws.user_id() && !ws.is_admin() {
         return Err(ApiError::forbidden("Not board owner or admin"));
     }
 
@@ -458,12 +456,12 @@ async fn pin_board(
 /// Create a share link for a board
 ///
 /// POST /api/v1/boards/{id}/share
+/// Header: X-Workspace-ID: {workspace_id}
 ///
-/// Requires ownership or Admin role.
+/// Requires ownership or Admin role in workspace.
 async fn share_board(
-    user: AuthUser,
+    ws: Workspace,
     Path(id): Path<String>,
-    Query(query): Query<WorkspaceQuery>,
     State(state): State<AppState>,
 ) -> Result<(StatusCode, Json<ShareBoardResponse>), ApiError> {
     let control = state
@@ -471,8 +469,11 @@ async fn share_board(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
+    let workspace_id = ws.id();
+    let user_id = ws.user_id();
+
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(workspace_id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -485,7 +486,7 @@ async fn share_board(
         .ok_or_else(|| ApiError::not_found("board", &id))?;
 
     // Check ownership or admin
-    if !can_modify_board(&board, &user, control).await? {
+    if board.owner_id != user_id && !ws.is_admin() {
         return Err(ApiError::forbidden("Not board owner or admin"));
     }
 
@@ -502,7 +503,7 @@ async fn share_board(
     }
 
     // Create new share link
-    let link = SharedLink::for_board(&id, &query.workspace_id, &user.id);
+    let link = SharedLink::for_board(&id, workspace_id, user_id);
 
     control
         .sharing()
@@ -515,8 +516,8 @@ async fn share_board(
         action = AuditAction::Share.as_str(),
         resource_type = "board",
         resource_id = %id,
-        user_id = %user.id,
-        workspace_id = %query.workspace_id
+        user_id = %user_id,
+        workspace_id = %workspace_id
     );
 
     Ok((StatusCode::CREATED, Json(ShareBoardResponse::from(link))))
@@ -525,12 +526,12 @@ async fn share_board(
 /// Get the share link for a board
 ///
 /// GET /api/v1/boards/{id}/share
+/// Header: X-Workspace-ID: {workspace_id}
 ///
 /// Requires ownership or Admin role. Returns the existing share link or 404 if not shared.
 async fn get_share_link(
-    user: AuthUser,
+    ws: Workspace,
     Path(id): Path<String>,
-    Query(query): Query<WorkspaceQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<ShareBoardResponse>, ApiError> {
     let control = state
@@ -539,7 +540,7 @@ async fn get_share_link(
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(ws.id())
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -553,7 +554,7 @@ async fn get_share_link(
         .ok_or_else(|| ApiError::not_found("board", &id))?;
 
     // Check ownership or admin - share hash is sensitive info
-    if !can_modify_board(&board, &user, control).await? {
+    if board.owner_id != ws.user_id() && !ws.is_admin() {
         return Err(ApiError::forbidden("Not board owner or admin"));
     }
 
@@ -570,12 +571,12 @@ async fn get_share_link(
 /// Revoke sharing for a board
 ///
 /// DELETE /api/v1/boards/{id}/share
+/// Header: X-Workspace-ID: {workspace_id}
 ///
-/// Requires ownership or Admin role.
+/// Requires ownership or Admin role in workspace.
 async fn unshare_board(
-    user: AuthUser,
+    ws: Workspace,
     Path(id): Path<String>,
-    Query(query): Query<WorkspaceQuery>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, ApiError> {
     let control = state
@@ -583,8 +584,11 @@ async fn unshare_board(
         .as_ref()
         .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
 
+    let workspace_id = ws.id();
+    let user_id = ws.user_id();
+
     let ws_db = control
-        .workspace_db(&query.workspace_id)
+        .workspace_db(workspace_id)
         .await
         .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
 
@@ -597,7 +601,7 @@ async fn unshare_board(
         .ok_or_else(|| ApiError::not_found("board", &id))?;
 
     // Check ownership or admin
-    if !can_modify_board(&board, &user, control).await? {
+    if board.owner_id != user_id && !ws.is_admin() {
         return Err(ApiError::forbidden("Not board owner or admin"));
     }
 
@@ -612,72 +616,142 @@ async fn unshare_board(
         action = AuditAction::Unshare.as_str(),
         resource_type = "board",
         resource_id = %id,
-        user_id = %user.id,
-        workspace_id = %query.workspace_id
+        user_id = %user_id,
+        workspace_id = %workspace_id
     );
 
     Ok(StatusCode::NO_CONTENT)
 }
 
 // =============================================================================
-// Helper functions
+// Validation
 // =============================================================================
 
-/// Query param for workspace context
-#[derive(Debug, Deserialize)]
-pub struct WorkspaceQuery {
-    pub workspace_id: String,
-}
+/// Validate board settings
+///
+/// Checks:
+/// - Max 50 metric blocks
+/// - Max 50 note blocks
+/// - Max 20 series per metric block
+/// - Unique block IDs across all blocks
+/// - Valid positions (width > 0, height > 0)
+/// - Each series has required fields (metric, range)
+fn validate_board_settings(settings: &BoardSettings) -> Result<(), ApiError> {
+    let mut metric_count = 0;
+    let mut note_count = 0;
+    let mut block_ids = HashSet::new();
 
-/// Check if user is a member of the workspace
-async fn check_workspace_membership(
-    control: &tell_control::ControlPlane,
-    workspace_id: &str,
-    user_id: &str,
-) -> Result<(), ApiError> {
-    let membership = control
-        .workspaces()
-        .get_member(workspace_id, user_id)
-        .await
-        .map_err(|e| ApiError::internal(format!("Failed to check membership: {}", e)))?;
+    for block in &settings.blocks {
+        match block {
+            Block::Metric(metric) => {
+                metric_count += 1;
+                if metric_count > MAX_METRIC_BLOCKS {
+                    return Err(ApiError::validation(
+                        "settings.blocks",
+                        format!("maximum {} metric blocks allowed", MAX_METRIC_BLOCKS),
+                    ));
+                }
 
-    if membership.is_none() {
-        return Err(ApiError::forbidden("Not a workspace member"));
-    }
+                // Check unique block ID
+                if !block_ids.insert(&metric.id) {
+                    return Err(ApiError::validation(
+                        "settings.blocks",
+                        format!("duplicate block ID: {}", metric.id),
+                    ));
+                }
 
-    Ok(())
-}
+                // Check position
+                if metric.position.width == 0 || metric.position.height == 0 {
+                    return Err(ApiError::validation(
+                        "settings.blocks",
+                        format!(
+                            "block {} has invalid position: width and height must be > 0",
+                            metric.id
+                        ),
+                    ));
+                }
 
-/// Check if user can modify a board (owner or admin)
-async fn can_modify_board(
-    board: &Board,
-    user: &AuthUser,
-    control: &tell_control::ControlPlane,
-) -> Result<bool, ApiError> {
-    // Owner can always modify
-    if board.owner_id == user.id {
-        return Ok(true);
-    }
+                // Check series count
+                if metric.series.len() > MAX_SERIES_PER_BLOCK {
+                    return Err(ApiError::validation(
+                        "settings.blocks",
+                        format!(
+                            "block {} has {} series, maximum {} allowed",
+                            metric.id,
+                            metric.series.len(),
+                            MAX_SERIES_PER_BLOCK
+                        ),
+                    ));
+                }
 
-    // Platform admins can modify any board
-    if user.has_permission(Permission::Platform) {
-        return Ok(true);
-    }
+                // Check series have required fields and unique IDs
+                let mut series_ids = HashSet::new();
+                for series in &metric.series {
+                    if !series_ids.insert(&series.id) {
+                        return Err(ApiError::validation(
+                            "settings.blocks",
+                            format!("block {} has duplicate series ID: {}", metric.id, series.id),
+                        ));
+                    }
 
-    // Workspace admins can modify any board in their workspace
-    if user.has_permission(Permission::Admin) {
-        let membership = control
-            .workspaces()
-            .get_member(&board.workspace_id, &user.id)
-            .await
-            .map_err(|e| ApiError::internal(format!("Failed to check membership: {}", e)))?;
+                    if series.name.is_empty() {
+                        return Err(ApiError::validation(
+                            "settings.blocks",
+                            format!("series {} in block {} has empty name", series.id, metric.id),
+                        ));
+                    }
 
-        if let Some(m) = membership
-            && m.role.can_manage()
-        {
-            return Ok(true);
+                    if series.query.metric.is_empty() {
+                        return Err(ApiError::validation(
+                            "settings.blocks",
+                            format!(
+                                "series {} in block {} has empty metric",
+                                series.id, metric.id
+                            ),
+                        ));
+                    }
+
+                    if series.query.range.is_empty() {
+                        return Err(ApiError::validation(
+                            "settings.blocks",
+                            format!(
+                                "series {} in block {} has empty range",
+                                series.id, metric.id
+                            ),
+                        ));
+                    }
+                }
+            }
+            Block::Note(note) => {
+                note_count += 1;
+                if note_count > MAX_NOTE_BLOCKS {
+                    return Err(ApiError::validation(
+                        "settings.blocks",
+                        format!("maximum {} note blocks allowed", MAX_NOTE_BLOCKS),
+                    ));
+                }
+
+                // Check unique block ID
+                if !block_ids.insert(&note.id) {
+                    return Err(ApiError::validation(
+                        "settings.blocks",
+                        format!("duplicate block ID: {}", note.id),
+                    ));
+                }
+
+                // Check position
+                if note.position.width == 0 || note.position.height == 0 {
+                    return Err(ApiError::validation(
+                        "settings.blocks",
+                        format!(
+                            "block {} has invalid position: width and height must be > 0",
+                            note.id
+                        ),
+                    ));
+                }
+            }
         }
     }
 
-    Ok(false)
+    Ok(())
 }

@@ -38,6 +38,16 @@ impl TopLogsMetric {
         Self::new("source", limit)
     }
 
+    /// Create top logs by any field
+    pub fn by_field(field: &str, limit: u32) -> Self {
+        Self::new(field, limit)
+    }
+
+    /// Create top logs by service
+    pub fn by_service(limit: u32) -> Self {
+        Self::new("service", limit)
+    }
+
     pub(crate) fn build_query(&self, filter: &Filter, workspace_id: u64) -> String {
         let table = table_name(workspace_id, "logs_v1");
         top_n_query(&table, &self.group_field, filter, "timestamp", self.limit)

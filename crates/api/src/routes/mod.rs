@@ -47,6 +47,7 @@ pub fn build_router_with_options(state: AppState, options: RouterOptions) -> Rou
         .nest("/api/v1/admin", admin_routes)
         // Product routes (metrics, boards, data)
         .nest("/api/v1/metrics", product::metrics::routes())
+        .nest("/api/v1/metrics/saved", product::metrics_saved::routes())
         .nest("/api/v1/boards", product::boards::routes())
         .nest("/api/v1/data", product::data::routes())
         // Public invite routes (verify/accept - no auth required)

@@ -136,6 +136,22 @@ impl ControlPlane {
     async fn init_control_schema(&self) -> Result<()> {
         let conn = self.control_db.connect()?;
 
+        // === Auth tables ===
+
+        // Users table
+        conn.execute(SCHEMA_USERS, ()).await?;
+        conn.execute(INDEX_USERS_EMAIL, ()).await?;
+
+        // Sessions table
+        conn.execute(SCHEMA_SESSIONS, ()).await?;
+        conn.execute(INDEX_SESSIONS_USER, ()).await?;
+        conn.execute(INDEX_SESSIONS_TOKEN, ()).await?;
+
+        // Revoked tokens table
+        conn.execute(SCHEMA_REVOKED_TOKENS, ()).await?;
+
+        // === Workspace tables ===
+
         // Workspaces table
         conn.execute(SCHEMA_WORKSPACES, ()).await?;
 
@@ -178,6 +194,8 @@ impl ControlPlane {
         // Indexes
         conn.execute(INDEX_BOARDS_WORKSPACE, ()).await?;
         conn.execute(INDEX_BOARDS_OWNER, ()).await?;
+        conn.execute(INDEX_METRICS_WORKSPACE, ()).await?;
+        conn.execute(INDEX_METRICS_OWNER, ()).await?;
 
         debug!("Workspace database schema initialized");
         Ok(())
@@ -185,7 +203,51 @@ impl ControlPlane {
 }
 
 // =============================================================================
-// Control Database Schema
+// Control Database Schema - Auth Tables
+// =============================================================================
+
+const SCHEMA_USERS: &str = r#"
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer',
+    created_at TEXT NOT NULL,
+    last_login TEXT
+)
+"#;
+
+const SCHEMA_SESSIONS: &str = r#"
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)
+"#;
+
+const SCHEMA_REVOKED_TOKENS: &str = r#"
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+    token_id TEXT PRIMARY KEY,
+    revoked_at TEXT NOT NULL,
+    reason TEXT
+)
+"#;
+
+const INDEX_USERS_EMAIL: &str = "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)";
+
+const INDEX_SESSIONS_USER: &str =
+    "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON auth_sessions(user_id)";
+
+const INDEX_SESSIONS_TOKEN: &str =
+    "CREATE INDEX IF NOT EXISTS idx_sessions_token ON auth_sessions(token)";
+
+// =============================================================================
+// Control Database Schema - Workspace Tables
 // =============================================================================
 
 const SCHEMA_WORKSPACES: &str = r#"
@@ -296,8 +358,10 @@ CREATE TABLE IF NOT EXISTS saved_metrics (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
     owner_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    settings TEXT DEFAULT '{}',
+    title TEXT NOT NULL,
+    description TEXT,
+    query TEXT NOT NULL,
+    display TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 )
@@ -315,3 +379,9 @@ const INDEX_BOARDS_WORKSPACE: &str =
     "CREATE INDEX IF NOT EXISTS idx_boards_workspace ON boards(workspace_id)";
 
 const INDEX_BOARDS_OWNER: &str = "CREATE INDEX IF NOT EXISTS idx_boards_owner ON boards(owner_id)";
+
+const INDEX_METRICS_WORKSPACE: &str =
+    "CREATE INDEX IF NOT EXISTS idx_metrics_workspace ON saved_metrics(workspace_id)";
+
+const INDEX_METRICS_OWNER: &str =
+    "CREATE INDEX IF NOT EXISTS idx_metrics_owner ON saved_metrics(owner_id)";

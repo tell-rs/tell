@@ -3,7 +3,6 @@ name = "tell-sinks"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 description = "Output sinks (ClickHouse, disk, parquet, etc) for Tell"
 
 [dependencies]

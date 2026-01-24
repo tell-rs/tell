@@ -38,12 +38,14 @@
 
 use std::io;
 use std::net::SocketAddr;
+#[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use crossfire::TrySendError;
+#[cfg(unix)]
 use socket2::{Socket, TcpKeepalive};
 use tell_protocol::{BatchBuilder, BatchType, SourceId};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -376,9 +378,10 @@ impl SyslogTcpSource {
         self.running.store(false, Ordering::Relaxed);
     }
 
-    /// Configure socket options using socket2
+    /// Configure socket options using socket2 (Unix only)
     ///
     /// Sets nodelay, buffer sizes, and keepalive matching Go's SetupTCPConn.
+    #[cfg(unix)]
     fn configure_socket(&self, stream: &TcpStream) {
         let fd = stream.as_raw_fd();
 
@@ -409,6 +412,13 @@ impl SyslogTcpSource {
 
         // Don't close the fd - tokio owns it
         std::mem::forget(socket);
+    }
+
+    /// Configure socket - no-op on Windows (tokio handles defaults)
+    #[cfg(not(unix))]
+    fn configure_socket(&self, _stream: &TcpStream) {
+        // On Windows, we skip the advanced socket configuration.
+        // Tokio's defaults are generally sufficient.
     }
 
     /// Run the source (main entry point)

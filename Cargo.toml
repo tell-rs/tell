@@ -20,13 +20,14 @@ members = [
     "crates/analytics",
     "crates/api",
     "crates/control",
+    "crates/telemetry",
+    "crates/license",
 ]
 
 [workspace.package]
-version = "2.0.3"
+version = "2.0.6"
 edition = "2024"
 rust-version = "1.92"
-license = "MIT"
 repository = "https://github.com/tell-rs/tell"
 
 [workspace.dependencies]
@@ -146,6 +147,11 @@ tell-query = { path = "crates/query" }
 tell-analytics = { path = "crates/analytics" }
 tell-api = { path = "crates/api" }
 tell-control = { path = "crates/control" }
+tell-telemetry = { path = "crates/telemetry" }
+tell-license = { path = "crates/license" }
+
+# Telemetry deps
+hostname = "0.4"
 
 [profile.release]
 codegen-units = 1  # Better cross-crate optimization

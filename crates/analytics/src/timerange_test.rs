@@ -32,8 +32,37 @@ fn test_parse_relative_weeks() {
 #[test]
 fn test_parse_relative_months() {
     let range = TimeRange::parse("3m").unwrap();
-    // Approximate: 3 * 30 = 90 days
-    assert_eq!(range.days(), 90);
+    // 3m uses calendar months (89-93 days depending on which months)
+    let days = range.days();
+    assert!(
+        (89..=93).contains(&days),
+        "Expected 89-93 days, got {}",
+        days
+    );
+}
+
+#[test]
+fn test_parse_6m_shortcut() {
+    let range = TimeRange::parse("6m").unwrap();
+    // 6m uses calendar months (181-186 days depending on which months)
+    let days = range.days();
+    assert!(
+        (181..=186).contains(&days),
+        "Expected 181-186 days, got {}",
+        days
+    );
+}
+
+#[test]
+fn test_parse_12m_shortcut() {
+    let range = TimeRange::parse("12m").unwrap();
+    // 12m uses calendar months (365-366 days)
+    let days = range.days();
+    assert!(
+        (365..=366).contains(&days),
+        "Expected 365-366 days, got {}",
+        days
+    );
 }
 
 #[test]

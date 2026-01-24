@@ -10,6 +10,7 @@ use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, 
 use tell_pipeline::{Router, SinkHandle};
 use tell_protocol::{Batch, BatchBuilder, BatchType, SourceId};
 use tell_routing::RoutingTable;
+#[cfg(unix)]
 use tell_tap::{SubscribeRequest, TapPoint};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -300,6 +301,9 @@ fn bench_throughput(c: &mut Criterion) {
 /// 1. No tap configured (baseline)
 /// 2. Tap configured, no subscribers (idle - should be near-zero overhead)
 /// 3. Tap configured with subscriber (streaming)
+///
+/// Note: This benchmark is Unix-only because TapPoint uses Unix domain sockets.
+#[cfg(unix)]
 fn bench_tap_overhead(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
@@ -381,6 +385,7 @@ fn bench_tap_overhead(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(unix)]
 criterion_group!(
     benches,
     bench_route_single_sink,
@@ -391,6 +396,18 @@ criterion_group!(
     bench_channel_baseline,
     bench_throughput,
     bench_tap_overhead,
+);
+
+#[cfg(not(unix))]
+criterion_group!(
+    benches,
+    bench_route_single_sink,
+    bench_route_fanout,
+    bench_arc_overhead,
+    bench_routing_lookup,
+    bench_metrics,
+    bench_channel_baseline,
+    bench_throughput,
 );
 
 criterion_main!(benches);

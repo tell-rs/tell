@@ -16,7 +16,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{AuthUser, WorkspaceId};
+use crate::auth::Workspace;
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::types::ApiResponse;
@@ -132,18 +132,15 @@ pub struct FieldValuesResponse {
 /// Execute a data query
 ///
 /// POST /api/v1/data/query
+/// Header: X-Workspace-ID: {workspace_id}
 ///
 /// Executes a SQL query against the analytics database.
 /// Queries are scoped to the user's workspace.
 async fn execute_query(
     State(state): State<AppState>,
-    user: AuthUser,
-    workspace: WorkspaceId,
+    ws: Workspace,
     Json(req): Json<DataQueryRequest>,
 ) -> Result<Json<ApiResponse<DataQueryResponse>>, ApiError> {
-    // Verify user has access to workspace
-    check_workspace_membership(&state, workspace.0, &user).await?;
-
     // Validate query
     let query = req.query.trim();
     if query.is_empty() {
@@ -159,10 +156,11 @@ async fn execute_query(
         ));
     }
 
-    // Check for dangerous keywords
+    // Check for dangerous keywords (as whole words, not substrings)
+    // This allows queries like "SELECT * FROM deletions" or "SELECT drop_rate FROM metrics"
     let dangerous = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE"];
     for keyword in dangerous {
-        if query_upper.contains(keyword) {
+        if contains_word(&query_upper, keyword) {
             return Err(ApiError::validation(
                 "query",
                 format!("{} is not allowed in queries", keyword),
@@ -174,7 +172,8 @@ async fn execute_query(
     let limit = req.limit.min(10000);
 
     // Build workspace-scoped query
-    let workspace_id = workspace.0;
+    // Parse workspace ID from header (string) to u64 for ClickHouse database naming
+    let workspace_id: u64 = ws.id().parse().unwrap_or(0);
     let scoped_query = scope_query_to_workspace(query, workspace_id, limit);
 
     // Execute query
@@ -208,14 +207,8 @@ async fn execute_query(
 /// List available data sources
 ///
 /// GET /api/v1/data/sources
-async fn list_sources(
-    State(state): State<AppState>,
-    user: AuthUser,
-    workspace: WorkspaceId,
-) -> Result<Json<ApiResponse<ListSourcesResponse>>, ApiError> {
-    // Verify user has access to workspace
-    check_workspace_membership(&state, workspace.0, &user).await?;
-
+/// Header: X-Workspace-ID: {workspace_id}
+async fn list_sources(_ws: Workspace) -> Result<Json<ApiResponse<ListSourcesResponse>>, ApiError> {
     let sources = vec![
         DataSource {
             id: "events".to_string(),
@@ -241,6 +234,18 @@ async fn list_sources(
             description: "User properties and attributes".to_string(),
             table: "user_traits_v1".to_string(),
         },
+        DataSource {
+            id: "users".to_string(),
+            name: "Users".to_string(),
+            description: "User profiles and identities".to_string(),
+            table: "users_v1".to_string(),
+        },
+        DataSource {
+            id: "user_devices".to_string(),
+            name: "User Devices".to_string(),
+            description: "User to device mappings".to_string(),
+            table: "user_devices".to_string(),
+        },
     ];
 
     Ok(Json(ApiResponse::new(ListSourcesResponse { sources })))
@@ -249,15 +254,11 @@ async fn list_sources(
 /// Get fields for a data source
 ///
 /// GET /api/v1/data/sources/{source}/fields
+/// Header: X-Workspace-ID: {workspace_id}
 async fn get_source_fields(
-    State(state): State<AppState>,
+    _ws: Workspace,
     Path(source): Path<String>,
-    user: AuthUser,
-    workspace: WorkspaceId,
 ) -> Result<Json<ApiResponse<ListFieldsResponse>>, ApiError> {
-    // Verify user has access to workspace
-    check_workspace_membership(&state, workspace.0, &user).await?;
-
     let fields = match source.as_str() {
         "events" => vec![
             FieldInfo {
@@ -367,6 +368,45 @@ async fn get_source_fields(
                 description: Some("Last update timestamp".to_string()),
             },
         ],
+        "users" => vec![
+            FieldInfo {
+                name: "user_id".to_string(),
+                data_type: "String".to_string(),
+                description: Some("Unique user identifier".to_string()),
+            },
+            FieldInfo {
+                name: "email".to_string(),
+                data_type: "String".to_string(),
+                description: Some("User email address".to_string()),
+            },
+            FieldInfo {
+                name: "name".to_string(),
+                data_type: "String".to_string(),
+                description: Some("User display name".to_string()),
+            },
+            FieldInfo {
+                name: "updated_at".to_string(),
+                data_type: "DateTime".to_string(),
+                description: Some("Last update timestamp".to_string()),
+            },
+        ],
+        "user_devices" => vec![
+            FieldInfo {
+                name: "user_id".to_string(),
+                data_type: "String".to_string(),
+                description: Some("User identifier".to_string()),
+            },
+            FieldInfo {
+                name: "device_id".to_string(),
+                data_type: "String".to_string(),
+                description: Some("Device identifier".to_string()),
+            },
+            FieldInfo {
+                name: "linked_at".to_string(),
+                data_type: "DateTime".to_string(),
+                description: Some("When device was linked to user".to_string()),
+            },
+        ],
         _ => {
             return Err(ApiError::not_found("data_source", &source));
         }
@@ -381,22 +421,21 @@ async fn get_source_fields(
 /// Get distinct values for a field
 ///
 /// GET /api/v1/data/sources/{source}/values/{field}
+/// Header: X-Workspace-ID: {workspace_id}
 async fn get_field_values(
     State(state): State<AppState>,
+    ws: Workspace,
     Path((source, field)): Path<(String, String)>,
-    user: AuthUser,
-    workspace: WorkspaceId,
     Query(params): Query<FieldValuesQuery>,
 ) -> Result<Json<ApiResponse<FieldValuesResponse>>, ApiError> {
-    // Verify user has access to workspace
-    check_workspace_membership(&state, workspace.0, &user).await?;
-
     // Get table name for source (whitelist validation)
     let table = match source.as_str() {
         "events" => "events_v1",
         "logs" => "logs_v1",
         "context" => "context_v1",
         "user_traits" => "user_traits_v1",
+        "users" => "users_v1",
+        "user_devices" => "user_devices",
         _ => {
             return Err(ApiError::not_found("data_source", &source));
         }
@@ -422,6 +461,8 @@ async fn get_field_values(
             "country",
         ][..],
         "user_traits" => &["user_id", "trait_name", "trait_value", "updated_at"][..],
+        "users" => &["user_id", "email", "name", "updated_at"][..],
+        "user_devices" => &["user_id", "device_id", "linked_at"][..],
         _ => &[][..],
     };
 
@@ -433,7 +474,8 @@ async fn get_field_values(
     }
 
     let limit = params.limit.min(1000);
-    let workspace_id = workspace.0;
+    // Parse workspace ID from header (string) to u64 for ClickHouse database naming
+    let workspace_id: u64 = ws.id().parse().unwrap_or(0);
 
     // Build query for distinct values
     // Field name is validated via whitelist above, so safe to include directly
@@ -497,7 +539,14 @@ async fn get_field_values(
 fn scope_query_to_workspace(query: &str, workspace_id: u64, limit: u32) -> String {
     // Simple table name rewriting
     // In production, you'd want a proper SQL parser
-    let tables = ["events_v1", "logs_v1", "context_v1", "user_traits_v1"];
+    let tables = [
+        "events_v1",
+        "logs_v1",
+        "context_v1",
+        "user_traits_v1",
+        "users_v1",
+        "user_devices",
+    ];
 
     let mut result = query.to_string();
     for table in tables {
@@ -527,35 +576,36 @@ fn scope_query_to_workspace(query: &str, workspace_id: u64, limit: u32) -> Strin
     result
 }
 
-/// Verify user has access to the workspace
-async fn check_workspace_membership(
-    state: &AppState,
-    workspace_id: u64,
-    user: &AuthUser,
-) -> Result<(), ApiError> {
-    // Platform admins can access any workspace
-    if user.has_permission(tell_auth::Permission::Platform) {
-        return Ok(());
+/// Check if a string contains a keyword as a whole word (not as a substring)
+///
+/// For example:
+/// - `contains_word("DELETE FROM", "DELETE")` -> true
+/// - `contains_word("SELECT * FROM deletions", "DELETE")` -> false
+fn contains_word(haystack: &str, needle: &str) -> bool {
+    let haystack_bytes = haystack.as_bytes();
+    let needle_bytes = needle.as_bytes();
+
+    if needle_bytes.len() > haystack_bytes.len() {
+        return false;
     }
 
-    // Check workspace membership via control plane
-    if let Some(control) = state.control.as_ref() {
-        let ws_id = workspace_id.to_string();
-        let membership = control
-            .workspaces()
-            .get_member(&ws_id, &user.id)
-            .await
-            .map_err(|e| ApiError::internal(format!("Failed to check membership: {}", e)))?;
+    for i in 0..=(haystack_bytes.len() - needle_bytes.len()) {
+        // Check if substring matches
+        if &haystack_bytes[i..i + needle_bytes.len()] == needle_bytes {
+            // Check word boundary before
+            let before_ok = i == 0 || !haystack_bytes[i - 1].is_ascii_alphanumeric();
+            // Check word boundary after
+            let after_idx = i + needle_bytes.len();
+            let after_ok = after_idx >= haystack_bytes.len()
+                || !haystack_bytes[after_idx].is_ascii_alphanumeric();
 
-        if membership.is_some() {
-            return Ok(());
+            if before_ok && after_ok {
+                return true;
+            }
         }
-    } else {
-        // No control plane - allow access (development mode)
-        return Ok(());
     }
 
-    Err(ApiError::forbidden("Not a member of this workspace"))
+    false
 }
 
 #[cfg(test)]
@@ -586,5 +636,32 @@ mod tests {
         assert!(scoped.contains("FROM 789.logs_v1"));
         // Should not add another LIMIT
         assert_eq!(scoped.matches("LIMIT").count(), 1);
+    }
+
+    #[test]
+    fn test_contains_word_matches_whole_word() {
+        assert!(contains_word("DELETE FROM events", "DELETE"));
+        assert!(contains_word("SELECT * FROM events; DROP TABLE", "DROP"));
+        assert!(contains_word("INSERT INTO events", "INSERT"));
+    }
+
+    #[test]
+    fn test_contains_word_rejects_substrings() {
+        // Should NOT match - these are column/table names containing the keyword
+        assert!(!contains_word("SELECT * FROM deletions", "DELETE"));
+        assert!(!contains_word("SELECT insert_count FROM events", "INSERT"));
+        assert!(!contains_word("SELECT drop_rate FROM metrics", "DROP"));
+        assert!(!contains_word("SELECT updated_at FROM events", "UPDATE"));
+    }
+
+    #[test]
+    fn test_contains_word_boundary_cases() {
+        // At start of string
+        assert!(contains_word("DELETE", "DELETE"));
+        // At end of string
+        assert!(contains_word("DO DELETE", "DELETE"));
+        // With punctuation boundaries
+        assert!(contains_word("(DELETE)", "DELETE"));
+        assert!(contains_word("DELETE;", "DELETE"));
     }
 }

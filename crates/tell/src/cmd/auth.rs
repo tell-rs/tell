@@ -71,6 +71,7 @@ struct LoginResponse {
 }
 
 /// User info response from API
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct UserResponse {
     id: String,
@@ -79,7 +80,8 @@ struct UserResponse {
     name: Option<String>,
 }
 
-/// Run the auth command
+/// Run the auth command (used by subcommand pattern)
+#[allow(dead_code)]
 pub async fn run(args: AuthArgs) -> Result<()> {
     match args.command {
         AuthCommand::Login => run_login(args.config.as_ref()).await,
@@ -88,8 +90,8 @@ pub async fn run(args: AuthArgs) -> Result<()> {
     }
 }
 
-/// Perform login
-async fn run_login(config_path: Option<&PathBuf>) -> Result<()> {
+/// Perform login (public for direct CLI access)
+pub async fn run_login(config_path: Option<&PathBuf>) -> Result<()> {
     let api_url = get_api_url(config_path)?;
 
     // Prompt for credentials
@@ -142,8 +144,8 @@ async fn run_login(config_path: Option<&PathBuf>) -> Result<()> {
     Ok(())
 }
 
-/// Perform logout
-fn run_logout() -> Result<()> {
+/// Perform logout (public for direct CLI access)
+pub fn run_logout() -> Result<()> {
     let auth_file = auth_file_path()?;
     if auth_file.exists() {
         fs::remove_file(&auth_file).context("failed to remove auth file")?;
@@ -154,7 +156,8 @@ fn run_logout() -> Result<()> {
     Ok(())
 }
 
-/// Show current auth status
+/// Show current auth status (used by subcommand pattern)
+#[allow(dead_code)]
 async fn run_status(config_path: Option<&PathBuf>) -> Result<()> {
     let credentials = match load_credentials() {
         Ok(c) => c,

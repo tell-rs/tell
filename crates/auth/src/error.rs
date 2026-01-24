@@ -79,6 +79,27 @@ pub enum AuthError {
     /// Token claims are invalid
     #[error("invalid token claims: {0}")]
     InvalidClaims(String),
+
+    // Session errors
+    /// Session not found in database
+    #[error("session not found")]
+    SessionNotFound,
+
+    /// Session has expired
+    #[error("session expired")]
+    SessionExpired,
+
+    /// Token has been revoked
+    #[error("token revoked")]
+    TokenRevoked,
+
+    /// Database operation failed
+    #[error("database error: {0}")]
+    DatabaseError(String),
+
+    /// Workspace access denied
+    #[error("workspace access denied: {0}")]
+    WorkspaceAccessDenied(String),
 }
 
 impl AuthError {

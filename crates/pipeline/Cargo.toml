@@ -3,7 +3,6 @@ name = "tell-pipeline"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 description = "Async router and channel-based pipeline for Tell"
 
 [dependencies]

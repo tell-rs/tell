@@ -3,7 +3,6 @@ name = "tell-auth"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 description = "API key management with hot reload for Tell"
 
 [dependencies]
@@ -13,6 +12,7 @@ notify = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 chrono = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time", "rt"] }  # Background tasks
 subtle = "2.5"  # Constant-time comparison for API keys
 jsonwebtoken = "9"  # JWT encoding/decoding
 async-trait = "0.1"  # Async trait support
@@ -20,6 +20,7 @@ argon2 = "0.5"  # Password hashing
 rand = "0.8"  # Random salt generation
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }  # SQLite user store
 uuid = { version = "1", features = ["v4"] }  # User IDs
+tell-control = { path = "../control" }  # ControlPlane-backed user store
 
 [dev-dependencies]
 tempfile = { workspace = true }

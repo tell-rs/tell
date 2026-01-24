@@ -43,6 +43,7 @@ mod query;
 mod routing;
 mod sinks;
 mod sources;
+mod telemetry;
 mod transformers;
 mod validation;
 
@@ -71,6 +72,7 @@ pub use sources::{
     SourcesConfig, SyslogTcpSourceConfig, SyslogUdpSourceConfig, TcpDebugSourceConfig,
     TcpSourceConfig,
 };
+pub use telemetry::TelemetryConfig;
 pub use transformers::{
     KNOWN_TRANSFORMER_TYPES, TransformerInstanceConfig, is_known_transformer_type,
 };
@@ -106,6 +108,9 @@ pub struct Config {
 
     /// Query backend configuration (for analytics API)
     pub query: QueryConfig,
+
+    /// Product telemetry configuration
+    pub telemetry: TelemetryConfig,
 
     /// Data sources (TCP, Syslog, etc.)
     pub sources: SourcesConfig,

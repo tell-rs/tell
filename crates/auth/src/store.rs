@@ -14,6 +14,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use rand::RngCore;
 use subtle::ConstantTimeEq;
 
 use crate::error::{AuthError, Result};
@@ -50,8 +51,8 @@ pub struct ApiKeyStore {
 
 #[derive(Debug, Default)]
 struct StoreInner {
-    /// Map from API key to workspace ID
-    keys: HashMap<ApiKey, WorkspaceId>,
+    /// Map from API key to (workspace ID, optional name)
+    keys: HashMap<ApiKey, (WorkspaceId, Option<String>)>,
 }
 
 impl Default for ApiKeyStore {
@@ -87,7 +88,10 @@ impl ApiKeyStore {
     /// ```text
     /// # comments start with #
     /// 000102030405060708090a0b0c0d0e0f:workspace_id
+    /// 000102030405060708090a0b0c0d0e0f:workspace_id:name
     /// ```
+    ///
+    /// The name field is optional for backward compatibility.
     ///
     /// # Errors
     ///
@@ -119,14 +123,14 @@ impl ApiKeyStore {
                 }
 
                 // Parse line
-                let (key, workspace) = parse_line(line, line_num)?;
+                let (key, workspace, name) = parse_line(line, line_num)?;
 
                 // Check for duplicates
                 if inner.keys.contains_key(&key) {
                     return Err(AuthError::duplicate_key(line_num));
                 }
 
-                inner.keys.insert(key, workspace);
+                inner.keys.insert(key, (workspace, name));
             }
         }
 
@@ -160,7 +164,7 @@ impl ApiKeyStore {
         // This prevents timing attacks at the cost of O(n) instead of O(1)
         let mut result: Option<WorkspaceId> = None;
 
-        for (stored_key, workspace_id) in inner.keys.iter() {
+        for (stored_key, (workspace_id, _name)) in inner.keys.iter() {
             // Constant-time comparison: always compare all bytes
             if bool::from(key.ct_eq(stored_key)) {
                 result = Some(*workspace_id);
@@ -191,21 +195,37 @@ impl ApiKeyStore {
     /// (e.g., internal services, rate-limited endpoints).
     #[inline]
     pub fn validate_fast(&self, key: &ApiKey) -> Option<WorkspaceId> {
-        self.inner.read().keys.get(key).cloned()
+        self.inner.read().keys.get(key).map(|(ws, _)| *ws)
     }
 
     /// Insert an API key
     ///
     /// Returns the previous workspace ID if the key already existed.
     pub fn insert(&self, key: ApiKey, workspace: WorkspaceId) -> Option<WorkspaceId> {
-        self.inner.write().keys.insert(key, workspace)
+        self.insert_named(key, workspace, None)
+    }
+
+    /// Insert an API key with a name
+    ///
+    /// Returns the previous workspace ID if the key already existed.
+    pub fn insert_named(
+        &self,
+        key: ApiKey,
+        workspace: WorkspaceId,
+        name: Option<String>,
+    ) -> Option<WorkspaceId> {
+        self.inner
+            .write()
+            .keys
+            .insert(key, (workspace, name))
+            .map(|(ws, _)| ws)
     }
 
     /// Remove an API key
     ///
     /// Returns the workspace ID if the key existed.
     pub fn remove(&self, key: &ApiKey) -> Option<WorkspaceId> {
-        self.inner.write().keys.remove(key)
+        self.inner.write().keys.remove(key).map(|(ws, _)| ws)
     }
 
     /// Check if a key exists
@@ -258,13 +278,13 @@ impl ApiKeyStore {
                 continue;
             }
 
-            let (key, workspace) = parse_line(line, line_num)?;
+            let (key, workspace, name) = parse_line(line, line_num)?;
 
             if new_keys.contains_key(&key) {
                 return Err(AuthError::duplicate_key(line_num));
             }
 
-            new_keys.insert(key, workspace);
+            new_keys.insert(key, (workspace, name));
         }
 
         // Atomic swap
@@ -274,6 +294,26 @@ impl ApiKeyStore {
         Ok(count)
     }
 
+    /// Save all keys to a file
+    ///
+    /// Format: `hex_key:workspace_id:name` (name omitted if None)
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
+        let path = path.as_ref();
+        let mut contents = String::from("# API keys format: hex_key:workspace_id:name\n");
+
+        let inner = self.inner.read();
+        for (key, (workspace, name)) in inner.keys.iter() {
+            let hex: String = key.iter().map(|b| format!("{:02x}", b)).collect();
+            if let Some(name) = name {
+                contents.push_str(&format!("{}:{}:{}\n", hex, workspace.as_u32(), name));
+            } else {
+                contents.push_str(&format!("{}:{}\n", hex, workspace.as_u32()));
+            }
+        }
+
+        fs::write(path, contents)
+    }
+
     /// Clear all keys
     pub fn clear(&self) {
         self.inner.write().keys.clear();
@@ -281,19 +321,93 @@ impl ApiKeyStore {
 
     /// Get all workspace IDs (for debugging/metrics)
     pub fn workspaces(&self) -> Vec<WorkspaceId> {
-        self.inner.read().keys.values().cloned().collect()
+        self.inner.read().keys.values().map(|(ws, _)| *ws).collect()
+    }
+
+    /// List all API keys with their names (for management UI)
+    ///
+    /// Returns tuples of (hex_key, workspace_id, optional_name)
+    pub fn list(&self) -> Vec<(String, WorkspaceId, Option<String>)> {
+        self.inner
+            .read()
+            .keys
+            .iter()
+            .map(|(key, (ws, name))| {
+                let hex = key.iter().map(|b| format!("{:02x}", b)).collect();
+                (hex, *ws, name.clone())
+            })
+            .collect()
+    }
+
+    /// Find a key by name
+    ///
+    /// Returns the hex key string if found.
+    pub fn find_by_name(&self, name: &str) -> Option<String> {
+        self.inner
+            .read()
+            .keys
+            .iter()
+            .find(|(_, (_, n))| n.as_deref() == Some(name))
+            .map(|(key, _)| key.iter().map(|b| format!("{:02x}", b)).collect())
+    }
+
+    /// Remove a key by name
+    ///
+    /// Returns the workspace ID if found and removed.
+    pub fn remove_by_name(&self, name: &str) -> Option<WorkspaceId> {
+        let mut inner = self.inner.write();
+        let key_to_remove = inner
+            .keys
+            .iter()
+            .find(|(_, (_, n))| n.as_deref() == Some(name))
+            .map(|(k, _)| *k);
+
+        if let Some(key) = key_to_remove {
+            inner.keys.remove(&key).map(|(ws, _)| ws)
+        } else {
+            None
+        }
+    }
+
+    /// Generate a new random API key with a name
+    ///
+    /// Returns the hex string of the generated key.
+    pub fn generate(&self, workspace: WorkspaceId, name: String) -> String {
+        let mut key = [0u8; API_KEY_LENGTH];
+        rand::thread_rng().fill_bytes(&mut key);
+
+        let hex: String = key.iter().map(|b| format!("{:02x}", b)).collect();
+        self.inner.write().keys.insert(key, (workspace, Some(name)));
+
+        hex
+    }
+
+    /// Check if a name is already in use
+    pub fn name_exists(&self, name: &str) -> bool {
+        self.inner
+            .read()
+            .keys
+            .values()
+            .any(|(_, n)| n.as_deref() == Some(name))
     }
 }
 
 /// Parse a single line from the API keys file
-fn parse_line(line: &str, line_num: usize) -> Result<(ApiKey, WorkspaceId)> {
-    // Find colon separator
-    let colon_pos = line
-        .find(':')
-        .ok_or_else(|| AuthError::parse_error(line_num, "missing colon separator"))?;
+///
+/// Format: `hex_key:workspace_id` or `hex_key:workspace_id:name`
+fn parse_line(line: &str, line_num: usize) -> Result<(ApiKey, WorkspaceId, Option<String>)> {
+    let parts: Vec<&str> = line.splitn(3, ':').collect();
 
-    let hex_key = &line[..colon_pos];
-    let workspace_id = &line[colon_pos + 1..];
+    if parts.len() < 2 {
+        return Err(AuthError::parse_error(line_num, "missing colon separator"));
+    }
+
+    let hex_key = parts[0];
+    let workspace_id = parts[1].trim();
+    let name = parts
+        .get(2)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
 
     // Validate hex key length
     if hex_key.len() != API_KEY_HEX_LENGTH {
@@ -311,7 +425,6 @@ fn parse_line(line: &str, line_num: usize) -> Result<(ApiKey, WorkspaceId)> {
     let key = parse_hex_key(hex_key, line_num)?;
 
     // Validate and parse workspace ID as u32
-    let workspace_id = workspace_id.trim();
     if workspace_id.is_empty() {
         return Err(AuthError::empty_workspace(line_num));
     }
@@ -326,7 +439,7 @@ fn parse_line(line: &str, line_num: usize) -> Result<(ApiKey, WorkspaceId)> {
         )
     })?;
 
-    Ok((key, WorkspaceId::new(ws_id)))
+    Ok((key, WorkspaceId::new(ws_id), name))
 }
 
 /// Parse a hex string into a 16-byte API key

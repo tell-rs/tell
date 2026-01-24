@@ -3,7 +3,6 @@ name = "tell-routing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 description = "Routing rules and pre-compiled routing tables for Tell"
 
 [dependencies]

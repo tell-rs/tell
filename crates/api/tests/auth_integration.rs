@@ -22,8 +22,10 @@ async fn test_app() -> Router {
     let state = AppState {
         metrics: Arc::new(create_mock_metrics_engine()),
         auth,
+        auth_service: None,
         control: Some(control),
         user_store: None,
+        local_user_store: None,
         jwt_secret: Some(test_utils::TEST_SECRET.to_vec()),
         jwt_expires_in: std::time::Duration::from_secs(3600),
         server_metrics: None,

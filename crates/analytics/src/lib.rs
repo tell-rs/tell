@@ -59,10 +59,13 @@ mod timeseries_test;
 // Re-exports for convenience
 pub use builder::QueryBuilder;
 pub use error::{AnalyticsError, Result};
-pub use filter::{CompareMode, Condition, ConditionValue, Filter, Granularity, Operator};
+pub use filter::{
+    CompareMode, Condition, ConditionValue, Filter, Granularity, MAX_LIMIT, Operator,
+};
 pub use metrics::{
     ActiveUsersMetric, ActiveUsersType, EventCountMetric, LogVolumeMetric, Metric, MetricsEngine,
     SessionsMetric, SessionsType, StickinessMetric, StickinessType, TopEventsMetric, TopLogsMetric,
+    TopSessionsMetric, UsersMetric,
 };
 pub use timerange::TimeRange;
 pub use timeseries::{

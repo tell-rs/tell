@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AnalyticsError, Result};
 use crate::timerange::TimeRange;
 
+/// Maximum allowed limit for query results
+pub const MAX_LIMIT: u32 = 10_000;
+
 /// A complete filter for analytics queries
 #[derive(Debug, Clone)]
 pub struct Filter {
@@ -14,23 +17,25 @@ pub struct Filter {
     pub time_range: TimeRange,
     /// Filter conditions (WHERE clauses)
     pub conditions: Vec<Condition>,
-    /// Time granularity for aggregation
-    pub granularity: Granularity,
+    /// Time granularity for aggregation (None = rolling window / single aggregate)
+    pub granularity: Option<Granularity>,
     /// Optional breakdown dimension (GROUP BY)
     pub breakdown: Option<String>,
     /// Comparison mode
     pub compare: Option<CompareMode>,
-    /// Result limit
+    /// Result limit (max 10,000)
     pub limit: Option<u32>,
 }
 
 impl Filter {
     /// Create a new filter with a time range
+    ///
+    /// Defaults to Daily granularity. Use `with_rolling_window()` for aggregate queries.
     pub fn new(time_range: TimeRange) -> Self {
         Self {
             time_range,
             conditions: Vec::new(),
-            granularity: Granularity::Daily,
+            granularity: Some(Granularity::Daily),
             breakdown: None,
             compare: None,
             limit: None,
@@ -45,7 +50,15 @@ impl Filter {
 
     /// Set the granularity
     pub fn with_granularity(mut self, granularity: Granularity) -> Self {
-        self.granularity = granularity;
+        self.granularity = Some(granularity);
+        self
+    }
+
+    /// Set rolling window mode (no time bucketing, returns single aggregate)
+    ///
+    /// Use this for queries that should return a single value instead of time series.
+    pub fn with_rolling_window(mut self) -> Self {
+        self.granularity = None;
         self
     }
 
@@ -61,10 +74,15 @@ impl Filter {
         self
     }
 
-    /// Set result limit
+    /// Set result limit (capped at MAX_LIMIT)
     pub fn with_limit(mut self, limit: u32) -> Self {
-        self.limit = Some(limit);
+        self.limit = Some(limit.min(MAX_LIMIT));
         self
+    }
+
+    /// Check if this filter uses rolling window mode (no granularity)
+    pub fn is_rolling_window(&self) -> bool {
+        self.granularity.is_none()
     }
 }
 

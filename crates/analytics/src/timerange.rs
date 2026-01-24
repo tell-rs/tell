@@ -119,6 +119,19 @@ impl TimeRange {
                 start: start_of_year(now),
                 end: today_end,
             }),
+            // Month shortcuts (calendar months, not 30-day approximations)
+            "3m" => Some(Self {
+                start: start_of_day(shift_months(now, -3)),
+                end: today_end,
+            }),
+            "6m" => Some(Self {
+                start: start_of_day(shift_months(now, -6)),
+                end: today_end,
+            }),
+            "12m" => Some(Self {
+                start: start_of_day(shift_months(now, -12)),
+                end: today_end,
+            }),
             _ => None,
         }
     }
@@ -266,4 +279,44 @@ fn shift_year(dt: DateTime<Utc>, years: i32) -> DateTime<Utc> {
         .and_then(|d| d.and_hms_opt(dt.hour(), dt.minute(), dt.second()))
         .map(|t| t.and_utc())
         .unwrap_or(dt)
+}
+
+/// Shift a date by a number of months (positive or negative)
+///
+/// Handles month/year boundaries correctly. If the target day doesn't exist
+/// (e.g., Jan 31 - 1 month = Dec 31, not Feb 31), uses the last day of the month.
+fn shift_months(dt: DateTime<Utc>, months: i32) -> DateTime<Utc> {
+    use chrono::Datelike;
+
+    let total_months = dt.month() as i32 + months;
+    let year_delta = if total_months <= 0 {
+        (total_months - 12) / 12
+    } else {
+        (total_months - 1) / 12
+    };
+
+    let new_year = dt.year() + year_delta;
+    let new_month = ((total_months - 1).rem_euclid(12) + 1) as u32;
+
+    // Try to keep the same day, but clamp to last day of month if needed
+    let day = dt.day();
+    dt.date_naive()
+        .with_year(new_year)
+        .and_then(|d| d.with_month(new_month))
+        .and_then(|d| d.with_day(day).or_else(|| last_day_of_month(d)))
+        .and_then(|d| d.and_hms_opt(dt.hour(), dt.minute(), dt.second()))
+        .map(|t| t.and_utc())
+        .unwrap_or(dt)
+}
+
+/// Get the last day of the month for a given date
+fn last_day_of_month(date: NaiveDate) -> Option<NaiveDate> {
+    use chrono::Datelike;
+    let (year, month) = (date.year(), date.month());
+    let next_month = if month == 12 {
+        NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        NaiveDate::from_ymd_opt(year, month + 1, 1)
+    };
+    next_month.map(|d| d - Duration::days(1))
 }

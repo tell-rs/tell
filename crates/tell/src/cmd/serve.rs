@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use tell_license::{LicenseState, load_license};
 use tokio::signal;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -23,6 +24,10 @@ use tell_connectors::ShopifyConnectorConfig;
 use tell_connectors::{ConnectorScheduler, ScheduledConnector};
 use tell_metrics::{
     PipelineMetricsProvider, SinkMetricsProvider, SourceMetricsProvider, UnifiedReporter,
+};
+use tell_telemetry::{
+    Collector as TelemetryCollector, ConfigShape, PipelineMetrics as TelemetryPipelineMetrics,
+    ReporterConfig as TelemetryReporterConfig, ReporterHandle as TelemetryHandle,
 };
 
 use crate::cmd::api_server::{ServerMetricsConfig, start_api_server_with_metrics};
@@ -43,6 +48,7 @@ use tell_sources::{
     HttpSource, HttpSourceConfig, ShardedSender, SyslogTcpSource, SyslogTcpSourceConfig,
     SyslogUdpSource, SyslogUdpSourceConfig,
 };
+#[cfg(unix)]
 use tell_tap::{TapPoint, TapServer, TapServerConfig};
 
 use std::collections::HashMap;
@@ -65,11 +71,30 @@ pub async fn run(args: ServeArgs) -> Result<()> {
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "(default)".to_string());
 
+    // Check license status
+    let license_state = load_license(None);
+    if !license_state.can_serve() {
+        error!("License expired. Please renew at https://tell.rs/renew");
+        if let LicenseState::Expired(lic) = &license_state {
+            error!(
+                customer = %lic.customer_name(),
+                expired = %lic.payload.expires,
+                "License expired"
+            );
+        }
+        return Err(anyhow::anyhow!(
+            "Cannot start server: license expired. Renew at https://tell.rs/renew"
+        ));
+    }
+
+    // Log license status
+    let license_display = license_state.display();
     info!(
         version = env!("CARGO_PKG_VERSION"),
         platform = std::env::consts::OS,
         arch = std::env::consts::ARCH,
         config = %config_path,
+        license = %license_display,
         "Tell starting"
     );
 
@@ -174,11 +199,14 @@ async fn run_server(config: Config) -> Result<()> {
     // Get router metrics handle before running
     let router_metrics_handle = router.metrics_handle();
 
-    // Create and configure tap point for live streaming (always enabled, zero-cost when idle)
+    // Create and configure tap point for live streaming (Unix only, zero-cost when idle)
+    #[cfg(unix)]
     let tap_point = Arc::new(TapPoint::new());
+    #[cfg(unix)]
     router.set_tap_point(Arc::clone(&tap_point));
 
     // Start tap maintenance task (rate limit resets, cleanup)
+    #[cfg(unix)]
     let tap_maintenance = tap_point.spawn_maintenance();
 
     // Build and register transformer chains from routing rules
@@ -233,16 +261,23 @@ async fn run_server(config: Config) -> Result<()> {
 
     info!(sink_count = router.sink_count(), "sinks registered");
 
-    // Start tap server for live streaming (Unix socket)
+    // Start tap server for live streaming (Unix socket, Unix only)
+    #[cfg(unix)]
     let tap_server_config = TapServerConfig::default();
+    #[cfg(unix)]
     let tap_socket_path = tap_server_config.socket_path.clone();
+    #[cfg(unix)]
     let tap_server = TapServer::new(Arc::clone(&tap_point), tap_server_config);
+    #[cfg(unix)]
     let tap_server_task = tap_server.spawn();
 
+    #[cfg(unix)]
     info!(
         socket = %tap_socket_path.display(),
         "tap server started (use `tell tail` to connect)"
     );
+    #[cfg(not(unix))]
+    info!("tap server not available on this platform (Unix only)");
 
     // Spawn router workers (one per shard)
     let router_tasks = router.run_sharded(receivers);
@@ -295,10 +330,14 @@ async fn run_server(config: Config) -> Result<()> {
         None
     };
 
+    // Start telemetry reporter if enabled
+    let telemetry_handle = start_telemetry(&config).await;
+
     info!(
         source_count = source_tasks.len(),
         connector_count = config.connectors.len(),
         metrics_enabled = config.metrics.enabled,
+        telemetry_enabled = config.telemetry.enabled,
         api_port = config.api_server.port,
         "Tell server running"
     );
@@ -350,7 +389,9 @@ async fn run_server(config: Config) -> Result<()> {
     }
 
     // Clean up remaining tasks
+    #[cfg(unix)]
     tap_server_task.abort();
+    #[cfg(unix)]
     tap_maintenance.abort();
     api_server_task.abort();
     if let Some(task) = metrics_task {
@@ -360,7 +401,13 @@ async fn run_server(config: Config) -> Result<()> {
         task.abort();
     }
 
-    // Clean up tap socket
+    // Shutdown telemetry gracefully (sends final payload)
+    if let Some(handle) = telemetry_handle {
+        let _ = handle.shutdown();
+    }
+
+    // Clean up tap socket (Unix only)
+    #[cfg(unix)]
     if tap_socket_path.exists() {
         let _ = std::fs::remove_file(&tap_socket_path);
     }
@@ -1332,6 +1379,107 @@ async fn start_connector_scheduler(
             _ = scheduler_task => {}
         }
     }))
+}
+
+/// Start telemetry reporter if enabled
+async fn start_telemetry(config: &Config) -> Option<TelemetryHandle> {
+    if !config.telemetry.enabled {
+        info!("telemetry disabled");
+        return None;
+    }
+
+    // Load or generate install ID
+    let install_id_path = tell_telemetry::default_install_id_path();
+    let install_id = match TelemetryCollector::load_or_create_install_id(&install_id_path) {
+        Ok(id) => id,
+        Err(e) => {
+            warn!(error = %e, "failed to load/create install ID, generating ephemeral");
+            TelemetryCollector::generate_install_id()
+        }
+    };
+
+    // Create collector
+    let collector = TelemetryCollector::new(install_id);
+
+    // Build config shape from loaded config
+    let config_shape = build_config_shape(config);
+
+    // Create reporter config from tell_config
+    let reporter_config = TelemetryReporterConfig {
+        enabled: config.telemetry.enabled,
+        interval: config.telemetry.interval,
+    };
+
+    // Spawn reporter
+    let handle = tell_telemetry::spawn_reporter(reporter_config);
+
+    // Send initial telemetry payload
+    let payload = collector.collect(config_shape, TelemetryPipelineMetrics::default());
+    if let Err(e) = handle.send(payload) {
+        warn!(error = %e, "failed to queue initial telemetry");
+    }
+
+    info!(
+        tcp = %tell_telemetry::endpoint::tcp_addr(),
+        interval_days = config.telemetry.interval.as_secs() / 86400,
+        "telemetry enabled"
+    );
+
+    Some(handle)
+}
+
+/// Build ConfigShape from loaded config for telemetry
+fn build_config_shape(config: &Config) -> ConfigShape {
+    // Collect source types
+    let mut sources = Vec::new();
+    if !config.sources.tcp.is_empty() {
+        sources.push("tcp".to_string());
+    }
+    if config.sources.tcp_debug.is_some() {
+        sources.push("tcp_debug".to_string());
+    }
+    if config.sources.syslog_tcp.is_some() {
+        sources.push("syslog_tcp".to_string());
+    }
+    if config.sources.syslog_udp.is_some() {
+        sources.push("syslog_udp".to_string());
+    }
+    if config.sources.http.is_some() {
+        sources.push("http".to_string());
+    }
+
+    // Collect sink types
+    let sinks: Vec<String> = config
+        .sinks
+        .iter()
+        .map(|(_, sink)| sink.type_name().to_string())
+        .collect();
+
+    // Collect connector types
+    let connectors: Vec<String> = config
+        .connectors
+        .iter()
+        .filter(|(_, c)| c.is_enabled())
+        .map(|(_, c)| c.connector_type.clone())
+        .collect();
+
+    // Collect transformer types from routing rules
+    let mut transformers = Vec::new();
+    for rule in &config.routing.rules {
+        for t in &rule.transformers {
+            if !transformers.contains(&t.transformer_type) {
+                transformers.push(t.transformer_type.clone());
+            }
+        }
+    }
+
+    ConfigShape {
+        sources,
+        sinks,
+        connectors,
+        transformers,
+        routing_rules: config.routing.rules.len() as u32,
+    }
 }
 
 /// Generate a random API key and write it to the specified file

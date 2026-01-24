@@ -45,13 +45,26 @@ pub mod repos;
 pub use db::ControlPlane;
 pub use error::{ControlError, Result};
 pub use models::{
-    Block, BlockPosition, Board, BoardLayout, BoardSettings, InviteStatus, MemberRole,
-    MemberStatus, MetricBlock, NoteBlock, ResourceType, SharedLink, UserApiKey, VisualizationType,
-    Workspace, WorkspaceInvite, WorkspaceMembership, WorkspaceSettings, WorkspaceStatus,
+    AxisConfig, Block, BlockPosition, Board, BoardLayout, BoardSettings, ChartAxisConfig,
+    DisplayConfig, FilterConfig, InviteStatus, MAX_METRIC_BLOCKS, MAX_NOTE_BLOCKS,
+    MAX_SERIES_PER_BLOCK, MemberRole, MemberStatus, MetricBlock, MetricQueryConfig, NoteBlock,
+    QueryConfig, ResourceType, SavedMetric, SeriesConfig, SharedLink, UserApiKey,
+    VisualizationType, Workspace, WorkspaceInvite, WorkspaceMembership, WorkspaceSettings,
+    WorkspaceStatus,
 };
-pub use repos::{ApiKeyRepo, BoardRepo, InviteRepo, SharingRepo, WorkspaceRepo};
+pub use repos::{
+    ApiKeyRepo, BoardRepo, InviteRepo, MetricRepo, Session, SharingRepo, User, UserRepo,
+    WorkspaceRepo,
+};
 
 impl ControlPlane {
+    /// Get user repository for the control database
+    ///
+    /// Users, sessions, and token revocation are stored in the control database.
+    pub fn users(&self) -> UserRepo<'_> {
+        UserRepo::new(self.control_db())
+    }
+
     /// Get workspace repository for the control database
     pub fn workspaces(&self) -> WorkspaceRepo<'_> {
         WorkspaceRepo::new(self.control_db())
@@ -70,6 +83,14 @@ impl ControlPlane {
     /// Use `workspace_db(workspace_id).await?` to get it first.
     pub fn boards<'a>(db: &'a turso::Database) -> BoardRepo<'a> {
         BoardRepo::new(db)
+    }
+
+    /// Get saved metric repository for a workspace database
+    ///
+    /// Note: The caller must provide the workspace database reference.
+    /// Use `workspace_db(workspace_id).await?` to get it first.
+    pub fn metrics<'a>(db: &'a turso::Database) -> MetricRepo<'a> {
+        MetricRepo::new(db)
     }
 
     /// Get API key repository for the control database

@@ -3,7 +3,6 @@ name = "tell"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
 description = "Analytics that tell the whole story"
 
 [features]
@@ -70,6 +69,8 @@ tell-analytics = { workspace = true }
 # API server (for api command)
 tell-api = { workspace = true }
 tell-control = { workspace = true }
+tell-telemetry = { workspace = true }
+tell-license = { workspace = true }
 axum = { workspace = true }
 tower-http = { workspace = true }
 rand = { workspace = true }

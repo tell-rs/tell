@@ -30,7 +30,7 @@ criterion/
 crates/protocol/src/generated/
 
 # Local config (use config.example.yaml as template)
-config.yaml
+config.toml
 configs/apikeys.conf
 
 # Logs and data (at repo root only)

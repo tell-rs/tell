@@ -28,8 +28,10 @@ async fn test_app() -> (Router, Arc<ControlPlane>) {
     let state = AppState {
         metrics: Arc::new(create_mock_metrics_engine()),
         auth,
+        auth_service: None,
         control: Some(control.clone()),
         user_store: None,
+        local_user_store: None,
         jwt_secret: Some(test_utils::TEST_SECRET.to_vec()),
         jwt_expires_in: std::time::Duration::from_secs(3600),
         server_metrics: None,
@@ -54,6 +56,28 @@ fn auth_request(method: Method, uri: &str, token: &str, body: Option<Value>) -> 
         .uri(uri)
         .header(header::AUTHORIZATION, format!("Bearer {}", token))
         .header(header::CONTENT_TYPE, "application/json");
+
+    if let Some(json_body) = body {
+        builder.body(Body::from(json_body.to_string())).unwrap()
+    } else {
+        builder.body(Body::empty()).unwrap()
+    }
+}
+
+/// Helper to make authenticated requests with workspace ID header
+fn workspace_request(
+    method: Method,
+    uri: &str,
+    token: &str,
+    workspace_id: &str,
+    body: Option<Value>,
+) -> Request<Body> {
+    let builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("X-Workspace-ID", workspace_id);
 
     if let Some(json_body) = body {
         builder.body(Body::from(json_body.to_string())).unwrap()
@@ -121,13 +145,13 @@ async fn test_create_board_requires_editor() {
     );
     control.workspaces().add_member(&membership).await.unwrap();
 
-    let request = auth_request(
+    let request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &viewer_token,
+        &workspace_id,
         Some(json!({
-            "title": "My Board",
-            "workspace_id": workspace_id
+            "title": "My Board"
         })),
     );
 
@@ -147,14 +171,14 @@ async fn test_create_board() {
     init_workspace_db(&control, &workspace_id).await;
 
     // Create board
-    let request = auth_request(
+    let request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &token,
+        &workspace_id,
         Some(json!({
             "title": "My Dashboard",
-            "description": "A test dashboard",
-            "workspace_id": workspace_id
+            "description": "A test dashboard"
         })),
     );
 
@@ -181,25 +205,20 @@ async fn test_list_boards() {
 
     // Create two boards
     for i in 1..=2 {
-        let request = auth_request(
+        let request = workspace_request(
             Method::POST,
             "/api/v1/boards",
             &token,
+            &workspace_id,
             Some(json!({
-                "title": format!("Board {}", i),
-                "workspace_id": workspace_id
+                "title": format!("Board {}", i)
             })),
         );
         let _ = app.clone().oneshot(request).await.unwrap();
     }
 
     // List boards
-    let request = auth_request(
-        Method::GET,
-        &format!("/api/v1/boards?workspace_id={}", workspace_id),
-        &token,
-        None,
-    );
+    let request = workspace_request(Method::GET, "/api/v1/boards", &token, &workspace_id, None);
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -218,13 +237,13 @@ async fn test_get_board() {
     let workspace_id = create_workspace(&app, &token, "Test Workspace", "test-ws").await;
     init_workspace_db(&control, &workspace_id).await;
 
-    let create_request = auth_request(
+    let create_request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &token,
+        &workspace_id,
         Some(json!({
-            "title": "Get Test Board",
-            "workspace_id": workspace_id
+            "title": "Get Test Board"
         })),
     );
 
@@ -233,10 +252,11 @@ async fn test_get_board() {
     let board_id = created["id"].as_str().unwrap();
 
     // Get board
-    let get_request = auth_request(
+    let get_request = workspace_request(
         Method::GET,
-        &format!("/api/v1/boards/{}?workspace_id={}", board_id, workspace_id),
+        &format!("/api/v1/boards/{}", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -257,13 +277,13 @@ async fn test_update_board_owner() {
     let workspace_id = create_workspace(&app, &token, "Test Workspace", "test-ws").await;
     init_workspace_db(&control, &workspace_id).await;
 
-    let create_request = auth_request(
+    let create_request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &token,
+        &workspace_id,
         Some(json!({
-            "title": "Original Title",
-            "workspace_id": workspace_id
+            "title": "Original Title"
         })),
     );
 
@@ -272,10 +292,11 @@ async fn test_update_board_owner() {
     let board_id = created["id"].as_str().unwrap();
 
     // Update board as owner
-    let update_request = auth_request(
+    let update_request = workspace_request(
         Method::PUT,
-        &format!("/api/v1/boards/{}?workspace_id={}", board_id, workspace_id),
+        &format!("/api/v1/boards/{}", board_id),
         &token,
+        &workspace_id,
         Some(json!({
             "title": "Updated Title"
         })),
@@ -297,13 +318,13 @@ async fn test_update_board_requires_ownership() {
     let workspace_id = create_workspace(&app, &user1_token, "Test Workspace", "test-ws").await;
     init_workspace_db(&control, &workspace_id).await;
 
-    let create_request = auth_request(
+    let create_request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &user1_token,
+        &workspace_id,
         Some(json!({
-            "title": "User1's Board",
-            "workspace_id": workspace_id
+            "title": "User1's Board"
         })),
     );
 
@@ -322,10 +343,11 @@ async fn test_update_board_requires_ownership() {
     );
     control.workspaces().add_member(&membership).await.unwrap();
 
-    let update_request = auth_request(
+    let update_request = workspace_request(
         Method::PUT,
-        &format!("/api/v1/boards/{}?workspace_id={}", board_id, workspace_id),
+        &format!("/api/v1/boards/{}", board_id),
         &user2_token,
+        &workspace_id,
         Some(json!({
             "title": "Hijacked Board"
         })),
@@ -344,13 +366,13 @@ async fn test_delete_board() {
     let workspace_id = create_workspace(&app, &token, "Test Workspace", "test-ws").await;
     init_workspace_db(&control, &workspace_id).await;
 
-    let create_request = auth_request(
+    let create_request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &token,
+        &workspace_id,
         Some(json!({
-            "title": "To Delete",
-            "workspace_id": workspace_id
+            "title": "To Delete"
         })),
     );
 
@@ -359,10 +381,11 @@ async fn test_delete_board() {
     let board_id = created["id"].as_str().unwrap();
 
     // Delete board
-    let delete_request = auth_request(
+    let delete_request = workspace_request(
         Method::DELETE,
-        &format!("/api/v1/boards/{}?workspace_id={}", board_id, workspace_id),
+        &format!("/api/v1/boards/{}", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -370,10 +393,11 @@ async fn test_delete_board() {
     assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);
 
     // Verify it's gone
-    let get_request = auth_request(
+    let get_request = workspace_request(
         Method::GET,
-        &format!("/api/v1/boards/{}?workspace_id={}", board_id, workspace_id),
+        &format!("/api/v1/boards/{}", board_id),
         &token,
+        &workspace_id,
         None,
     );
 
@@ -390,13 +414,13 @@ async fn test_pin_board() {
     let workspace_id = create_workspace(&app, &token, "Test Workspace", "test-ws").await;
     init_workspace_db(&control, &workspace_id).await;
 
-    let create_request = auth_request(
+    let create_request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &token,
+        &workspace_id,
         Some(json!({
-            "title": "Pinnable Board",
-            "workspace_id": workspace_id
+            "title": "Pinnable Board"
         })),
     );
 
@@ -406,13 +430,11 @@ async fn test_pin_board() {
     assert!(!created["is_pinned"].as_bool().unwrap());
 
     // Pin the board
-    let pin_request = auth_request(
+    let pin_request = workspace_request(
         Method::PUT,
-        &format!(
-            "/api/v1/boards/{}/pin?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/pin", board_id),
         &token,
+        &workspace_id,
         Some(json!({ "pinned": true })),
     );
 
@@ -423,13 +445,11 @@ async fn test_pin_board() {
     assert!(json["is_pinned"].as_bool().unwrap());
 
     // List pinned boards
-    let list_request = auth_request(
+    let list_request = workspace_request(
         Method::GET,
-        &format!(
-            "/api/v1/boards?workspace_id={}&pinned_only=true",
-            workspace_id
-        ),
+        "/api/v1/boards?pinned_only=true",
         &token,
+        &workspace_id,
         None,
     );
 
@@ -440,13 +460,11 @@ async fn test_pin_board() {
     assert!(boards[0]["is_pinned"].as_bool().unwrap());
 
     // Unpin
-    let unpin_request = auth_request(
+    let unpin_request = workspace_request(
         Method::PUT,
-        &format!(
-            "/api/v1/boards/{}/pin?workspace_id={}",
-            board_id, workspace_id
-        ),
+        &format!("/api/v1/boards/{}/pin", board_id),
         &token,
+        &workspace_id,
         Some(json!({ "pinned": false })),
     );
 
@@ -466,13 +484,13 @@ async fn test_workspace_isolation_boards() {
     let workspace1_id = create_workspace(&app, &user1_token, "Workspace 1", "ws-1").await;
     init_workspace_db(&control, &workspace1_id).await;
 
-    let create_request = auth_request(
+    let create_request = workspace_request(
         Method::POST,
         "/api/v1/boards",
         &user1_token,
+        &workspace1_id,
         Some(json!({
-            "title": "User1 Board",
-            "workspace_id": workspace1_id
+            "title": "User1 Board"
         })),
     );
     let _ = app.clone().oneshot(create_request).await.unwrap();
@@ -483,10 +501,11 @@ async fn test_workspace_isolation_boards() {
     init_workspace_db(&control, &workspace2_id).await;
 
     // User 2 lists boards in workspace1 (should fail - not a member)
-    let list_request = auth_request(
+    let list_request = workspace_request(
         Method::GET,
-        &format!("/api/v1/boards?workspace_id={}", workspace1_id),
+        "/api/v1/boards",
         &user2_token,
+        &workspace1_id,
         None,
     );
 

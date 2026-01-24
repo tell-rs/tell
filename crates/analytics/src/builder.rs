@@ -3,8 +3,10 @@
 //! Builds ClickHouse-compatible SQL queries with support for:
 //! - Time range filtering
 //! - Conditions (WHERE clauses)
-//! - Granularity-based aggregation
+//! - Granularity-based aggregation (or rolling window for single values)
 //! - Breakdown dimensions (GROUP BY)
+//! - JSON field access (properties.field)
+//! - IPv6 normalization for source_ip
 
 use crate::filter::{Condition, ConditionValue, Filter, Granularity, Operator};
 
@@ -122,6 +124,22 @@ impl QueryBuilder {
         self
     }
 
+    /// Optionally add time bucket if granularity is set
+    ///
+    /// For rolling window mode (None granularity), no time bucketing is added,
+    /// resulting in a single aggregate value.
+    pub fn with_optional_time_bucket(
+        self,
+        granularity: Option<Granularity>,
+        timestamp_col: &str,
+        alias: &str,
+    ) -> Self {
+        match granularity {
+            Some(g) => self.with_time_bucket(g, timestamp_col, alias),
+            None => self, // Rolling window - no time bucketing
+        }
+    }
+
     /// Add breakdown dimension
     pub fn with_breakdown(mut self, field: &str) -> Self {
         self.select.push(field.to_string());
@@ -130,6 +148,8 @@ impl QueryBuilder {
     }
 
     /// Build the final SQL query
+    ///
+    /// Debug logging can be enabled via RUST_LOG=tell_analytics=debug
     pub fn build(self) -> String {
         let mut sql = String::new();
 
@@ -168,13 +188,27 @@ impl QueryBuilder {
             sql.push_str(&format!(" LIMIT {}", limit));
         }
 
+        // Debug logging for SQL queries
+        tracing::debug!(
+            sql = %sql,
+            table = %self.table,
+            "analytics query built"
+        );
+
         sql
     }
 }
 
 /// Convert a Condition to a SQL WHERE clause
 fn condition_to_sql(condition: &Condition) -> Option<String> {
-    let field = escape_identifier(&condition.field);
+    let field_name = &condition.field;
+
+    // Special handling for source_ip field (IPv6 normalization)
+    if field_name == "source_ip" {
+        return condition_to_sql_ipv6(condition);
+    }
+
+    let field = format_field(field_name);
 
     match (&condition.operator, &condition.value) {
         (Operator::Eq, ConditionValue::Single(v)) => {
@@ -224,6 +258,86 @@ fn condition_to_sql(condition: &Condition) -> Option<String> {
     }
 }
 
+/// Handle IPv6 source_ip field with proper normalization
+///
+/// ClickHouse stores IPs as FixedString(16) in IPv6 format, so we need to use
+/// IPv6StringToNum() for comparison.
+fn condition_to_sql_ipv6(condition: &Condition) -> Option<String> {
+    match (&condition.operator, &condition.value) {
+        (Operator::Eq, ConditionValue::Single(v)) => {
+            let ip = normalize_ip(v);
+            Some(format!(
+                "source_ip = IPv6StringToNum('{}')",
+                escape_string(&ip)
+            ))
+        }
+        (Operator::Ne, ConditionValue::Single(v)) => {
+            let ip = normalize_ip(v);
+            Some(format!(
+                "source_ip != IPv6StringToNum('{}')",
+                escape_string(&ip)
+            ))
+        }
+        (Operator::In, ConditionValue::Multiple(values)) => {
+            let ips: Vec<String> = values
+                .iter()
+                .map(|v| format!("IPv6StringToNum('{}')", escape_string(&normalize_ip(v))))
+                .collect();
+            Some(format!("source_ip IN ({})", ips.join(", ")))
+        }
+        (Operator::NotIn, ConditionValue::Multiple(values)) => {
+            let ips: Vec<String> = values
+                .iter()
+                .map(|v| format!("IPv6StringToNum('{}')", escape_string(&normalize_ip(v))))
+                .collect();
+            Some(format!("source_ip NOT IN ({})", ips.join(", ")))
+        }
+        (Operator::IsSet, _) => Some("source_ip IS NOT NULL".to_string()),
+        (Operator::IsNotSet, _) => Some("source_ip IS NULL".to_string()),
+        _ => None, // Other operators don't make sense for IPs
+    }
+}
+
+/// Normalize an IP address to IPv6 format for ClickHouse
+///
+/// IPv4 addresses are converted to IPv4-mapped IPv6 format (::ffff:x.x.x.x)
+fn normalize_ip(ip: &str) -> String {
+    let ip = ip.trim();
+    // If it's an IPv4 address (contains dots, no colons), convert to IPv4-mapped IPv6
+    if ip.contains('.') && !ip.contains(':') {
+        format!("::ffff:{}", ip)
+    } else {
+        ip.to_string()
+    }
+}
+
+/// Format a field name for SQL, handling JSON path access
+///
+/// - Simple field: `event_name` → `event_name`
+/// - JSON path: `properties.page` → `JSONExtractString(properties, 'page')`
+/// - Nested JSON: `properties.user.id` → `JSONExtractString(properties, 'user', 'id')`
+fn format_field(field: &str) -> String {
+    if field.contains('.') {
+        // JSON path access
+        let parts: Vec<&str> = field.splitn(2, '.').collect();
+        if parts.len() == 2 {
+            let base = escape_identifier(parts[0]);
+            let path_parts: Vec<&str> = parts[1].split('.').collect();
+            let path_args: String = path_parts
+                .iter()
+                .map(|p| format!("'{}'", escape_string(p)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            // Use toString() wrapper for ClickHouse JSON compatibility
+            format!("toString(JSONExtractString({}, {}))", base, path_args)
+        } else {
+            escape_identifier(field)
+        }
+    } else {
+        escape_identifier(field)
+    }
+}
+
 /// Escape a string value for SQL (prevent injection)
 fn escape_string(s: &str) -> String {
     s.replace('\'', "''").replace('\\', "\\\\")
@@ -249,6 +363,8 @@ fn escape_like(s: &str) -> String {
 }
 
 /// Build a count distinct query
+///
+/// Supports both time series (with granularity) and rolling window (without) modes.
 pub fn count_distinct_query(
     table: &str,
     distinct_col: &str,
@@ -256,16 +372,18 @@ pub fn count_distinct_query(
     timestamp_col: &str,
 ) -> String {
     QueryBuilder::new(table)
-        .with_time_bucket(filter.granularity, timestamp_col, "date")
+        .with_optional_time_bucket(filter.granularity, timestamp_col, "date")
         .select_as(format!("COUNT(DISTINCT {})", distinct_col), "value")
         .apply_filter(filter, timestamp_col)
         .build()
 }
 
 /// Build a count query
+///
+/// Supports both time series (with granularity) and rolling window (without) modes.
 pub fn count_query(table: &str, filter: &Filter, timestamp_col: &str) -> String {
     QueryBuilder::new(table)
-        .with_time_bucket(filter.granularity, timestamp_col, "date")
+        .with_optional_time_bucket(filter.granularity, timestamp_col, "date")
         .select_as("COUNT(*)", "value")
         .apply_filter(filter, timestamp_col)
         .build()
@@ -290,6 +408,8 @@ pub fn top_n_query(
 }
 
 /// Build a query with breakdown dimension
+///
+/// Supports both time series (with granularity) and rolling window (without) modes.
 pub fn breakdown_query(
     table: &str,
     agg_expr: &str,
@@ -298,7 +418,7 @@ pub fn breakdown_query(
     timestamp_col: &str,
 ) -> String {
     QueryBuilder::new(table)
-        .with_time_bucket(filter.granularity, timestamp_col, "date")
+        .with_optional_time_bucket(filter.granularity, timestamp_col, "date")
         .select(breakdown_field)
         .select_as(agg_expr, "value")
         .apply_filter(filter, timestamp_col)

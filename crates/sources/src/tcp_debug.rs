@@ -35,12 +35,14 @@
 //! logging add significant overhead. Use only for debugging protocol issues.
 
 use std::net::SocketAddr;
+#[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::{Buf, BytesMut};
+#[cfg(unix)]
 use socket2::{Socket, TcpKeepalive};
 use tell_auth::ApiKeyStore;
 use tell_protocol::{
@@ -817,9 +819,10 @@ impl TcpDebugSource {
         Ok(())
     }
 
-    /// Configure socket options using socket2
+    /// Configure socket options using socket2 (Unix only)
     ///
     /// Sets nodelay, buffer sizes, and keepalive matching Go's SetupTCPConn.
+    #[cfg(unix)]
     fn configure_socket(&self, stream: &TcpStream) -> Result<(), TcpSourceError> {
         let fd = stream.as_raw_fd();
 
@@ -851,6 +854,14 @@ impl TcpDebugSource {
         // Don't close the fd - tokio owns it
         std::mem::forget(socket);
 
+        Ok(())
+    }
+
+    /// Configure socket - no-op on Windows (tokio handles defaults)
+    #[cfg(not(unix))]
+    fn configure_socket(&self, _stream: &TcpStream) -> Result<(), TcpSourceError> {
+        // On Windows, we skip the advanced socket configuration.
+        // Tokio's defaults are generally sufficient.
         Ok(())
     }
 }

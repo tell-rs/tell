@@ -53,7 +53,7 @@ impl LogVolumeMetric {
         }
 
         let mut builder = QueryBuilder::new(table)
-            .with_time_bucket(filter.granularity, "timestamp", "date")
+            .with_optional_time_bucket(filter.granularity, "timestamp", "date")
             .select_as("COUNT(*)", "value")
             .apply_filter(&filter, "timestamp");
 

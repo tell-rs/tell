@@ -37,7 +37,10 @@ use axum::{
 };
 use serde::Deserialize;
 
-use tell_auth::{AuthError as TellAuthError, AuthProvider, Role, UserInfo};
+use tell_auth::{
+    AuthError as TellAuthError, AuthProvider, LocalUserStore, Permission, Role, UserInfo,
+    WorkspaceAccess,
+};
 
 /// Maximum token size (8KB) - prevents memory exhaustion attacks
 const MAX_TOKEN_SIZE: usize = 8 * 1024;
@@ -53,6 +56,14 @@ pub trait HasAuthProvider: Send + Sync {
     fn auth_provider(&self) -> Arc<dyn AuthProvider>;
 }
 
+/// Trait for app state that provides a user store for workspace validation
+///
+/// Implement this trait if you want to use ValidatedWorkspace extractor.
+pub trait HasUserStore: Send + Sync {
+    /// Get the user store (optional)
+    fn user_store(&self) -> Option<Arc<LocalUserStore>>;
+}
+
 /// Error returned when authentication fails
 #[derive(Debug)]
 pub enum AuthError {
@@ -66,6 +77,10 @@ pub enum AuthError {
     TokenExpired,
     /// Insufficient permissions (role required)
     InsufficientPermissions(Role),
+    /// Workspace access denied
+    WorkspaceAccessDenied,
+    /// Workspace ID missing
+    MissingWorkspace,
 }
 
 impl IntoResponse for AuthError {
@@ -90,6 +105,16 @@ impl IntoResponse for AuthError {
                 StatusCode::FORBIDDEN,
                 "INSUFFICIENT_PERMISSIONS",
                 "Insufficient permissions",
+            ),
+            Self::WorkspaceAccessDenied => (
+                StatusCode::FORBIDDEN,
+                "WORKSPACE_ACCESS_DENIED",
+                "You do not have access to this workspace",
+            ),
+            Self::MissingWorkspace => (
+                StatusCode::BAD_REQUEST,
+                "MISSING_WORKSPACE",
+                "Workspace ID is required (X-Workspace-ID header or workspace_id query param)",
             ),
         };
 
@@ -116,7 +141,7 @@ struct TokenQuery {
 /// 3. Cookie (auth_token)
 ///
 /// Returns None if token exceeds MAX_TOKEN_SIZE
-fn extract_token(parts: &Parts) -> Option<String> {
+pub fn extract_token(parts: &Parts) -> Option<String> {
     // Try Authorization header
     if let Some(token) = extract_from_auth_header(parts) {
         return if token.len() <= MAX_TOKEN_SIZE {
@@ -383,6 +408,166 @@ fn extract_workspace_from_query(parts: &Parts) -> Option<u64> {
 
     let params: WorkspaceQuery = serde_urlencoded::from_str(query).ok()?;
     params.workspace_id
+}
+
+/// Extract workspace ID as string from header or query
+fn extract_workspace_id_string(parts: &Parts) -> Option<String> {
+    // Try X-Workspace-ID header first
+    if let Some(header) = parts.headers.get("x-workspace-id")
+        && header.len() <= 64
+        && let Ok(s) = header.to_str()
+    {
+        return Some(s.to_string());
+    }
+
+    // Try query parameter
+    if let Some(query) = parts.uri.query()
+        && query.len() <= 1024
+    {
+        #[derive(Deserialize)]
+        struct WsQuery {
+            workspace_id: Option<String>,
+        }
+        if let Ok(params) = serde_urlencoded::from_str::<WsQuery>(query)
+            && let Some(ws) = params.workspace_id
+        {
+            return Some(ws);
+        }
+    }
+
+    None
+}
+
+/// Validated workspace access extractor
+///
+/// Validates that the authenticated user has access to the requested workspace.
+/// Extracts workspace ID from X-Workspace-ID header or workspace_id query param.
+///
+/// # Requirements
+///
+/// - User must be authenticated (AuthUser must succeed)
+/// - Workspace ID must be provided
+/// - User must be an active member of the workspace
+///
+/// # Example
+///
+/// ```ignore
+/// async fn handler(workspace: ValidatedWorkspace) -> impl IntoResponse {
+///     // User is guaranteed to have access to this workspace
+///     format!("Workspace: {}, Role: {}", workspace.workspace_id, workspace.role)
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct ValidatedWorkspace(pub WorkspaceAccess);
+
+impl std::ops::Deref for ValidatedWorkspace {
+    type Target = WorkspaceAccess;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ValidatedWorkspace {
+    /// Check if the user has a specific permission in this workspace
+    pub fn has_permission(&self, permission: Permission) -> bool {
+        self.0.has_permission(permission)
+    }
+
+    /// Check if the user is an admin of this workspace
+    pub fn is_admin(&self) -> bool {
+        self.0.is_admin()
+    }
+
+    /// Check if the user can create content in this workspace
+    pub fn can_create(&self) -> bool {
+        self.0.can_create()
+    }
+}
+
+impl<S> FromRequestParts<S> for ValidatedWorkspace
+where
+    S: HasAuthProvider + HasUserStore + Send + Sync,
+{
+    type Rejection = AuthError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        // First, authenticate the user
+        let token = extract_token(parts).ok_or(AuthError::MissingToken)?;
+
+        let provider = state.auth_provider();
+        let user = provider.validate(&token).await.map_err(|e| match e {
+            TellAuthError::TokenExpired => AuthError::TokenExpired,
+            TellAuthError::MissingToken => AuthError::MissingToken,
+            _ => AuthError::InvalidToken,
+        })?;
+
+        // Get workspace ID from request
+        let workspace_id = extract_workspace_id_string(parts).ok_or(AuthError::MissingWorkspace)?;
+
+        // Get user store for membership validation
+        let user_store = state.user_store().ok_or(AuthError::WorkspaceAccessDenied)?;
+
+        // Validate workspace access
+        let access = user_store
+            .validate_workspace_access(&user.id, &workspace_id)
+            .await
+            .map_err(|_| AuthError::WorkspaceAccessDenied)?;
+
+        Ok(ValidatedWorkspace(access))
+    }
+}
+
+/// Optional validated workspace extractor
+///
+/// Like ValidatedWorkspace, but returns None if:
+/// - No workspace ID is provided
+/// - User doesn't have access
+/// - User store is not configured (single-tenant mode)
+///
+/// Useful for endpoints that work in both single-tenant and multi-tenant modes.
+#[derive(Debug, Clone)]
+pub struct OptionalValidatedWorkspace(pub Option<WorkspaceAccess>);
+
+impl<S> FromRequestParts<S> for OptionalValidatedWorkspace
+where
+    S: HasAuthProvider + HasUserStore + Send + Sync,
+{
+    type Rejection = AuthError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        // First, authenticate the user
+        let token = match extract_token(parts) {
+            Some(t) => t,
+            None => return Ok(OptionalValidatedWorkspace(None)),
+        };
+
+        let provider = state.auth_provider();
+        let user = match provider.validate(&token).await {
+            Ok(u) => u,
+            Err(_) => return Ok(OptionalValidatedWorkspace(None)),
+        };
+
+        // Get workspace ID from request
+        let workspace_id = match extract_workspace_id_string(parts) {
+            Some(id) => id,
+            None => return Ok(OptionalValidatedWorkspace(None)),
+        };
+
+        // Get user store for membership validation
+        let user_store = match state.user_store() {
+            Some(store) => store,
+            None => return Ok(OptionalValidatedWorkspace(None)),
+        };
+
+        // Validate workspace access
+        let access = user_store
+            .validate_workspace_access(&user.id, &workspace_id)
+            .await
+            .ok();
+
+        Ok(OptionalValidatedWorkspace(access))
+    }
 }
 
 /// Public paths that don't require authentication

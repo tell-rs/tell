@@ -10,10 +10,15 @@
 #![allow(dead_code)]
 
 mod action;
+mod api;
 mod app;
+mod commands;
 mod component;
 mod event;
+#[cfg(unix)]
+mod tap;
 mod theme;
+mod ui;
 
 mod components;
 

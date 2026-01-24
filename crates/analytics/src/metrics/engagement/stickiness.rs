@@ -65,7 +65,7 @@ impl StickinessMetric {
         };
 
         QueryBuilder::new(table)
-            .with_time_bucket(filter.granularity, "timestamp", "date")
+            .with_optional_time_bucket(filter.granularity, "timestamp", "date")
             .select_as(agg, "value")
             .apply_filter(filter, "timestamp")
             .build()

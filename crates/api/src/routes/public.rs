@@ -9,7 +9,7 @@ use axum::{
 };
 use serde::Serialize;
 
-use tell_control::{BoardSettings, ControlPlane, ResourceType};
+use tell_control::{BoardSettings, ControlPlane, MetricQueryConfig, ResourceType};
 
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -27,6 +27,14 @@ pub struct SharedBoardView {
     pub is_pinned: bool,
 }
 
+/// Public view of a shared metric (read-only, no sensitive data)
+#[derive(Debug, Serialize)]
+pub struct SharedMetricView {
+    pub title: String,
+    pub description: Option<String>,
+    pub query: MetricQueryConfig,
+}
+
 // =============================================================================
 // Routes
 // =============================================================================
@@ -37,6 +45,7 @@ pub fn routes() -> Router<AppState> {
 
     Router::new()
         .route("/b/{hash}", get(view_shared_board))
+        .route("/m/{hash}", get(view_shared_metric))
         // Rate limit share link access - prevents brute force hash guessing
         // 60 req/min is generous for legitimate use but blocks enumeration
         .layer(RateLimitLayer::new(RateLimitConfig::new(60, 60)))
@@ -96,5 +105,57 @@ async fn view_shared_board(
         description: board.description,
         settings: board.settings,
         is_pinned: board.is_pinned,
+    }))
+}
+
+/// View a shared metric
+///
+/// GET /s/m/{hash}
+///
+/// No authentication required - the hash validates access.
+async fn view_shared_metric(
+    Path(hash): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<SharedMetricView>, ApiError> {
+    let control = state
+        .control
+        .as_ref()
+        .ok_or_else(|| ApiError::internal("Control plane not initialized"))?;
+
+    // Get the share link
+    let link = control
+        .sharing()
+        .get_by_hash(&hash)
+        .await
+        .map_err(|e| ApiError::internal(format!("Failed to get share link: {}", e)))?
+        .ok_or_else(|| ApiError::not_found("share_link", &hash))?;
+
+    // Check it's a metric share
+    if link.resource_type != ResourceType::Metric {
+        return Err(ApiError::not_found("share_link", &hash));
+    }
+
+    // Check expiration
+    if link.is_expired() {
+        return Err(ApiError::Forbidden("Share link has expired".to_string()));
+    }
+
+    // Get the metric from workspace database
+    let ws_db = control
+        .workspace_db(&link.workspace_id)
+        .await
+        .map_err(|e| ApiError::internal(format!("Failed to get workspace database: {}", e)))?;
+
+    let metric = ControlPlane::metrics(&ws_db)
+        .get_by_id(&link.resource_id)
+        .await
+        .map_err(|e| ApiError::internal(format!("Failed to get metric: {}", e)))?
+        .ok_or_else(|| ApiError::not_found("saved_metric", &link.resource_id))?;
+
+    // Return public view (no owner_id, workspace_id, etc.)
+    Ok(Json(SharedMetricView {
+        title: metric.title,
+        description: metric.description,
+        query: metric.query,
     }))
 }

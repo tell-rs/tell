@@ -2,21 +2,27 @@
 //!
 //! Endpoints for analytics metrics:
 //! - Active users (DAU, WAU, MAU)
-//! - Events (counts, top events)
+//! - Events (counts, top events, properties, custom aggregations)
 //! - Logs (volume, top logs)
-//! - Sessions
+//! - Sessions (volume, top, unique)
+//! - Users (volume)
 //! - Stickiness
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 
-use tell_analytics::{SessionsMetric, StickinessMetric, TopEventsMetric, TopLogsMetric};
+use tell_analytics::{
+    SessionsMetric, StickinessMetric, TopEventsMetric, TopLogsMetric, TopSessionsMetric,
+    UsersMetric,
+};
 
 use crate::auth::{AuthUser, WorkspaceId};
 use crate::error::Result;
 use crate::state::AppState;
-use crate::types::{ApiResponse, DrillDownParams, MetricParams, TopParams};
+use crate::types::{
+    ApiResponse, CustomMetricParams, DrillDownParams, LogParams, MetricParams, TopParams,
+};
 
 /// Build the metrics router
 pub fn routes() -> Router<AppState> {
@@ -32,6 +38,9 @@ pub fn routes() -> Router<AppState> {
         // Events
         .route("/events", get(get_events))
         .route("/events/top", get(get_top_events))
+        .route("/events/top/{event_name}/raw", get(get_top_event_raw))
+        .route("/events/properties", get(get_event_properties))
+        .route("/events/custom", get(get_events_custom))
         .route("/events/raw", get(get_events_raw))
         // Logs
         .route("/logs", get(get_logs))
@@ -39,13 +48,15 @@ pub fn routes() -> Router<AppState> {
         .route("/logs/raw", get(get_logs_raw))
         // Sessions
         .route("/sessions", get(get_sessions))
+        .route("/sessions/top", get(get_sessions_top))
         .route("/sessions/unique", get(get_sessions_unique))
         .route("/sessions/raw", get(get_sessions_raw))
+        // Users
+        .route("/users", get(get_users))
+        .route("/users/raw", get(get_users_raw))
         // Stickiness
         .route("/stickiness/daily", get(get_daily_stickiness))
         .route("/stickiness/weekly", get(get_weekly_stickiness))
-        // Users
-        .route("/users/raw", get(get_users_raw))
 }
 
 // ============================================================================
@@ -190,6 +201,68 @@ async fn get_events_raw(
     Ok(Json(ApiResponse::new(data)))
 }
 
+/// GET /api/v1/metrics/events/top/{event_name}/raw - Raw data for a specific top event
+async fn get_top_event_raw(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    workspace: WorkspaceId,
+    Path(event_name): Path<String>,
+    Query(params): Query<DrillDownParams>,
+) -> Result<Json<ApiResponse<tell_query::QueryResult>>> {
+    let mut filter = params.to_filter()?;
+    filter = filter.with_condition(tell_analytics::Condition::eq("event_name", &event_name));
+    let data = state
+        .metrics
+        .drill_down_events(&filter, workspace.0, params.limit)
+        .await?;
+    Ok(Json(ApiResponse::new(data)))
+}
+
+/// GET /api/v1/metrics/events/properties - Event property breakdown over time
+async fn get_event_properties(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    workspace: WorkspaceId,
+    Query(params): Query<TopParams>,
+) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
+    // Require both event and property params
+    let event = params.event.as_ref().ok_or_else(|| {
+        crate::error::ApiError::InvalidFilter("event parameter is required".to_string())
+    })?;
+    let property = params.property.as_ref().ok_or_else(|| {
+        crate::error::ApiError::InvalidFilter("property parameter is required".to_string())
+    })?;
+
+    let filter = params.to_filter()?;
+    let data = state
+        .metrics
+        .event_property_breakdown(event, property, &filter, workspace.0)
+        .await?;
+    Ok(Json(ApiResponse::new(data)))
+}
+
+/// GET /api/v1/metrics/events/custom - Custom event metric aggregation
+async fn get_events_custom(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    workspace: WorkspaceId,
+    Query(params): Query<CustomMetricParams>,
+) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
+    params.validate()?;
+    let filter = params.to_filter()?;
+    let data = state
+        .metrics
+        .custom_event_metric(
+            &params.event,
+            &params.property,
+            &params.metric,
+            &filter,
+            workspace.0,
+        )
+        .await?;
+    Ok(Json(ApiResponse::new(data)))
+}
+
 // ============================================================================
 // Logs
 // ============================================================================
@@ -199,7 +272,7 @@ async fn get_logs(
     State(state): State<AppState>,
     _user: AuthUser,
     workspace: WorkspaceId,
-    Query(params): Query<MetricParams>,
+    Query(params): Query<LogParams>,
 ) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
     let filter = params.to_filter()?;
     let data = state
@@ -209,7 +282,7 @@ async fn get_logs(
     Ok(Json(ApiResponse::new(data)))
 }
 
-/// GET /api/v1/metrics/logs/top - Top logs by level
+/// GET /api/v1/metrics/logs/top - Top logs by property
 async fn get_top_logs(
     State(state): State<AppState>,
     _user: AuthUser,
@@ -217,7 +290,9 @@ async fn get_top_logs(
     Query(params): Query<TopParams>,
 ) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
     let filter = params.to_filter()?;
-    let metric = TopLogsMetric::by_level(params.limit);
+    // Use property param to determine grouping, default to level
+    let property = params.property.as_deref().unwrap_or("level");
+    let metric = TopLogsMetric::by_field(property, params.limit);
     let data = state.metrics.execute(&metric, &filter, workspace.0).await?;
     Ok(Json(ApiResponse::new(data)))
 }
@@ -254,6 +329,21 @@ async fn get_sessions(
         .metrics
         .execute_with_comparison(&metric, &filter, workspace.0)
         .await?;
+    Ok(Json(ApiResponse::new(data)))
+}
+
+/// GET /api/v1/metrics/sessions/top - Top sessions by property
+async fn get_sessions_top(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    workspace: WorkspaceId,
+    Query(params): Query<TopParams>,
+) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
+    let filter = params.to_filter()?;
+    // Use property param to determine grouping, default to device_type
+    let by = params.property.as_deref().unwrap_or("device_type");
+    let metric = TopSessionsMetric::new(by, params.limit);
+    let data = state.metrics.execute(&metric, &filter, workspace.0).await?;
     Ok(Json(ApiResponse::new(data)))
 }
 
@@ -327,6 +417,22 @@ async fn get_weekly_stickiness(
 // ============================================================================
 // Users
 // ============================================================================
+
+/// GET /api/v1/metrics/users - User count over time
+async fn get_users(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    workspace: WorkspaceId,
+    Query(params): Query<MetricParams>,
+) -> Result<Json<ApiResponse<tell_analytics::TimeSeriesData>>> {
+    let filter = params.to_filter()?;
+    let metric = UsersMetric::count();
+    let data = state
+        .metrics
+        .execute_with_comparison(&metric, &filter, workspace.0)
+        .await?;
+    Ok(Json(ApiResponse::new(data)))
+}
 
 /// GET /api/v1/metrics/users/raw - Raw user/device data
 async fn get_users_raw(

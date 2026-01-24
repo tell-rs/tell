@@ -494,7 +494,7 @@ fn test_append_snapshots() {
 fn test_config_default() {
     let config = ArrowIpcConfig::default();
     assert_eq!(config.path, PathBuf::from("arrow_ipc"));
-    assert_eq!(config.rotation_interval, RotationInterval::Hourly);
+    assert_eq!(config.rotation_interval, RotationInterval::Daily);
     assert_eq!(config.buffer_size, 10_000);
     assert_eq!(config.flush_interval, Duration::from_secs(60));
 }

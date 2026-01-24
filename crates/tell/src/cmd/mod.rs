@@ -1,9 +1,11 @@
 //! Command implementations for the Tell CLI
 
 pub mod api_server;
+pub mod apikeys;
 pub mod auth;
 pub mod clickhouse;
 pub mod interactive;
+pub mod license;
 pub mod metrics;
 pub mod pull;
 pub mod query;
@@ -12,4 +14,5 @@ pub mod serve;
 pub mod status;
 #[cfg(unix)]
 pub mod tail;
+pub mod telemetry;
 pub mod test;
